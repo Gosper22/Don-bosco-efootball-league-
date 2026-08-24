@@ -1,2540 +1,2195 @@
-// ======================================================
-// DON BOSCO eFOOTBALL LEAGUE
-// FULL LEAGUE SCRIPT - GROUPS A TO H
-// ======================================================
-
-import { initializeApp } from
-  "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 
 import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  doc,
-  serverTimestamp
-} from
-  "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+getFirestore,
+collection,
+addDoc,
+getDocs,
+updateDoc,
+doc,
+serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-
-// ======================================================
+// =====================================================
 // FIREBASE
-// ======================================================
+// =====================================================
 
 const firebaseConfig = {
+apiKey: "AIzaSyDCjPMCRUSjPezL2WBfgLI5a-xGknsfrpo",
+authDomain: "don-bosco-efootball-league.firebaseapp.com",
+projectId: "don-bosco-efootball-league",
+storageBucket: "don-bosco-efootball-league.firebasestorage.app",
+messagingSenderId: "935312157026",
+appId: "1:935312157026:web:5f7e6cfbd615331538e43b"
+};
 
-  apiKey:
-    "AIzaSyDCjPMCRUSjPezL2WBfgLI5a-xGknsfrpo",
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-  authDomain:
-    "don-bosco-efootball-league.firebaseapp.com",
+// =====================================================
+// STATE
+// =====================================================
 
-  projectId:
-    "don-bosco-efootball-league",
+let players = [];
+let matches = [];
+let tournamentStarted = false;
+let adminLoggedIn = false;
 
-  storageBucket:
-    "don-bosco-efootball-league.firebasestorage.app",
+let tournamentSettings = {
+format: "groups",
+groupCount: 2
+};
 
-  messagingSenderId:
-    "935312157026",
+// =====================================================
+// START
+// =====================================================
 
-  appId:
-    "1:935312157026:web:5f7e6cfbd615331538e43b"
+document.addEventListener("DOMContentLoaded", () => {
+setupRegisterButtons();
+setupRegistration();
+setupAdminLogin();
+setupTournamentSettings();
+setupTournamentControls();
+
+loadLeague();
+});
+
+// =====================================================
+// REGISTER BUTTONS
+// =====================================================
+
+function setupRegisterButtons() {
+
+["registerBtn", "heroRegisterBtn"].forEach((id) => {
+
+const button = document.getElementById(id);
+
+if (!button) return;
+
+button.addEventListener("click", () => {
+
+  const section = document.getElementById("register");
+
+  if (!section) return;
+
+  section.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+});
+
+});
+
+}
+
+// =====================================================
+// REGISTRATION
+// =====================================================
+
+function setupRegistration() {
+
+const form = document.getElementById("registerForm");
+
+if (!form) return;
+
+form.addEventListener("submit", async (event) => {
+
+event.preventDefault();
+
+const teamNumber =
+  document.getElementById("teamNumber")?.value.trim();
+
+const name =
+  document.getElementById("name")?.value.trim();
+
+const phone =
+  document.getElementById("phone")?.value.trim();
+
+const username =
+  document.getElementById("username")?.value.trim();
+
+const message =
+  document.getElementById("message");
+
+const submit =
+  document.getElementById("submitBtn");
+
+
+if (!teamNumber || !name || !phone || !username) {
+
+  showMessage(
+    message,
+    "⚠️ Tafadhali jaza taarifa zote.",
+    "error"
+  );
+
+  return;
+}
+
+
+if (tournamentStarted) {
+
+  showMessage(
+    message,
+    "🔒 Registration imefungwa.",
+    "error"
+  );
+
+  return;
+}
+
+
+submit.disabled = true;
+submit.innerHTML = "<span>REGISTERING...</span>";
+
+
+try {
+
+  await loadPlayers();
+
+
+  if (players.length >= 32) {
+
+    showMessage(
+      message,
+      "🚫 Tournament imefikia maximum ya players 32.",
+      "error"
+    );
+
+    resetSubmit(submit);
+    return;
+  }
+
+
+  const sameTeam = players.some(
+    (player) =>
+      String(player.teamNumber || "") === teamNumber
+  );
+
+
+  if (sameTeam) {
+
+    showMessage(
+      message,
+      "❌ Team number hiyo tayari imetumika.",
+      "error"
+    );
+
+    resetSubmit(submit);
+    return;
+  }
+
+
+  const sameUsername = players.some(
+    (player) =>
+      String(player.username || "").toLowerCase() ===
+      username.toLowerCase()
+  );
+
+
+  if (sameUsername) {
+
+    showMessage(
+      message,
+      "❌ eFootball username hiyo tayari imesajiliwa.",
+      "error"
+    );
+
+    resetSubmit(submit);
+    return;
+  }
+
+
+  const playerNumber = players.length + 1;
+
+
+  await addDoc(
+    collection(db, "registrations"),
+    {
+      teamNumber: Number(teamNumber),
+      name: name,
+      phone: phone,
+      username: username,
+      playerNumber: playerNumber,
+      createdAt: serverTimestamp()
+    }
+  );
+
+
+  showMessage(
+    message,
+    "🎉 Registration successful! Player " +
+      playerNumber +
+      " amesajiliwa.",
+    "success"
+  );
+
+
+  form.reset();
+  resetSubmit(submit);
+
+  await loadLeague();
+
+} catch (error) {
+
+  console.error("Registration error:", error);
+
+  showMessage(
+    message,
+    "❌ Registration failed. Check Firebase.",
+    "error"
+  );
+
+  resetSubmit(submit);
+}
+
+});
+
+}
+
+// =====================================================
+// ADMIN LOGIN
+// =====================================================
+
+function setupAdminLogin() {
+
+const button =
+document.getElementById("adminLoginBtn");
+
+const password =
+document.getElementById("adminPassword");
+
+if (!button || !password) {
+
+console.error("Admin login elements missing.");
+return;
+
+}
+
+button.addEventListener("click", loginAdmin);
+
+password.addEventListener("keydown", (event) => {
+
+if (event.key === "Enter") {
+  loginAdmin();
+}
+
+});
+
+function loginAdmin() {
+
+const entered = password.value.trim();
+
+
+if (entered === "Gosper2026") {
+
+  adminLoggedIn = true;
+
+  const panel =
+    document.getElementById("adminPanel");
+
+  if (panel) {
+    panel.style.display = "block";
+  }
+
+
+  password.value = "";
+
+  button.textContent = "✅ ADMIN LOGGED IN";
+
+
+  showMessage(
+    document.getElementById("adminMessage"),
+    "✅ Admin access granted.",
+    "success"
+  );
+
+
+  loadAdminMatches();
+
+} else {
+
+  showMessage(
+    document.getElementById("adminMessage"),
+    "❌ Wrong admin password.",
+    "error"
+  );
+
+}
+
+}
+
+}
+
+// =====================================================
+// LOAD EVERYTHING
+// =====================================================
+
+async function loadLeague() {
+
+try {
+
+await loadPlayers();
+await loadMatches();
+await loadTournamentSettings();
+await loadTournamentStatus();
+
+updateSettingsPreview();
+
+updateTournamentUI();
+
+renderFormat();
+renderGroups();
+renderFixtures();
+renderStandings();
+
+if (adminLoggedIn) {
+  loadAdminMatches();
+}
+
+} catch (error) {
+
+console.error("League loading error:", error);
+
+}
+
+}
+
+// =====================================================
+// LOAD PLAYERS
+// =====================================================
+
+async function loadPlayers() {
+
+const snapshot =
+await getDocs(collection(db, "registrations"));
+
+players = snapshot.docs.map((item) => ({
+id: item.id,
+...item.data()
+}));
+
+players.sort((a, b) => {
+
+return (
+  Number(a.playerNumber || 999) -
+  Number(b.playerNumber || 999)
+);
+
+});
+
+}
+
+// =====================================================
+// LOAD MATCHES
+// =====================================================
+
+async function loadMatches() {
+
+const snapshot =
+await getDocs(collection(db, "matches"));
+
+matches = snapshot.docs.map((item) => ({
+id: item.id,
+...item.data()
+}));
+
+matches.sort((a, b) => {
+
+return (
+  Number(a.matchNumber || 999999) -
+  Number(b.matchNumber || 999999)
+);
+
+});
+
+}
+
+// =====================================================
+// LOAD SETTINGS
+// =====================================================
+
+async function loadTournamentSettings() {
+
+try {
+
+const snapshot =
+  await getDocs(collection(db, "settings"));
+
+
+if (snapshot.empty) {
+
+  tournamentSettings = {
+    format: "groups",
+    groupCount: 2
+  };
+
+  return;
+}
+
+
+const data =
+  snapshot.docs[0].data();
+
+
+tournamentSettings = {
+
+  format:
+    data.format === "league"
+      ? "league"
+      : "groups",
+
+  groupCount:
+    Math.max(
+      1,
+      Math.min(
+        16,
+        Number(data.groupCount || 2)
+      )
+    )
+
+};
+
+} catch (error) {
+
+console.error(
+  "Settings error:",
+  error
+);
+
+}
+
+}
+
+// =====================================================
+// ADMIN SETTINGS
+// =====================================================
+
+function setupTournamentSettings() {
+
+const format =
+document.getElementById("tournamentFormat");
+
+const groupCount =
+document.getElementById("groupCount");
+
+const save =
+document.getElementById("saveTournamentSettings");
+
+format?.addEventListener(
+"change",
+updateSettingsPreview
+);
+
+groupCount?.addEventListener(
+"change",
+updateSettingsPreview
+);
+
+save?.addEventListener(
+"click",
+saveSettings
+);
+
+updateSettingsPreview();
+
+}
+
+// =====================================================
+// SETTINGS PREVIEW
+// =====================================================
+
+function updateSettingsPreview() {
+
+const format =
+document.getElementById("tournamentFormat")?.value ||
+tournamentSettings.format ||
+"groups";
+
+const groupCount =
+Number(
+document.getElementById("groupCount")?.value ||
+tournamentSettings.groupCount ||
+2
+);
+
+const box =
+document.getElementById("groupCountBox");
+
+if (box) {
+
+box.style.display =
+  format === "groups"
+    ? "block"
+    : "none";
+
+}
+
+const display =
+document.getElementById("playersPerGroup");
+
+if (!display) return;
+
+if (format === "league") {
+
+display.textContent = "ALL";
+
+return;
+
+}
+
+const sizes =
+calculateGroupSizes(
+Math.max(players.length, 1),
+groupCount
+);
+
+if (!players.length) {
+
+display.textContent =
+  "WAITING";
+
+return;
+
+}
+
+display.textContent =
+Math.min(...sizes) +
+"–" +
+Math.max(...sizes);
+
+}
+
+// =====================================================
+// SAVE SETTINGS
+// =====================================================
+
+async function saveSettings() {
+
+if (!adminLoggedIn) {
+
+alert("🔐 Admin login kwanza.");
+return;
+
+}
+
+const format =
+document.getElementById("tournamentFormat")?.value ||
+"groups";
+
+const groupCount =
+Number(
+document.getElementById("groupCount")?.value || 2
+);
+
+if (format === "groups" && groupCount < 1) {
+
+alert("⚠️ Chagua number ya groups.");
+return;
+
+}
+
+try {
+
+const snapshot =
+  await getDocs(collection(db, "settings"));
+
+
+const data = {
+
+  format: format,
+  groupCount: groupCount,
+  updatedAt: serverTimestamp()
 
 };
 
 
-const app =
-  initializeApp(firebaseConfig);
+if (snapshot.empty) {
 
-const db =
-  getFirestore(app);
+  await addDoc(
+    collection(db, "settings"),
+    data
+  );
 
+} else {
 
-// ======================================================
-// GLOBAL DATA
-// ======================================================
+  await updateDoc(
+    doc(
+      db,
+      "settings",
+      snapshot.docs[0].id
+    ),
+    data
+  );
 
-let players = [];
-
-let matches = [];
-
-let tournamentStarted = false;
-
-
-// ======================================================
-// GROUPS
-// ======================================================
-
-const groupLetters = [
-  "A",
-  "B",
-  "C",
-  "D",
-  "E",
-  "F",
-  "G",
-  "H"
-];
+}
 
 
-// ======================================================
-// 4 PLAYERS = 6 MATCHES
-// ======================================================
-
-const fixturePairs = [
-
-  [0, 1],
-  [0, 2],
-  [0, 3],
-  [1, 2],
-  [1, 3],
-  [2, 3]
-
-];
+tournamentSettings = {
+  format: format,
+  groupCount: groupCount
+};
 
 
-// ======================================================
-// PAGE LOADED
-// ======================================================
-
-document.addEventListener(
-  "DOMContentLoaded",
-  async function () {
-
-    setupRegisterButtons();
-
-    setupRegistration();
-
-    setupAdmin();
-
-    setupTournamentControl();
-
-    await loadLeague();
-
-  }
+showMessage(
+  document.getElementById("settingsMessage"),
+  "✅ Tournament settings saved.",
+  "success"
 );
 
 
-// ======================================================
-// REGISTER BUTTONS
-// ======================================================
+await loadLeague();
 
-function setupRegisterButtons() {
+} catch (error) {
 
-  const buttons = [
+console.error(
+  "Save settings error:",
+  error
+);
 
-    document.getElementById(
-      "registerBtn"
-    ),
 
-    document.getElementById(
-      "heroRegisterBtn"
+showMessage(
+  document.getElementById("settingsMessage"),
+  "❌ Failed to save settings.",
+  "error"
+);
+
+}
+
+}
+
+// =====================================================
+// GROUP SIZE
+// =====================================================
+
+function calculateGroupSizes(totalPlayers, groupCount) {
+
+if (totalPlayers <= 0) {
+return [];
+}
+
+const count =
+Math.max(
+1,
+Math.min(
+Number(groupCount),
+totalPlayers
+)
+);
+
+const base =
+Math.floor(totalPlayers / count);
+
+const remainder =
+totalPlayers % count;
+
+const sizes = [];
+
+for (let i = 0; i < count; i++) {
+
+sizes.push(
+  base + (i < remainder ? 1 : 0)
+);
+
+}
+
+return sizes;
+
+}
+
+// =====================================================
+// GROUP LETTER
+// =====================================================
+
+function groupLetter(index) {
+
+let result = "";
+let number = index + 1;
+
+while (number > 0) {
+
+number--;
+
+result =
+  String.fromCharCode(
+    65 + (number % 26)
+  ) +
+  result;
+
+number =
+  Math.floor(number / 26);
+
+}
+
+return result;
+
+}
+
+// =====================================================
+// GET GROUPS
+// =====================================================
+
+function getGroups() {
+
+const count =
+Math.max(
+1,
+Number(tournamentSettings.groupCount || 2)
+);
+
+const groups = [];
+
+if (tournamentSettings.format === "league") {
+
+return [
+  {
+    name: "LEAGUE",
+    shortName: "LEAGUE",
+    players: [...players]
+  }
+];
+
+}
+
+const sizes =
+calculateGroupSizes(
+players.length,
+count
+);
+
+let position = 0;
+
+for (let i = 0; i < count; i++) {
+
+const size = sizes[i] || 0;
+
+
+groups.push({
+
+  name:
+    "GROUP " + groupLetter(i),
+
+  shortName:
+    groupLetter(i),
+
+  players:
+    players.slice(
+      position,
+      position + size
     )
 
-  ];
+});
 
 
-  buttons.forEach(
-    function (button) {
+position += size;
 
-      if (!button) return;
+}
 
+return groups;
 
-      button.addEventListener(
-        "click",
-        function () {
+}
 
-          const section =
-            document.getElementById(
-              "register"
-            );
+// =====================================================
+// FORMAT DISPLAY
+// =====================================================
 
+function renderFormat() {
 
-          if (!section) return;
+const description =
+document.getElementById("formatDescription");
 
+const display =
+document.getElementById("formatDisplay");
 
-          section.style.display =
-            "block";
+if (description) {
 
+if (tournamentSettings.format === "league") {
 
-          section.scrollIntoView({
+  description.textContent =
+    "TABLE LEAGUE • " +
+    players.length +
+    " registered players.";
 
-            behavior:
-              "smooth",
+} else {
 
-            block:
-              "start"
+  description.textContent =
+    tournamentSettings.groupCount +
+    " GROUPS • " +
+    players.length +
+    " PLAYERS";
 
-          });
+}
 
-        }
-      );
+}
 
-    }
-  );
+if (!display) return;
+
+display.innerHTML = "";
+
+const card =
+document.createElement("div");
+
+card.className = "group-card";
+
+if (tournamentSettings.format === "league") {
+
+card.innerHTML =
+  "<div class='group-title'>" +
+  "<span>FORMAT</span>" +
+  "<strong>TABLE LEAGUE</strong>" +
+  "</div>" +
+  "<div class='group-player'>" +
+  "<strong>" +
+  players.length +
+  " PLAYERS REGISTERED" +
+  "</strong>" +
+  "</div>";
+
+} else {
+
+card.innerHTML =
+  "<div class='group-title'>" +
+  "<span>FORMAT</span>" +
+  "<strong>" +
+  tournamentSettings.groupCount +
+  " GROUPS" +
+  "</strong>" +
+  "</div>" +
+  "<div class='group-player'>" +
+  "<strong>" +
+  "Groups " +
+  groupLetter(0) +
+  " – " +
+  groupLetter(
+    tournamentSettings.groupCount - 1
+  ) +
+  "</strong>" +
+  "</div>";
+
+}
+
+display.appendChild(card);
+
+}
+
+// =====================================================
+// RENDER GROUPS
+// =====================================================
+
+function renderGroups() {
+
+const grid =
+document.getElementById("groupsGrid");
+
+const description =
+document.getElementById("groupsDescription");
+
+if (!grid) return;
+
+grid.innerHTML = "";
+
+// TABLE LEAGUE
+if (tournamentSettings.format === "league") {
+
+if (description) {
+
+  description.textContent =
+    "TABLE LEAGUE • " +
+    players.length +
+    " players";
 
 }
 
 
-// ======================================================
-// REGISTRATION
-// ======================================================
+const card =
+  document.createElement("div");
 
-function setupRegistration() {
 
-  const form =
-    document.getElementById(
-      "registerForm"
-    );
+card.className = "group-card";
 
-  const submit =
-    document.getElementById(
-      "submitBtn"
-    );
 
-  const message =
-    document.getElementById(
-      "message"
-    );
+card.innerHTML =
+  "<div class='group-title'>" +
+  "<span>FORMAT</span>" +
+  "<strong>TABLE LEAGUE</strong>" +
+  "</div>" +
+  "<div class='group-player'>" +
+  "<strong>" +
+  (players.length
+    ? players.length + " PLAYERS"
+    : "WAITING FOR PLAYERS") +
+  "</strong>" +
+  "</div>";
 
 
-  if (!form) return;
+grid.appendChild(card);
 
-
-  form.addEventListener(
-    "submit",
-    async function (event) {
-
-      event.preventDefault();
-
-
-      const name =
-        document.getElementById(
-          "name"
-        )?.value.trim();
-
-
-      const phone =
-        document.getElementById(
-          "phone"
-        )?.value.trim();
-
-
-      const username =
-        document.getElementById(
-          "username"
-        )?.value.trim();
-
-
-      if (
-        !name ||
-        !phone ||
-        !username
-      ) {
-
-        message.textContent =
-          "⚠️ Tafadhali jaza taarifa zote.";
-
-        message.className =
-          "message error";
-
-        return;
-
-      }
-
-
-      if (tournamentStarted) {
-
-        message.textContent =
-          "🔒 Tournament tayari imeanza. Registration imefungwa.";
-
-        message.className =
-          "message error";
-
-        return;
-
-      }
-
-
-      if (players.length >= 32) {
-
-        message.textContent =
-          "🚫 League is FULL! Players 32 tayari wamejisajili.";
-
-        message.className =
-          "message error";
-
-        return;
-
-      }
-
-
-      submit.disabled =
-        true;
-
-      submit.innerHTML =
-        "<span>CHECKING...</span>";
-
-
-      try {
-
-        const snapshot =
-          await getDocs(
-            collection(
-              db,
-              "registrations"
-            )
-          );
-
-
-        const registered =
-          snapshot.docs.map(
-            function (item) {
-
-              return item.data();
-
-            }
-          );
-
-
-        if (
-          registered.length >= 32
-        ) {
-
-          message.textContent =
-            "🚫 League is FULL! Players 32 tayari wamejisajili.";
-
-          message.className =
-            "message error";
-
-          resetSubmit(submit);
-
-          return;
-
-        }
-
-
-        const duplicate =
-          registered.some(
-            function (player) {
-
-              return (
-
-                String(
-                  player.username || ""
-                ).toLowerCase() ===
-
-                username.toLowerCase()
-
-              );
-
-            }
-          );
-
-
-        if (duplicate) {
-
-          message.textContent =
-            "❌ Username hiyo tayari imesajiliwa.";
-
-          message.className =
-            "message error";
-
-          resetSubmit(submit);
-
-          return;
-
-        }
-
-
-        const playerNumber =
-          registered.length + 1;
-
-
-        await addDoc(
-          collection(
-            db,
-            "registrations"
-          ),
-          {
-
-            name:
-              name,
-
-            phone:
-              phone,
-
-            username:
-              username,
-
-            playerNumber:
-              playerNumber,
-
-            createdAt:
-              serverTimestamp()
-
-          }
-        );
-
-
-        message.textContent =
-          `🎉 Registration successful! Player ${playerNumber} of 32.`;
-
-        message.className =
-          "message success";
-
-
-        form.reset();
-
-
-        resetSubmit(
-          submit
-        );
-
-
-        await loadLeague();
-
-      }
-
-      catch (error) {
-
-        console.error(
-          "Registration error:",
-          error
-        );
-
-
-        message.textContent =
-          "❌ Registration failed. Please try again.";
-
-        message.className =
-          "message error";
-
-
-        resetSubmit(
-          submit
-        );
-
-      }
-
-    }
-  );
+return;
 
 }
 
+// GROUPS
+const groups =
+getGroups();
 
-// ======================================================
-// RESET SUBMIT
-// ======================================================
+if (description) {
 
-function resetSubmit(button) {
-
-  if (!button) return;
-
-
-  button.disabled =
-    false;
-
-
-  button.innerHTML =
-    "<span>REGISTER PLAYER</span><span>→</span>";
+description.textContent =
+  groups.length +
+  " groups • Players distributed automatically";
 
 }
 
+groups.forEach((group) => {
 
-// ======================================================
-// LOAD EVERYTHING
-// ======================================================
+const card =
+  document.createElement("div");
 
-async function loadLeague() {
 
-  try {
+card.className = "group-card";
 
-    await loadPlayers();
 
-    await loadMatches();
+card.innerHTML =
+  "<div class='group-title'>" +
+  "<span>GROUP</span>" +
+  "<strong>" +
+  escapeHTML(group.shortName) +
+  "</strong>" +
+  "</div>";
 
-    await loadTournamentStatus();
 
-    createGroups();
+if (group.players.length === 0) {
 
-    createAllFixtures();
+  card.innerHTML +=
+    "<div class='group-player'>" +
+    "<strong>WAITING FOR PLAYERS</strong>" +
+    "</div>";
 
-    createAllStandings();
+} else {
 
-    loadAdminFixtures();
+  group.players.forEach((player, index) => {
 
-    updateTournamentStatus();
+    card.innerHTML +=
+      "<div class='group-player'>" +
 
-  }
+      "<span>" +
+      String(index + 1).padStart(2, "0") +
+      "</span>" +
 
-  catch (error) {
-
-    console.error(
-      "League loading error:",
-      error
-    );
-
-  }
-
-}
-
-
-// ======================================================
-// LOAD PLAYERS
-// ======================================================
-
-async function loadPlayers() {
-
-  const snapshot =
-    await getDocs(
-      collection(
-        db,
-        "registrations"
-      )
-    );
-
-
-  players =
-    snapshot.docs.map(
-      function (item) {
-
-        return {
-
-          id:
-            item.id,
-
-          ...item.data()
-
-        };
-
-      }
-    );
-
-
-  players.sort(
-    function (a, b) {
-
-      return (
-
-        (a.playerNumber || 999) -
-        (b.playerNumber || 999)
-
-      );
-
-    }
-  );
-
-}
-
-
-// ======================================================
-// LOAD MATCHES
-// ======================================================
-
-async function loadMatches() {
-
-  const snapshot =
-    await getDocs(
-      collection(
-        db,
-        "matches"
-      )
-    );
-
-
-  matches =
-    snapshot.docs.map(
-      function (item) {
-
-        return {
-
-          id:
-            item.id,
-
-          ...item.data()
-
-        };
-
-      }
-    );
-
-
-  matches.sort(
-    function (a, b) {
-
-      return (
-        (a.matchNumber || 9999) -
-        (b.matchNumber || 9999)
-      );
-
-    }
-  );
-
-}
-
-
-// ======================================================
-// TOURNAMENT STATUS
-// ======================================================
-
-async function loadTournamentStatus() {
-
-  try {
-
-    const snapshot =
-      await getDocs(
-        collection(
-          db,
-          "tournament"
-        )
-      );
-
-
-    tournamentStarted =
-      snapshot.docs.some(
-        function (item) {
-
-          return (
-            item.data().status ===
-            "started"
-          );
-
-        }
-      );
-
-  }
-
-  catch (error) {
-
-    console.error(
-      "Tournament status error:",
-      error
-    );
-
-    tournamentStarted =
-      false;
-
-  }
-
-}
-
-
-// ======================================================
-// CREATE GROUPS
-// ======================================================
-
-function createGroups() {
-
-  const grid =
-    document.getElementById(
-      "groupsGrid"
-    );
-
-
-  if (!grid) return;
-
-
-  grid.innerHTML =
-    "";
-
-
-  groupLetters.forEach(
-    function (
-      letter,
-      groupIndex
-    ) {
-
-      const card =
-        document.createElement(
-          "div"
-        );
-
-
-      card.className =
-        "group-card";
-
-
-      card.innerHTML = `
-
-        <div class="group-title">
-
-          <span>GROUP</span>
-
-          <strong>
-            ${letter}
-          </strong>
-
-        </div>
-
-      `;
-
-
-      for (
-        let i = 0;
-        i < 4;
-        i++
-      ) {
-
-        const player =
-          players[
-            groupIndex * 4 + i
-          ];
-
-
-        const row =
-          document.createElement(
-            "div"
-          );
-
-
-        row.className =
-          "group-player";
-
-
-        const playerName =
-          player
-            ? (
-                player.username ||
-                player.name
-              )
-            : "Waiting...";
-
-
-        row.innerHTML = `
-
-          <span>
-            ${String(
-              i + 1
-            ).padStart(2, "0")}
-          </span>
-
-          <strong>
-            ${escapeHTML(playerName)}
-          </strong>
-
-        `;
-
-
-        card.appendChild(
-          row
-        );
-
-      }
-
-
-      grid.appendChild(
-        card
-      );
-
-    }
-  );
-
-}
-
-
-// ======================================================
-// ALL FIXTURES PUBLIC
-// ======================================================
-
-function createAllFixtures() {
-
-  const container =
-    document.getElementById(
-      "fixturesGrid"
-    );
-
-
-  if (!container) return;
-
-
-  container.innerHTML =
-    "";
-
-
-  groupLetters.forEach(
-    function (
-      letter,
-      groupIndex
-    ) {
-
-      const groupPlayers =
-        players.slice(
-          groupIndex * 4,
-          groupIndex * 4 + 4
-        );
-
-
-      const section =
-        document.createElement(
-          "div"
-        );
-
-
-      section.className =
-        "group-fixtures";
-
-
-      section.innerHTML = `
-
-        <div class="section-heading">
-
-          <span>GROUP ${letter}</span>
-
-          <h2>
-            GROUP
-            <strong>${letter} FIXTURES</strong>
-          </h2>
-
-        </div>
-
-      `;
-
-
-      const list =
-        document.createElement(
-          "div"
-        );
-
-
-      list.className =
-        "fixtures-container";
-
-
-      if (
-        groupPlayers.length < 4
-      ) {
-
-        list.innerHTML = `
-
-          <div class="groups-loading">
-
-            ⏳ Waiting for 4 players...
-
-          </div>
-
-        `;
-
-
-        section.appendChild(
-          list
-        );
-
-
-        container.appendChild(
-          section
-        );
-
-
-        return;
-
-      }
-
-
-      fixturePairs.forEach(
-        function (
-          pair
-        ) {
-
-          const home =
-            groupPlayers[
-              pair[0]
-            ];
-
-
-          const away =
-            groupPlayers[
-              pair[1]
-            ];
-
-
-          const homeName =
-            home.username ||
-            home.name;
-
-
-          const awayName =
-            away.username ||
-            away.name;
-
-
-          const match =
-            findMatch(
-              letter,
-              homeName,
-              awayName
-            );
-
-
-          const fixture =
-            document.createElement(
-              "div"
-            );
-
-
-          fixture.className =
-            "fixture";
-
-
-          fixture.innerHTML = `
-
-            <div class="fixture-players">
-
-              <strong>
-                ${escapeHTML(homeName)}
-              </strong>
-
-              <span>
-                VS
-              </span>
-
-              <strong>
-                ${escapeHTML(awayName)}
-              </strong>
-
-            </div>
-
-            <div class="match-schedule">
-
-              📅
-              ${
-                match?.date ||
-                "Schedule pending"
-              }
-
-              &nbsp;&nbsp;
-
-              ⏰
-              ${
-                match?.time ||
-                "--:--"
-              }
-
-            </div>
-
-            <div class="match-status">
-
-              ${
-                match?.played === true
-                  ? `${match.homeGoals} - ${match.awayGoals}`
-                  : "UPCOMING"
-              }
-
-            </div>
-
-          `;
-
-
-          list.appendChild(
-            fixture
-          );
-
-        }
-      );
-
-
-      section.appendChild(
-        list
-      );
-
-
-      container.appendChild(
-        section
-      );
-
-    }
-  );
-
-}
-
-
-// ======================================================
-// FIND MATCH
-// ======================================================
-
-function findMatch(
-  group,
-  home,
-  away
-) {
-
-  return matches.find(
-    function (match) {
-
-      return (
-
-        match.group === group &&
-
-        match.homePlayer === home &&
-
-        match.awayPlayer === away
-
-      );
-
-    }
-  );
-
-}
-
-
-// ======================================================
-// ALL STANDINGS
-// ======================================================
-
-function createAllStandings() {
-
-  const container =
-    document.getElementById(
-      "standingsGrid"
-    );
-
-
-  if (!container) return;
-
-
-  container.innerHTML =
-    "";
-
-
-  groupLetters.forEach(
-    function (letter) {
-
-      const section =
-        document.createElement(
-          "div"
-        );
-
-
-      section.className =
-        "group-standing";
-
-
-      section.innerHTML = `
-
-        <div class="section-heading">
-
-          <span>GROUP ${letter}</span>
-
-          <h2>
-            GROUP
-            <strong>${letter}</strong>
-          </h2>
-
-        </div>
-
-        <div class="table-wrapper">
-
-          <table class="standings-table">
-
-            <thead>
-
-              <tr>
-
-                <th>#</th>
-                <th>PLAYER</th>
-                <th>P</th>
-                <th>W</th>
-                <th>D</th>
-                <th>L</th>
-                <th>GF</th>
-                <th>GA</th>
-                <th>GD</th>
-                <th>PTS</th>
-
-              </tr>
-
-            </thead>
-
-            <tbody
-              id="table-${letter}"
-            >
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      `;
-
-
-      container.appendChild(
-        section
-      );
-
-
-      createGroupStanding(
-        letter
-      );
-
-    }
-  );
-
-}
-
-
-// ======================================================
-// ONE GROUP STANDING
-// ======================================================
-
-function createGroupStanding(
-  groupLetter
-) {
-
-  const table =
-    document.getElementById(
-      `table-${groupLetter}`
-    );
-
-
-  if (!table) return;
-
-
-  const groupIndex =
-    groupLetters.indexOf(
-      groupLetter
-    );
-
-
-  const groupPlayers =
-    players.slice(
-      groupIndex * 4,
-      groupIndex * 4 + 4
-    );
-
-
-  const stats = {};
-
-
-  groupPlayers.forEach(
-    function (player) {
-
-      const name =
+      "<strong>" +
+      escapeHTML(
         player.username ||
-        player.name;
+        player.name ||
+        "PLAYER"
+      ) +
+      "</strong>" +
 
+      "</div>";
 
-      stats[name] = {
-
-        name:
-          name,
-
-        P: 0,
-
-        W: 0,
-
-        D: 0,
-
-        L: 0,
-
-        GF: 0,
-
-        GA: 0,
-
-        GD: 0,
-
-        PTS: 0
-
-      };
-
-    }
-  );
-
-
-  matches.forEach(
-    function (match) {
-
-      if (
-        match.group !==
-        groupLetter
-      ) {
-
-        return;
-
-      }
-
-
-      if (
-        match.played !== true
-      ) {
-
-        return;
-
-      }
-
-
-      const home =
-        stats[
-          match.homePlayer
-        ];
-
-
-      const away =
-        stats[
-          match.awayPlayer
-        ];
-
-
-      if (
-        !home ||
-        !away
-      ) {
-
-        return;
-
-      }
-
-
-      const hg =
-        Number(
-          match.homeGoals
-        );
-
-
-      const ag =
-        Number(
-          match.awayGoals
-        );
-
-
-      home.P++;
-      away.P++;
-
-
-      home.GF += hg;
-      home.GA += ag;
-
-
-      away.GF += ag;
-      away.GA += hg;
-
-
-      if (
-        hg > ag
-      ) {
-
-        home.W++;
-
-        home.PTS += 3;
-
-        away.L++;
-
-      }
-
-      else if (
-        hg < ag
-      ) {
-
-        away.W++;
-
-        away.PTS += 3;
-
-        home.L++;
-
-      }
-
-      else {
-
-        home.D++;
-        away.D++;
-
-        home.PTS++;
-        away.PTS++;
-
-      }
-
-    }
-  );
-
-
-  Object.values(stats)
-    .forEach(
-      function (player) {
-
-        player.GD =
-          player.GF -
-          player.GA;
-
-      }
-    );
-
-
-  const sorted =
-    Object.values(stats)
-      .sort(
-        function (a, b) {
-
-          if (
-            b.PTS !== a.PTS
-          ) {
-
-            return (
-              b.PTS -
-              a.PTS
-            );
-
-          }
-
-
-          if (
-            b.GD !== a.GD
-          ) {
-
-            return (
-              b.GD -
-              a.GD
-            );
-
-          }
-
-
-          return (
-            b.GF -
-            a.GF
-          );
-
-        }
-      );
-
-
-  table.innerHTML =
-    "";
-
-
-  if (
-    sorted.length === 0
-  ) {
-
-    table.innerHTML = `
-
-      <tr>
-
-        <td colspan="10">
-          Waiting for players...
-        </td>
-
-      </tr>
-
-    `;
-
-    return;
-
-  }
-
-
-  sorted.forEach(
-    function (
-      player,
-      index
-    ) {
-
-      const row =
-        document.createElement(
-          "tr"
-        );
-
-
-      row.innerHTML = `
-
-        <td>
-          ${index + 1}
-        </td>
-
-        <td>
-          ${escapeHTML(player.name)}
-        </td>
-
-        <td>
-          ${player.P}
-        </td>
-
-        <td>
-          ${player.W}
-        </td>
-
-        <td>
-          ${player.D}
-        </td>
-
-        <td>
-          ${player.L}
-        </td>
-
-        <td>
-          ${player.GF}
-        </td>
-
-        <td>
-          ${player.GA}
-        </td>
-
-        <td>
-          ${
-            player.GD >= 0
-              ? "+" + player.GD
-              : player.GD
-          }
-        </td>
-
-        <td>
-          <strong>
-            ${player.PTS}
-          </strong>
-        </td>
-
-      `;
-
-
-      table.appendChild(
-        row
-      );
-
-    }
-  );
+  });
 
 }
 
 
-// ======================================================
-// ADMIN LOGIN
-// ======================================================
+grid.appendChild(card);
 
-function setupAdmin() {
+});
 
-  const loginBtn =
-    document.getElementById(
-      "adminLoginBtn"
-    );
+}
 
+// =====================================================
+// FIXTURES DISPLAY
+// =====================================================
 
-  const password =
-    document.getElementById(
-      "adminPassword"
-    );
+function renderFixtures() {
 
+const container =
+document.getElementById("fixturesContainer");
 
-  const panel =
-    document.getElementById(
-      "adminPanel"
-    );
+if (!container) return;
 
+container.innerHTML = "";
 
-  if (
-    !loginBtn ||
-    !password ||
-    !panel
-  ) {
+if (!matches.length) {
 
-    return;
+container.innerHTML =
+  "<div class='loading'>" +
+  "⏳ Fixtures are not generated yet." +
+  "</div>";
 
-  }
+return;
 
+}
 
-  loginBtn.addEventListener(
-    "click",
-    function () {
+matches.forEach((match) => {
 
-      if (
-        password.value ===
-        "Gosper2026"
-      ) {
-
-        panel.style.display =
-          "block";
+const card =
+  document.createElement("div");
 
 
-        password.value =
-          "";
+card.className = "fixture";
 
 
-        loginBtn.textContent =
-          "ADMIN LOGGED IN";
+card.innerHTML =
+  "<div class='fixture-players'>" +
+
+  "<strong>" +
+  escapeHTML(match.homePlayer || "TBD") +
+  "</strong>" +
+
+  "<span>VS</span>" +
+
+  "<strong>" +
+  escapeHTML(match.awayPlayer || "TBD") +
+  "</strong>" +
+
+  "</div>" +
+
+  "<div class='match-schedule'>" +
+
+  "📍 " +
+  escapeHTML(match.group || "LEAGUE") +
+
+  " &nbsp;&nbsp; 📅 " +
+  escapeHTML(match.date || "TBD") +
+
+  " &nbsp;&nbsp; ⏰ " +
+  escapeHTML(match.time || "--:--") +
+
+  "</div>" +
+
+  "<div class='match-status'>" +
+
+  (
+    match.played
+      ? "🏆 " +
+        match.homeGoals +
+        " - " +
+        match.awayGoals
+      : "UPCOMING"
+  ) +
+
+  "</div>";
 
 
-        loadAdminFixtures();
+container.appendChild(card);
 
-        updateTournamentStatus();
+});
 
-      }
+}
 
-      else {
+// =====================================================
+// STANDINGS
+// =====================================================
 
-        alert(
-          "❌ Wrong admin password."
-        );
+function renderStandings() {
 
-      }
+const container =
+document.getElementById("standingsContainer");
 
-    }
+if (!container) return;
+
+container.innerHTML = "";
+
+if (tournamentSettings.format === "league") {
+
+container.appendChild(
+  createStandingsTable(
+    players
+  )
+);
+
+return;
+
+}
+
+const groups =
+getGroups();
+
+groups.forEach((group) => {
+
+const title =
+  document.createElement("h3");
+
+
+title.textContent =
+  "GROUP " + group.shortName;
+
+
+container.appendChild(title);
+
+
+container.appendChild(
+  createStandingsTable(
+    group.players
+  )
+);
+
+});
+
+}
+
+// =====================================================
+// STANDINGS TABLE
+// =====================================================
+
+function createStandingsTable(groupPlayers) {
+
+const wrapper =
+document.createElement("div");
+
+wrapper.className =
+"table-wrapper";
+
+if (!groupPlayers.length) {
+
+wrapper.innerHTML =
+  "<div class='loading'>" +
+  "WAITING FOR PLAYERS" +
+  "</div>";
+
+return wrapper;
+
+}
+
+const stats = {};
+
+groupPlayers.forEach((player) => {
+
+const name =
+  player.username ||
+  player.name ||
+  "PLAYER";
+
+
+stats[name] = {
+
+  name: name,
+  P: 0,
+  W: 0,
+  D: 0,
+  L: 0,
+  GF: 0,
+  GA: 0,
+  GD: 0,
+  PTS: 0
+
+};
+
+});
+
+matches.forEach((match) => {
+
+if (!match.played) return;
+
+
+const home =
+  stats[match.homePlayer];
+
+
+const away =
+  stats[match.awayPlayer];
+
+
+if (!home || !away) return;
+
+
+const hg =
+  Number(match.homeGoals || 0);
+
+
+const ag =
+  Number(match.awayGoals || 0);
+
+
+home.P++;
+away.P++;
+
+
+home.GF += hg;
+home.GA += ag;
+
+
+away.GF += ag;
+away.GA += hg;
+
+
+if (hg > ag) {
+
+  home.W++;
+  home.PTS += 3;
+  away.L++;
+
+} else if (hg < ag) {
+
+  away.W++;
+  away.PTS += 3;
+  home.L++;
+
+} else {
+
+  home.D++;
+  away.D++;
+
+  home.PTS++;
+  away.PTS++;
+
+}
+
+});
+
+Object.values(stats).forEach((player) => {
+
+player.GD =
+  player.GF -
+  player.GA;
+
+});
+
+const sorted =
+Object.values(stats).sort((a, b) => {
+
+  if (b.PTS !== a.PTS)
+    return b.PTS - a.PTS;
+
+  if (b.GD !== a.GD)
+    return b.GD - a.GD;
+
+  return b.GF - a.GF;
+
+});
+
+const table =
+document.createElement("table");
+
+table.className =
+"standings-table";
+
+table.innerHTML =
+"<thead>" +
+
+"<tr>" +
+"<th>#</th>" +
+"<th>PLAYER</th>" +
+"<th>P</th>" +
+"<th>W</th>" +
+"<th>D</th>" +
+"<th>L</th>" +
+"<th>GF</th>" +
+"<th>GA</th>" +
+"<th>GD</th>" +
+"<th>PTS</th>" +
+"</tr>" +
+
+"</thead>" +
+
+"<tbody></tbody>";
+
+const tbody =
+table.querySelector("tbody");
+
+sorted.forEach((player, index) => {
+
+const row =
+  document.createElement("tr");
+
+
+row.innerHTML =
+
+  "<td>" +
+  (index + 1) +
+  "</td>" +
+
+  "<td>" +
+  escapeHTML(player.name) +
+  "</td>" +
+
+  "<td>" +
+  player.P +
+  "</td>" +
+
+  "<td>" +
+  player.W +
+  "</td>" +
+
+  "<td>" +
+  player.D +
+  "</td>" +
+
+  "<td>" +
+  player.L +
+  "</td>" +
+
+  "<td>" +
+  player.GF +
+  "</td>" +
+
+  "<td>" +
+  player.GA +
+  "</td>" +
+
+  "<td>" +
+  (player.GD >= 0
+    ? "+" + player.GD
+    : player.GD) +
+  "</td>" +
+
+  "<td><strong>" +
+  player.PTS +
+  "</strong></td>";
+
+
+tbody.appendChild(row);
+
+});
+
+wrapper.appendChild(table);
+
+return wrapper;
+
+}
+
+// =====================================================
+// TOURNAMENT CONTROLS
+// =====================================================
+
+function setupTournamentControls() {
+
+document
+.getElementById("generateFixturesBtn")
+?.addEventListener(
+"click",
+generateFixtures
+);
+
+document
+.getElementById("startTournamentBtn")
+?.addEventListener(
+"click",
+startTournament
+);
+
+}
+
+// =====================================================
+// GENERATE FIXTURES
+// =====================================================
+
+async function generateFixtures() {
+
+if (!adminLoggedIn) {
+
+alert("🔐 Admin login kwanza.");
+return;
+
+}
+
+if (players.length < 2) {
+
+alert(
+  "⚠️ Angalau players 2 wanahitajika."
+);
+
+return;
+
+}
+
+const date =
+document.getElementById("fixtureStartDate")?.value;
+
+const time =
+document.getElementById("fixtureStartTime")?.value;
+
+const interval =
+Number(
+document.getElementById("fixtureInterval")?.value ||
+120
+);
+
+if (!date || !time) {
+
+alert(
+  "⚠️ Weka tournament start date na time."
+);
+
+return;
+
+}
+
+if (matches.length > 0) {
+
+const proceed =
+  confirm(
+    "Fixtures tayari zipo. Ongeza fixtures mpya?"
   );
 
-}
 
-
-// ======================================================
-// TOURNAMENT CONTROL
-// ======================================================
-
-function setupTournamentControl() {
-
-  const generateBtn =
-    document.getElementById(
-      "generateFixturesBtn"
-    );
-
-
-  const startBtn =
-    document.getElementById(
-      "startTournamentBtn"
-    );
-
-
-  if (generateBtn) {
-
-    generateBtn.addEventListener(
-      "click",
-      generateFullFixtures
-    );
-
-  }
-
-
-  if (startBtn) {
-
-    startBtn.addEventListener(
-      "click",
-      startTournament
-    );
-
-  }
+if (!proceed) return;
 
 }
 
+try {
 
-// ======================================================
-// TOURNAMENT STATUS
-// ======================================================
-
-function updateTournamentStatus() {
-
-  const status =
-    document.getElementById(
-      "tournamentStatus"
-    );
+let matchNumber =
+  matches.length + 1;
 
 
-  const counter =
-    document.getElementById(
-      "playerCounter"
-    );
+let current =
+  new Date(
+    date + "T" + time + ":00"
+  );
 
 
-  const generateBtn =
-    document.getElementById(
-      "generateFixturesBtn"
-    );
+if (
+  tournamentSettings.format ===
+  "league"
+) {
 
-
-  const startBtn =
-    document.getElementById(
-      "startTournamentBtn"
-    );
-
-
-  const management =
-    document.getElementById(
-      "adminMatches"
-    );
-
-
-  const notice =
-    document.getElementById(
-      "matchManagementNotice"
-    );
-
-
-  if (counter) {
-
-    counter.textContent =
-      `Players: ${players.length} / 32`;
-
-  }
-
-
-  if (
-    players.length < 32
+  for (
+    let i = 0;
+    i < players.length;
+    i++
   ) {
-
-    if (status) {
-
-      status.textContent =
-        `🟡 WAITING FOR PLAYERS — ${players.length}/32`;
-
-    }
-
-
-    if (generateBtn) {
-
-      generateBtn.disabled =
-        true;
-
-    }
-
-
-    if (startBtn) {
-
-      startBtn.disabled =
-        true;
-
-    }
-
-
-    if (notice) {
-
-      notice.textContent =
-        "🔒 Match Management itafunguka baada ya players kufika 32.";
-
-    }
-
-
-    if (management) {
-
-      management.style.opacity =
-        "0.6";
-
-    }
-
-
-    return;
-
-  }
-
-
-  if (
-    tournamentStarted
-  ) {
-
-    if (status) {
-
-      status.textContent =
-        "🟢 TOURNAMENT STARTED";
-
-    }
-
-
-    if (generateBtn) {
-
-      generateBtn.disabled =
-        true;
-
-    }
-
-
-    if (startBtn) {
-
-      startBtn.disabled =
-        true;
-
-    }
-
-
-    if (notice) {
-
-      notice.textContent =
-        "🏆 Tournament imeanza.";
-
-    }
-
-
-    if (management) {
-
-      management.style.opacity =
-        "1";
-
-    }
-
-
-    return;
-
-  }
-
-
-  if (status) {
-
-    status.textContent =
-      matches.length > 0
-        ? "🔵 READY — 32/32 PLAYERS"
-        : "🟢 32/32 PLAYERS — GENERATE FIXTURES";
-
-  }
-
-
-  if (generateBtn) {
-
-    generateBtn.disabled =
-      false;
-
-  }
-
-
-  if (startBtn) {
-
-    startBtn.disabled =
-      matches.length === 0;
-
-  }
-
-
-  if (notice) {
-
-    notice.textContent =
-      matches.length > 0
-        ? "✅ Match Management iko tayari."
-        : "⚙️ Generate fixtures kwanza.";
-
-  }
-
-
-  if (management) {
-
-    management.style.opacity =
-      "1";
-
-  }
-
-}
-
-
-// ======================================================
-// GENERATE ALL 48 FIXTURES
-// ======================================================
-
-async function generateFullFixtures() {
-
-  if (
-    players.length < 32
-  ) {
-
-    alert(
-      "⏳ Players bado hawajafika 32."
-    );
-
-    return;
-
-  }
-
-
-  const dateInput =
-    document.getElementById(
-      "fixtureStartDate"
-    );
-
-
-  const timeInput =
-    document.getElementById(
-      "fixtureStartTime"
-    );
-
-
-  const intervalInput =
-    document.getElementById(
-      "fixtureInterval"
-    );
-
-
-  const startDate =
-    dateInput?.value;
-
-
-  const startTime =
-    timeInput?.value;
-
-
-  const interval =
-    Number(
-      intervalInput?.value || 120
-    );
-
-
-  if (
-    !startDate ||
-    !startTime
-  ) {
-
-    alert(
-      "⚠️ Weka tarehe na muda wa kuanzia."
-    );
-
-    return;
-
-  }
-
-
-  if (
-    matches.length > 0
-  ) {
-
-    const proceed =
-      confirm(
-        "⚠️ Fixtures tayari zipo. Unataka kuziregenerate?"
-      );
-
-
-    if (!proceed) return;
-
-  }
-
-
-  try {
-
-    const current =
-      new Date(
-        `${startDate}T${startTime}:00`
-      );
-
-
-    let matchNumber =
-      1;
-
 
     for (
-      let g = 0;
-      g < 8;
-      g++
+      let j = i + 1;
+      j < players.length;
+      j++
     ) {
 
-      const groupPlayers =
-        players.slice(
-          g * 4,
-          g * 4 + 4
+      await createMatch(
+        matchNumber,
+        "LEAGUE",
+        players[i],
+        players[j],
+        current
+      );
+
+
+      matchNumber++;
+
+
+      current =
+        new Date(
+          current.getTime() +
+          interval * 60000
         );
 
+    }
+
+  }
+
+} else {
+
+  const groups =
+    getGroups();
+
+
+  for (const group of groups) {
+
+    for (
+      let i = 0;
+      i < group.players.length;
+      i++
+    ) {
 
       for (
-        let i = 0;
-        i < fixturePairs.length;
-        i++
+        let j = i + 1;
+        j < group.players.length;
+        j++
       ) {
 
-        const pair =
-          fixturePairs[i];
-
-
-        const home =
-          groupPlayers[
-            pair[0]
-          ];
-
-
-        const away =
-          groupPlayers[
-            pair[1]
-          ];
-
-
-        if (
-          !home ||
-          !away
-        ) {
-
-          continue;
-
-        }
-
-
-        await addDoc(
-          collection(
-            db,
-            "matches"
-          ),
-          {
-
-            matchNumber:
-              matchNumber,
-
-            group:
-              groupLetters[g],
-
-            homePlayer:
-              home.username ||
-              home.name,
-
-            awayPlayer:
-              away.username ||
-              away.name,
-
-            date:
-              formatDate(
-                current
-              ),
-
-            time:
-              formatTime(
-                current
-              ),
-
-            homeGoals:
-              null,
-
-            awayGoals:
-              null,
-
-            played:
-              false,
-
-            createdAt:
-              serverTimestamp()
-
-          }
+        await createMatch(
+          matchNumber,
+          group.shortName,
+          group.players[i],
+          group.players[j],
+          current
         );
 
 
         matchNumber++;
 
 
-        current.setTime(
-          current.getTime() +
-          interval * 60000
-        );
+        current =
+          new Date(
+            current.getTime() +
+            interval * 60000
+          );
 
       }
 
     }
-
-
-    alert(
-      "✅ Fixtures zote 48 zimetengenezwa."
-    );
-
-
-    await loadLeague();
-
-  }
-
-  catch (error) {
-
-    console.error(
-      "Generate fixtures error:",
-      error
-    );
-
-
-    alert(
-      "❌ Imeshindikana kutengeneza fixtures."
-    );
 
   }
 
 }
 
 
-// ======================================================
+alert(
+  "✅ Fixtures generated successfully."
+);
+
+
+await loadLeague();
+
+} catch (error) {
+
+console.error(
+  "Fixture generation error:",
+  error
+);
+
+
+alert(
+  "❌ Failed to generate fixtures."
+);
+
+}
+
+}
+
+// =====================================================
+// CREATE MATCH
+// =====================================================
+
+async function createMatch(
+matchNumber,
+group,
+home,
+away,
+date
+) {
+
+await addDoc(
+collection(db, "matches"),
+{
+
+  matchNumber: matchNumber,
+
+  group: group,
+
+  homePlayer:
+    home.username ||
+    home.name,
+
+  awayPlayer:
+    away.username ||
+    away.name,
+
+  date:
+    formatDate(date),
+
+  time:
+    formatTime(date),
+
+  homeGoals: null,
+
+  awayGoals: null,
+
+  played: false,
+
+  createdAt:
+    serverTimestamp()
+
+}
+
+);
+
+}
+
+// =====================================================
+// ADMIN MATCHES
+// =====================================================
+
+function loadAdminMatches() {
+
+const container =
+document.getElementById("adminMatches");
+
+if (!container) return;
+
+container.innerHTML = "";
+
+if (players.length < 2) {
+
+container.innerHTML =
+  "<div class='loading'>" +
+  "⏳ Waiting for at least 2 players..." +
+  "</div>";
+
+return;
+
+}
+
+if (!matches.length) {
+
+container.innerHTML =
+  "<div class='loading'>" +
+  "⚽ Generate fixtures first." +
+  "</div>";
+
+return;
+
+}
+
+matches.forEach((match, index) => {
+
+const card =
+  document.createElement("div");
+
+
+card.className =
+  "admin-match";
+
+
+card.innerHTML =
+
+  "<h3>" +
+
+  "#" +
+  (match.matchNumber || index + 1) +
+
+  " " +
+
+  escapeHTML(match.homePlayer || "TBD") +
+
+  " <span>VS</span> " +
+
+  escapeHTML(match.awayPlayer || "TBD") +
+
+  "</h3>" +
+
+  "<p>📍 " +
+  escapeHTML(match.group || "LEAGUE") +
+  "</p>" +
+
+  "<label>Match date</label>" +
+
+  "<input type='date' " +
+  "id='admin-date-" +
+  match.id +
+  "' value='" +
+  escapeHTML(match.date || "") +
+  "'>" +
+
+  "<label>Match time</label>" +
+
+  "<input type='time' " +
+  "id='admin-time-" +
+  match.id +
+  "' value='" +
+  escapeHTML(match.time || "") +
+  "'>" +
+
+  "<div class='score-box'>" +
+
+  "<div>" +
+
+  "<label>" +
+  escapeHTML(match.homePlayer || "HOME") +
+  "</label>" +
+
+  "<input type='number' min='0' " +
+  "id='admin-home-" +
+  match.id +
+  "' value='" +
+  (
+    match.played
+      ? match.homeGoals
+      : ""
+  ) +
+  "'>" +
+
+  "</div>" +
+
+  "<strong>VS</strong>" +
+
+  "<div>" +
+
+  "<label>" +
+  escapeHTML(match.awayPlayer || "AWAY") +
+  "</label>" +
+
+  "<input type='number' min='0' " +
+  "id='admin-away-" +
+  match.id +
+  "' value='" +
+  (
+    match.played
+      ? match.awayGoals
+      : ""
+  ) +
+  "'>" +
+
+  "</div>" +
+
+  "</div>" +
+
+  "<button " +
+  "type='button' " +
+  "class='primary-btn' " +
+  "data-save-match='" +
+  match.id +
+  "'>" +
+  "💾 SAVE RESULT" +
+  "</button>";
+
+
+const saveButton =
+  card.querySelector(
+    "[data-save-match='" +
+    match.id +
+    "']"
+  );
+
+
+saveButton?.addEventListener(
+  "click",
+  () => saveAdminMatch(match.id)
+);
+
+
+container.appendChild(card);
+
+});
+
+}
+
+// =====================================================
+// SAVE MATCH
+// =====================================================
+
+async function saveAdminMatch(matchId) {
+
+if (!adminLoggedIn) {
+
+alert("🔐 Admin login kwanza.");
+return;
+
+}
+
+const date =
+document.getElementById(
+"admin-date-" + matchId
+)?.value;
+
+const time =
+document.getElementById(
+"admin-time-" + matchId
+)?.value;
+
+const homeValue =
+document.getElementById(
+"admin-home-" + matchId
+)?.value;
+
+const awayValue =
+document.getElementById(
+"admin-away-" + matchId
+)?.value;
+
+if (!date || !time) {
+
+alert(
+  "⚠️ Weka tarehe na muda."
+);
+
+return;
+
+}
+
+if (
+homeValue === "" ||
+awayValue === ""
+) {
+
+alert(
+  "⚠️ Weka goals zote mbili."
+);
+
+return;
+
+}
+
+try {
+
+await updateDoc(
+  doc(db, "matches", matchId),
+  {
+
+    date: date,
+    time: time,
+
+    homeGoals:
+      Number(homeValue),
+
+    awayGoals:
+      Number(awayValue),
+
+    played: true,
+
+    updatedAt:
+      serverTimestamp()
+
+  }
+);
+
+
+alert(
+  "✅ Result saved successfully!"
+);
+
+
+await loadLeague();
+
+} catch (error) {
+
+console.error(
+  "Save match error:",
+  error
+);
+
+
+alert(
+  "❌ Failed to save result."
+);
+
+}
+
+}
+
+// =====================================================
 // START TOURNAMENT
-// ======================================================
+// =====================================================
 
 async function startTournament() {
 
-  if (
-    players.length < 32
-  ) {
+if (!adminLoggedIn) {
 
-    alert(
-      "⚠️ Subiri players wafike 32."
-    );
-
-    return;
-
-  }
-
-
-  if (
-    matches.length < 48
-  ) {
-
-    alert(
-      "⚠️ Generate fixtures zote 48 kwanza."
-    );
-
-    return;
-
-  }
-
-
-  const confirmStart =
-    confirm(
-      "🏆 Una uhakika unataka START TOURNAMENT?"
-    );
-
-
-  if (!confirmStart) return;
-
-
-  try {
-
-    await addDoc(
-      collection(
-        db,
-        "tournament"
-      ),
-      {
-
-        status:
-          "started",
-
-        playerCount:
-          players.length,
-
-        startedAt:
-          serverTimestamp()
-
-      }
-    );
-
-
-    tournamentStarted =
-      true;
-
-
-    alert(
-      "🏆 TOURNAMENT STARTED!"
-    );
-
-
-    updateTournamentStatus();
-
-  }
-
-  catch (error) {
-
-    console.error(
-      "Start tournament error:",
-      error
-    );
-
-
-    alert(
-      "❌ Imeshindikana kuanza tournament."
-    );
-
-  }
+alert("🔐 Admin login kwanza.");
+return;
 
 }
 
+if (players.length < 2) {
 
-// ======================================================
-// ADMIN MATCH MANAGEMENT
-// ALL GROUPS
-// ======================================================
+alert(
+  "⚠️ Register at least 2 players first."
+);
 
-function loadAdminFixtures() {
-
-  const container =
-    document.getElementById(
-      "adminMatches"
-    );
-
-
-  if (!container) return;
-
-
-  if (
-    players.length < 32
-  ) {
-
-    container.innerHTML = `
-
-      <p>
-        🔒 Waiting for 32 players...
-      </p>
-
-    `;
-
-    return;
-
-  }
-
-
-  if (
-    matches.length === 0
-  ) {
-
-    container.innerHTML = `
-
-      <p>
-        ⚙️ Players 32/32 wamefika.
-        Generate fixtures kwanza.
-      </p>
-
-    `;
-
-    return;
-
-  }
-
-
-  container.innerHTML =
-    "";
-
-
-  groupLetters.forEach(
-    function (letter) {
-
-      const groupMatches =
-        matches.filter(
-          function (match) {
-
-            return (
-              match.group === letter
-            );
-
-          }
-        );
-
-
-      const title =
-        document.createElement(
-          "h3"
-        );
-
-
-      title.textContent =
-        `GROUP ${letter}`;
-
-
-      container.appendChild(
-        title
-      );
-
-
-      groupMatches.forEach(
-        function (
-          match,
-          index
-        ) {
-
-          createAdminMatchCard(
-            container,
-            match
-          );
-
-        }
-      );
-
-    }
-  );
+return;
 
 }
 
+if (matches.length === 0) {
 
-// ======================================================
-// ADMIN MATCH CARD
-// ======================================================
+alert(
+  "⚠️ Generate fixtures kwanza."
+);
 
-function createAdminMatchCard(
-  container,
-  match
-) {
+return;
 
-  const card =
-    document.createElement(
-      "div"
-    );
+}
 
+if (tournamentStarted) {
 
-  card.className =
-    "admin-match";
+alert(
+  "🏆 Tournament tayari imeanza."
+);
 
+return;
 
-  const safeId =
-    match.id;
+}
 
+const confirmed =
+confirm(
+"🏆 Una uhakika kuanza tournament?"
+);
 
-  card.innerHTML = `
+if (!confirmed) return;
 
-    <h3>
+try {
 
-      ${escapeHTML(
-        match.homePlayer
-      )}
+await addDoc(
+  collection(db, "tournament"),
+  {
 
-      <span>VS</span>
+    status: "started",
 
-      ${escapeHTML(
-        match.awayPlayer
-      )}
+    playerCount:
+      players.length,
 
-    </h3>
+    format:
+      tournamentSettings.format,
 
+    groupCount:
+      tournamentSettings.groupCount,
 
-    <label>
-      Match date
-    </label>
+    startedAt:
+      serverTimestamp()
 
-    <input
-      type="date"
-      id="date-${safeId}"
-      value="${match.date || ""}"
-    >
-
-
-    <label>
-      Match time
-    </label>
-
-    <input
-      type="time"
-      id="time-${safeId}"
-      value="${match.time || ""}"
-    >
+  }
+);
 
 
-    <label>
-      Home goals
-    </label>
-
-    <input
-      type="number"
-      min="0"
-      id="home-${safeId}"
-      value="${
-        match.played === true
-          ? match.homeGoals
-          : ""
-      }"
-    >
+tournamentStarted = true;
 
 
-    <label>
-      Away goals
-    </label>
-
-    <input
-      type="number"
-      min="0"
-      id="away-${safeId}"
-      value="${
-        match.played === true
-          ? match.awayGoals
-          : ""
-      }"
-    >
+alert(
+  "🏆 TOURNAMENT STARTED!"
+);
 
 
-    <button
-      type="button"
-      class="primary-btn"
-      id="save-${safeId}"
-    >
-      SAVE MATCH
-    </button>
+updateTournamentUI();
 
-  `;
+} catch (error) {
 
-
-  const saveButton =
-    card.querySelector(
-      `#save-${safeId}`
-    );
+console.error(
+  "Start tournament error:",
+  error
+);
 
 
-  saveButton.addEventListener(
-    "click",
-    function () {
+alert(
+  "❌ Failed to start tournament."
+);
 
-      saveMatch(
-        match.id
-      );
+}
 
-    }
+}
+
+// =====================================================
+// LOAD TOURNAMENT STATUS
+// =====================================================
+
+async function loadTournamentStatus() {
+
+try {
+
+const snapshot =
+  await getDocs(
+    collection(db, "tournament")
   );
 
 
-  container.appendChild(
-    card
+tournamentStarted =
+  snapshot.docs.some(
+    (item) =>
+      item.data().status === "started"
   );
 
-}
+} catch (error) {
 
-
-// ======================================================
-// SAVE MATCH
-// ======================================================
-
-async function saveMatch(
-  matchId
-) {
-
-  const match =
-    matches.find(
-      function (item) {
-
-        return (
-          item.id === matchId
-        );
-
-      }
-    );
-
-
-  if (!match) {
-
-    alert(
-      "❌ Match haipatikani."
-    );
-
-    return;
-
-  }
-
-
-  const date =
-    document.getElementById(
-      `date-${matchId}`
-    )?.value;
-
-
-  const time =
-    document.getElementById(
-      `time-${matchId}`
-    )?.value;
-
-
-  const homeValue =
-    document.getElementById(
-      `home-${matchId}`
-    )?.value;
-
-
-  const awayValue =
-    document.getElementById(
-      `away-${matchId}`
-    )?.value;
-
-
-  if (
-    !date ||
-    !time
-  ) {
-
-    alert(
-      "⚠️ Weka tarehe na muda."
-    );
-
-    return;
-
-  }
-
-
-  const played =
-    homeValue !== "" &&
-    awayValue !== "";
-
-
-  let homeGoals =
-    null;
-
-
-  let awayGoals =
-    null;
-
-
-  if (played) {
-
-    homeGoals =
-      Number(homeValue);
-
-    awayGoals =
-      Number(awayValue);
-
-
-    if (
-      homeGoals < 0 ||
-      awayGoals < 0 ||
-      !Number.isInteger(homeGoals) ||
-      !Number.isInteger(awayGoals)
-    ) {
-
-      alert(
-        "⚠️ Goals lazima ziwe namba kamili kuanzia 0."
-      );
-
-      return;
-
-    }
-
-  }
-
-
-  try {
-
-    await updateDoc(
-      doc(
-        db,
-        "matches",
-        matchId
-      ),
-      {
-
-        date:
-          date,
-
-        time:
-          time,
-
-        homeGoals:
-          homeGoals,
-
-        awayGoals:
-          awayGoals,
-
-        played:
-          played
-
-      }
-    );
-
-
-    alert(
-      "✅ Match saved successfully."
-    );
-
-
-    await loadLeague();
-
-  }
-
-  catch (error) {
-
-    console.error(
-      "Save match error:",
-      error
-    );
-
-
-    alert(
-      "❌ Imeshindikana kuhifadhi match."
-    );
-
-  }
+console.error(
+  "Tournament status error:",
+  error
+);
 
 }
 
+}
 
-// ======================================================
-// DATE FORMAT
-// ======================================================
+// =====================================================
+// UPDATE TOURNAMENT UI
+// =====================================================
 
-function formatDate(
-  date
-) {
+function updateTournamentUI() {
 
-  const year =
-    date.getFullYear();
+const status =
+document.getElementById("tournamentStatus");
 
+const counter =
+document.getElementById("playerCounter");
 
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(
-      2,
-      "0"
-    );
+const progress =
+document.getElementById("playerProgress");
 
+const start =
+document.getElementById("startTournamentBtn");
 
-  const day =
-    String(
-      date.getDate()
-    ).padStart(
-      2,
-      "0"
-    );
+const generate =
+document.getElementById("generateFixturesBtn");
 
+if (counter) {
 
-  return (
-    `${year}-${month}-${day}`
+counter.textContent =
+  "Players: " +
+  players.length;
+
+}
+
+if (progress) {
+
+const percent =
+  Math.min(
+    players.length / 32 * 100,
+    100
   );
 
-}
 
-
-// ======================================================
-// TIME FORMAT
-// ======================================================
-
-function formatTime(
-  date
-) {
-
-  const hours =
-    String(
-      date.getHours()
-    ).padStart(
-      2,
-      "0"
-    );
-
-
-  const minutes =
-    String(
-      date.getMinutes()
-    ).padStart(
-      2,
-      "0"
-    );
-
-
-  return (
-    `${hours}:${minutes}`
-  );
+progress.style.width =
+  percent + "%";
 
 }
 
+if (tournamentStarted) {
 
-// ======================================================
-// ESCAPE HTML
-// ======================================================
+if (status) {
+  status.textContent =
+    "🟢 TOURNAMENT STARTED";
+}
 
-function escapeHTML(
-  value
-) {
 
-  return String(
-    value ?? ""
-  )
-    .replaceAll(
-      "&",
-      "&amp;"
-    )
-    .replaceAll(
-      "<",
-      "&lt;"
-    )
-    .replaceAll(
-      ">",
-      "&gt;"
-    )
-    .replaceAll(
-      '"',
-      "&quot;"
-    )
-    .replaceAll(
-      "'",
-      "&#039;"
-    );
+if (start) {
+  start.disabled = true;
+}
+
+
+return;
+
+}
+
+if (players.length < 2) {
+
+if (status) {
+
+  status.textContent =
+    "🟡 WAITING — REGISTER AT LEAST 2 PLAYERS";
 
 }
 
 
-// ======================================================
-// GLOBAL FUNCTION
-// ======================================================
-
-window.saveMatch =
-  saveMatch;
+if (start) {
+  start.disabled = true;
+}
 
 
-// ======================================================
-// END
-// ======================================================
+if (generate) {
+  generate.disabled = true;
+}
+
+} else {
+
+if (status) {
+
+  status.textContent =
+    matches.length > 0
+      ? "🔵 READY — FIXTURES GENERATED"
+      : "🟢 READY — " +
+        players.length +
+        " PLAYERS";
+
+}
+
+
+if (start) {
+
+  start.disabled =
+    matches.length === 0;
+
+}
+
+
+if (generate) {
+  generate.disabled = false;
+}
+
+}
+
+}
+
+// =====================================================
+// DATE
+// =====================================================
+
+function formatDate(date) {
+
+return [
+
+date.getFullYear(),
+
+String(
+  date.getMonth() + 1
+).padStart(2, "0"),
+
+String(
+  date.getDate()
+).padStart(2, "0")
+
+].join("-");
+
+}
+
+// =====================================================
+// TIME
+// =====================================================
+
+function formatTime(date) {
+
+return (
+
+String(
+  date.getHours()
+).padStart(2, "0")
+
++
+
+":" +
+
+String(
+  date.getMinutes()
+).padStart(2, "0")
+
+);
+
+}
+
+// =====================================================
+// HTML ESCAPE
+// =====================================================
+
+function escapeHTML(value) {
+
+return String(value ?? "")
+
+.replaceAll("&", "&amp;")
+.replaceAll("<", "&lt;")
+.replaceAll(">", "&gt;")
+.replaceAll('"', "&quot;")
+.replaceAll("'", "&#039;");
+
+}
+
+// =====================================================
+// MESSAGE
+// =====================================================
+
+function showMessage(element, text, type) {
+
+if (!element) return;
+
+element.textContent = text;
+
+element.className =
+"message " +
+type;
+
+}
+
+// =====================================================
+// RESET REGISTER BUTTON
+// =====================================================
+
+function resetSubmit(button) {
+
+if (!button) return;
+
+button.disabled = false;
+
+button.innerHTML =
+"<span>REGISTER PLAYER</span>" +
+"<span>→</span>";
+
+}
