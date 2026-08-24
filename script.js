@@ -7,7 +7,8 @@ addDoc,
 getDocs,
 updateDoc,
 doc,
-serverTimestamp
+serverTimestamp,
+runTransaction
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 // =====================================================
@@ -162,59 +163,84 @@ try {
   }
 
 
+  const normalizedUsername = normalizeKey(username);
+
   const sameTeam = players.some(
     (player) =>
       String(player.teamNumber || "") === teamNumber
   );
 
-
   if (sameTeam) {
-
     showMessage(
       message,
       "❌ Team number hiyo tayari imetumika.",
       "error"
     );
-
     resetSubmit(submit);
     return;
   }
 
-
   const sameUsername = players.some(
     (player) =>
-      String(player.username || "").toLowerCase() ===
-      username.toLowerCase()
+      normalizeKey(player.username || "") === normalizedUsername
   );
 
-
   if (sameUsername) {
-
     showMessage(
       message,
       "❌ eFootball username hiyo tayari imesajiliwa.",
       "error"
     );
-
     resetSubmit(submit);
     return;
   }
 
-
+  // Re-check uniqueness inside a Firestore transaction.
+  // This prevents two people submitting the same team/username
+  // at almost exactly the same time.
+  const teamKey = "team_" + String(Number(teamNumber)).padStart(2, "0");
+  const usernameKey = "username_" + normalizedUsername;
+  const teamUniqueRef = doc(db, "registration_uniques", teamKey);
+  const usernameUniqueRef = doc(db, "registration_uniques", usernameKey);
   const playerNumber = players.length + 1;
+  const registrationRef = doc(collection(db, "registrations"));
 
+  await runTransaction(db, async (transaction) => {
+    const teamUnique = await transaction.get(teamUniqueRef);
+    const usernameUnique = await transaction.get(usernameUniqueRef);
 
-  await addDoc(
-    collection(db, "registrations"),
-    {
+    if (teamUnique.exists()) {
+      throw new Error("TEAM_ALREADY_REGISTERED");
+    }
+
+    if (usernameUnique.exists()) {
+      throw new Error("USERNAME_ALREADY_REGISTERED");
+    }
+
+    const registrationData = {
       teamNumber: Number(teamNumber),
       name: name,
       phone: phone,
       username: username,
+      usernameKey: normalizedUsername,
       playerNumber: playerNumber,
       createdAt: serverTimestamp()
-    }
-  );
+    };
+
+    transaction.set(registrationRef, registrationData);
+    transaction.set(teamUniqueRef, {
+      type: "team",
+      value: Number(teamNumber),
+      registrationId: registrationRef.id,
+      createdAt: serverTimestamp()
+    });
+    transaction.set(usernameUniqueRef, {
+      type: "username",
+      value: normalizedUsername,
+      registrationId: registrationRef.id,
+      createdAt: serverTimestamp()
+    });
+  });
 
 
   showMessage(
@@ -235,9 +261,16 @@ try {
 
   console.error("Registration error:", error);
 
+  const registrationError =
+    error?.message === "TEAM_ALREADY_REGISTERED"
+      ? "❌ Team number hiyo tayari imetumika."
+      : error?.message === "USERNAME_ALREADY_REGISTERED"
+        ? "❌ eFootball username hiyo tayari imesajiliwa."
+        : "❌ Registration failed. Check Firebase.";
+
   showMessage(
     message,
-    "❌ Registration failed. Check Firebase.",
+    registrationError,
     "error"
   );
 
@@ -343,6 +376,7 @@ renderFormat();
 renderGroups();
 renderFixtures();
 renderStandings();
+renderKnockout();
 
 if (adminLoggedIn) {
   loadAdminMatches();
@@ -968,25 +1002,30 @@ if (group.players.length === 0) {
 
 } else {
 
+  const groupStats = buildGroupStats(group.players, group.shortName);
+  const statsByName = Object.fromEntries(
+    groupStats.map((item) => [item.name, item])
+  );
+
   group.players.forEach((player, index) => {
+    const playerName = player.username || player.name || "PLAYER";
+    const playerStat = statsByName[playerName];
 
     card.innerHTML +=
-      "<div class='group-player'>" +
+      "<div class='group-player group-player-status'>" +
 
+      "<div class='group-player-main'>" +
       "<span>" +
       String(index + 1).padStart(2, "0") +
       "</span>" +
-
       "<strong>" +
-      escapeHTML(
-        player.username ||
-        player.name ||
-        "PLAYER"
-      ) +
+      escapeHTML(playerName) +
       "</strong>" +
+      "</div>" +
+
+      statusBadge(playerStat?.status) +
 
       "</div>";
-
   });
 
 }
@@ -996,6 +1035,73 @@ grid.appendChild(card);
 
 });
 
+}
+
+// =====================================================
+// KNOCKOUT BRACKET DISPLAY
+// =====================================================
+
+function renderKnockout() {
+  const round16 = document.getElementById("round16");
+  const quarterfinals = document.getElementById("quarterfinals");
+  const semifinals = document.getElementById("semifinals");
+  const final = document.getElementById("final");
+
+  if (!round16) return;
+
+  if (tournamentSettings.format !== "groups") {
+    round16.innerHTML = "<div class='knockout-match'><span>GROUP FORMAT REQUIRED</span></div>";
+    if (quarterfinals) quarterfinals.innerHTML = "<div class='knockout-match'><span>QUARTERFINALISTS TBD</span></div>";
+    if (semifinals) semifinals.innerHTML = "<div class='knockout-match'><span>SEMIFINALISTS TBD</span></div>";
+    if (final) final.innerHTML = "<div class='knockout-match final-match'><span>FINALISTS TBD</span></div>";
+    return;
+  }
+
+  const groups = getGroups();
+  const qualified = groups.map((group) => {
+    const standings = buildGroupStats(group.players, group.shortName);
+    return {
+      group: group.shortName,
+      first: standings[0]?.status === "qualified" ? standings[0].name : null,
+      second: standings[1]?.status === "qualified" ? standings[1].name : null
+    };
+  });
+
+  const pairings = [];
+  for (let i = 0; i < qualified.length; i += 2) {
+    const a = qualified[i];
+    const b = qualified[i + 1];
+
+    if (!a || !b) continue;
+
+    pairings.push([a.first || "GROUP " + a.group + " #1", b.second || "GROUP " + b.group + " #2"]);
+    pairings.push([b.first || "GROUP " + b.group + " #1", a.second || "GROUP " + a.group + " #2"]);
+  }
+
+  round16.innerHTML = pairings.map((pair, index) =>
+    "<div class='knockout-match'>" +
+      "<small>R16 MATCH " + (index + 1) + "</small>" +
+      "<span>" + escapeHTML(pair[0]) + "</span>" +
+      "<strong>VS</strong>" +
+      "<span>" + escapeHTML(pair[1]) + "</span>" +
+    "</div>"
+  ).join("");
+
+  if (!round16.innerHTML) {
+    round16.innerHTML = "<div class='knockout-match'><span>QUALIFIERS TBD</span></div>";
+  }
+
+  const qf = Array.from({length: 4}, (_, i) =>
+    "<div class='knockout-match'><small>QF " + (i + 1) + "</small><span>R16 WINNER</span><strong>VS</strong><span>R16 WINNER</span></div>"
+  ).join("");
+  const sf = Array.from({length: 2}, (_, i) =>
+    "<div class='knockout-match'><small>SF " + (i + 1) + "</small><span>QF WINNER</span><strong>VS</strong><span>QF WINNER</span></div>"
+  ).join("");
+
+  if (quarterfinals) quarterfinals.innerHTML = qf;
+  if (semifinals) semifinals.innerHTML = sf;
+  if (final) final.innerHTML =
+    "<div class='knockout-match final-match'><span>SF WINNER</span><strong>VS</strong><span>SF WINNER</span></div>";
 }
 
 // =====================================================
@@ -1080,6 +1186,144 @@ container.appendChild(card);
 }
 
 // =====================================================
+// GROUP STANDINGS + MATHEMATICAL QUALIFICATION
+// =====================================================
+
+function normalizeKey(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function buildGroupStats(groupPlayers, groupName) {
+  const stats = {};
+
+  groupPlayers.forEach((player) => {
+    const name = player.username || player.name || "PLAYER";
+
+    stats[name] = {
+      name,
+      P: 0,
+      W: 0,
+      D: 0,
+      L: 0,
+      GF: 0,
+      GA: 0,
+      GD: 0,
+      PTS: 0,
+      remaining: 0,
+      maxPTS: 0,
+      status: "pending"
+    };
+  });
+
+  matches.forEach((match) => {
+    if (match.group !== groupName) return;
+
+    const home = stats[match.homePlayer];
+    const away = stats[match.awayPlayer];
+
+    if (!home || !away) return;
+
+    if (!match.played) {
+      home.remaining++;
+      away.remaining++;
+      return;
+    }
+
+    const hg = Number(match.homeGoals || 0);
+    const ag = Number(match.awayGoals || 0);
+
+    home.P++;
+    away.P++;
+
+    home.GF += hg;
+    home.GA += ag;
+    away.GF += ag;
+    away.GA += hg;
+
+    if (hg > ag) {
+      home.W++;
+      home.PTS += 3;
+      away.L++;
+    } else if (hg < ag) {
+      away.W++;
+      away.PTS += 3;
+      home.L++;
+    } else {
+      home.D++;
+      away.D++;
+      home.PTS++;
+      away.PTS++;
+    }
+  });
+
+  Object.values(stats).forEach((player) => {
+    player.GD = player.GF - player.GA;
+    player.maxPTS = player.PTS + player.remaining * 3;
+  });
+
+  const sorted = Object.values(stats).sort(compareStandings);
+
+  // In group format, the top 2 advance to the Round of 16.
+  // A player is "QUALIFIED" early only when no other player can
+  // mathematically reach their current points.
+  if (groupName !== "LEAGUE" && sorted.length > 2) {
+    sorted.forEach((player) => {
+      const highestChaserMax = Math.max(
+        ...sorted
+          .filter((other) => other.name !== player.name)
+          .map((other) => other.maxPTS)
+      );
+
+      if (player.PTS > highestChaserMax) {
+        player.status = "qualified";
+      }
+    });
+
+    const allPlayed = sorted.every((player) => player.remaining === 0);
+
+    if (allPlayed) {
+      sorted.forEach((player, index) => {
+        player.status = index < 2 ? "qualified" : "eliminated";
+      });
+    } else {
+      const secondPlace = sorted[1];
+
+      sorted.forEach((player) => {
+        if (
+          player.status !== "qualified" &&
+          player.maxPTS < secondPlace.PTS
+        ) {
+          player.status = "eliminated";
+        }
+      });
+    }
+  }
+
+  return sorted;
+}
+
+function compareStandings(a, b) {
+  if (b.PTS !== a.PTS) return b.PTS - a.PTS;
+  if (b.GD !== a.GD) return b.GD - a.GD;
+  return b.GF - a.GF;
+}
+
+function statusBadge(status) {
+  if (status === "qualified") {
+    return "<span class='qualification-badge qualified'>🏆 CONGRATULATIONS — QUALIFIED</span>";
+  }
+
+  if (status === "eliminated") {
+    return "<span class='qualification-badge eliminated'>❌ ELIMINATED</span>";
+  }
+
+  return "";
+}
+
+// =====================================================
 // STANDINGS
 // =====================================================
 
@@ -1122,7 +1366,8 @@ container.appendChild(title);
 
 container.appendChild(
   createStandingsTable(
-    group.players
+    group.players,
+    group.shortName
   )
 );
 
@@ -1134,142 +1379,26 @@ container.appendChild(
 // STANDINGS TABLE
 // =====================================================
 
-function createStandingsTable(groupPlayers) {
+function createStandingsTable(groupPlayers, groupName = null) {
 
-const wrapper =
-document.createElement("div");
-
-wrapper.className =
-"table-wrapper";
+const wrapper = document.createElement("div");
+wrapper.className = "table-wrapper";
 
 if (!groupPlayers.length) {
-
-wrapper.innerHTML =
-  "<div class='loading'>" +
-  "WAITING FOR PLAYERS" +
-  "</div>";
-
-return wrapper;
-
+  wrapper.innerHTML =
+    "<div class='loading'>WAITING FOR PLAYERS</div>";
+  return wrapper;
 }
 
-const stats = {};
+const statsList = groupName
+  ? buildGroupStats(groupPlayers, groupName)
+  : buildGroupStats(groupPlayers, "LEAGUE");
 
-groupPlayers.forEach((player) => {
-
-const name =
-  player.username ||
-  player.name ||
-  "PLAYER";
-
-
-stats[name] = {
-
-  name: name,
-  P: 0,
-  W: 0,
-  D: 0,
-  L: 0,
-  GF: 0,
-  GA: 0,
-  GD: 0,
-  PTS: 0
-
-};
-
-});
-
-matches.forEach((match) => {
-
-if (!match.played) return;
-
-
-const home =
-  stats[match.homePlayer];
-
-
-const away =
-  stats[match.awayPlayer];
-
-
-if (!home || !away) return;
-
-
-const hg =
-  Number(match.homeGoals || 0);
-
-
-const ag =
-  Number(match.awayGoals || 0);
-
-
-home.P++;
-away.P++;
-
-
-home.GF += hg;
-home.GA += ag;
-
-
-away.GF += ag;
-away.GA += hg;
-
-
-if (hg > ag) {
-
-  home.W++;
-  home.PTS += 3;
-  away.L++;
-
-} else if (hg < ag) {
-
-  away.W++;
-  away.PTS += 3;
-  home.L++;
-
-} else {
-
-  home.D++;
-  away.D++;
-
-  home.PTS++;
-  away.PTS++;
-
-}
-
-});
-
-Object.values(stats).forEach((player) => {
-
-player.GD =
-  player.GF -
-  player.GA;
-
-});
-
-const sorted =
-Object.values(stats).sort((a, b) => {
-
-  if (b.PTS !== a.PTS)
-    return b.PTS - a.PTS;
-
-  if (b.GD !== a.GD)
-    return b.GD - a.GD;
-
-  return b.GF - a.GF;
-
-});
-
-const table =
-document.createElement("table");
-
-table.className =
-"standings-table";
+const table = document.createElement("table");
+table.className = "standings-table";
 
 table.innerHTML =
-"<thead>" +
-
-"<tr>" +
+"<thead><tr>" +
 "<th>#</th>" +
 "<th>PLAYER</th>" +
 "<th>P</th>" +
@@ -1280,72 +1409,31 @@ table.innerHTML =
 "<th>GA</th>" +
 "<th>GD</th>" +
 "<th>PTS</th>" +
-"</tr>" +
+"<th>STATUS</th>" +
+"</tr></thead><tbody></tbody>";
 
-"</thead>" +
+const tbody = table.querySelector("tbody");
 
-"<tbody></tbody>";
+statsList.forEach((player, index) => {
+  const row = document.createElement("tr");
 
-const tbody =
-table.querySelector("tbody");
+  row.innerHTML =
+    "<td>" + (index + 1) + "</td>" +
+    "<td><strong>" + escapeHTML(player.name) + "</strong></td>" +
+    "<td>" + player.P + "</td>" +
+    "<td>" + player.W + "</td>" +
+    "<td>" + player.D + "</td>" +
+    "<td>" + player.L + "</td>" +
+    "<td>" + player.GF + "</td>" +
+    "<td>" + player.GA + "</td>" +
+    "<td>" + (player.GD >= 0 ? "+" + player.GD : player.GD) + "</td>" +
+    "<td><strong>" + player.PTS + "</strong></td>" +
+    "<td>" + statusBadge(player.status) + "</td>";
 
-sorted.forEach((player, index) => {
-
-const row =
-  document.createElement("tr");
-
-
-row.innerHTML =
-
-  "<td>" +
-  (index + 1) +
-  "</td>" +
-
-  "<td>" +
-  escapeHTML(player.name) +
-  "</td>" +
-
-  "<td>" +
-  player.P +
-  "</td>" +
-
-  "<td>" +
-  player.W +
-  "</td>" +
-
-  "<td>" +
-  player.D +
-  "</td>" +
-
-  "<td>" +
-  player.L +
-  "</td>" +
-
-  "<td>" +
-  player.GF +
-  "</td>" +
-
-  "<td>" +
-  player.GA +
-  "</td>" +
-
-  "<td>" +
-  (player.GD >= 0
-    ? "+" + player.GD
-    : player.GD) +
-  "</td>" +
-
-  "<td><strong>" +
-  player.PTS +
-  "</strong></td>";
-
-
-tbody.appendChild(row);
-
+  tbody.appendChild(row);
 });
 
 wrapper.appendChild(table);
-
 return wrapper;
 
 }

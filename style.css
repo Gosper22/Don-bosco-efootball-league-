@@ -1011,3 +1011,63 @@ a {
   }
 
 }
+
+/* =========================================================
+   QUALIFICATION / ELIMINATION BADGES
+========================================================= */
+
+.group-player-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.group-player-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.qualification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 8px;
+  line-height: 1.2;
+  font-weight: 950;
+  letter-spacing: .4px;
+  white-space: nowrap;
+}
+
+.qualification-badge.qualified {
+  color: #061006;
+  background: var(--green);
+  box-shadow: 0 0 14px rgba(57, 255, 20, .22);
+}
+
+.qualification-badge.eliminated {
+  color: #fff;
+  background: rgba(255, 69, 69, .14);
+  border: 1px solid rgba(255, 69, 69, .45);
+}
+
+.standings-table .qualification-badge {
+  font-size: 8px;
+}
+
+@media (max-width: 760px) {
+  .group-player-status {
+    align-items: flex-start;
+  }
+
+  .qualification-badge {
+    white-space: normal;
+    text-align: center;
+  }
+}
