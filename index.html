@@ -13,6 +13,7 @@
     <a href="#fixtures">Fixtures</a>
     <a href="#standings">Standings</a>
     <a href="#knockout">Knockout</a>
+    <a href="#halloffame">Hall of Fame</a>
     <a href="#contact">Contact Admin</a>
     <a href="#admin">Admin</a><button id="registerBtn" class="nav-register" type="button">
   REGISTER NOW
@@ -234,85 +235,22 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
-
-<h2>
-  <strong>KNOCKOUT</strong>
-  STAGE
-</h2>
-
-<p>
-  Qualification and knockout stage.
-</p>
-
-  </div>  <div class="knockout-grid"><div class="round">
-
-  <h3>ROUND OF 16</h3>
-
-  <div id="round16">
-
-    <div class="knockout-match">
-      <span>QUALIFIER</span>
-      <strong>VS</strong>
-      <span>QUALIFIER</span>
-    </div>
-
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">
+  <div class="section-heading"><span>ROAD TO THE FINAL</span>
+    <h2><strong>KNOCKOUT</strong> STAGE</h2>
+    <p>Knockout rounds are generated dynamically from the number of qualifiers.</p>
   </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>QUARTERFINALS</h3>
-
-  <div id="quarterfinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
-    </div>
-
+  <div id="knockoutDynamic" class="knockout-grid">
+    <div class="loading">Knockout stage will appear here.</div>
   </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>SEMIFINALS</h3>
-
-  <div id="semifinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
-    </div>
-
+</section><!-- ================= HALL OF FAME ================= -->
+<section id="halloffame" class="section hall-of-fame-section">
+  <div class="section-heading"><span>LEGENDS</span>
+    <h2>HALL OF <strong>FAME</strong></h2>
+    <p>Champions from previous Don Bosco eFootball League tournaments.</p>
   </div>
-
-</div>
-
-
-<div class="round final-round">
-
-  <h3>🏆 FINAL</h3>
-
-  <div id="final">
-
-    <div class="knockout-match final-match">
-      <span>FINALIST 1</span>
-      <strong>VS</strong>
-      <span>FINALIST 2</span>
-    </div>
-
-  </div>
-
-</div>
-
-  </div></section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+  <div id="hallOfFameContainer" class="hall-of-fame-grid"><div class="loading">Loading champions...</div></div>
+</section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
 
 <h2>
   CONTACT
@@ -662,6 +600,26 @@
         Match management will appear here.
       </div>
 
+    </div>    <div class="knockout-admin-management">
+      <div class="section-heading">
+        <span>ADMIN</span>
+        <h2>KNOCKOUT <strong>MANAGEMENT</strong></h2>
+        <p>Generate the next round dynamically and enter both-leg results here.</p>
+      </div>
+      <button type="button" id="generateKnockoutBtn" class="primary-btn">⚔️ GENERATE NEXT KNOCKOUT ROUND</button>
+      <p id="knockoutAdminMessage" class="message"></p>
+      <div id="adminKnockoutMatches"><div class="loading">No knockout round generated yet.</div></div>
+    </div>
+
+    <div class="hall-admin-management">
+      <div class="section-heading"><span>HISTORY</span><h2>HALL OF <strong>FAME</strong></h2><p>Add the champion after each completed tournament.</p></div>
+      <div class="hall-admin-form">
+        <input id="hallEdition" type="text" placeholder="Tournament / Edition (e.g. Don Bosco League 2026 #1)">
+        <input id="hallWinner" type="text" placeholder="Champion username / team">
+        <input id="hallYear" type="number" min="2020" max="2100" placeholder="Year">
+        <button type="button" id="addHallWinnerBtn" class="primary-btn">🏆 ADD CHAMPION</button>
+      </div>
+      <div id="adminHallOfFame"></div>
     </div>
 
   </div>

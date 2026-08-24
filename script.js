@@ -45,6 +45,29 @@ format: "groups",
 groupCount: 2
 };
 
+async function loadKnockoutStages() {
+  try {
+    const snapshot = await getDocs(collection(db, "knockoutStages"));
+    knockoutStages = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    knockoutStages.sort((a,b) => Number(a.order || 0) - Number(b.order || 0));
+  } catch (e) { console.error("Knockout stages load error", e); knockoutStages = []; }
+}
+function knockoutRoundName(n) {
+  const names={2:"FINAL",4:"SEMIFINALS",8:"QUARTERFINALS",16:"ROUND OF 16",32:"ROUND OF 32"};
+  return names[n] || ("ROUND OF " + n);
+}
+function nextPowerOfTwo(n) { let p=1; while(p<n)p*=2; return p; }
+function currentKnockoutStage() { return knockoutStages.length ? knockoutStages[knockoutStages.length-1] : null; }
+function getKnockoutMatches(stageName) { return matches.filter(m=>m.stage==="knockout" && m.round===stageName); }
+function knockoutTieWinner(tie) {
+  if(!tie.length || tie.some(m=>!m.played)) return null;
+  let a=0,b=0; const home=tie[0].homePlayer, away=tie[0].awayPlayer;
+  tie.forEach(m=>{a+=Number(m.homeGoals||0);b+=Number(m.awayGoals||0);});
+  if(a>b)return home; if(b>a)return away;
+  return tie.find(m=>m.tieWinner)?.tieWinner || null;
+}
+function stageIsComplete(name) { const ms=getKnockoutMatches(name); return ms.length>0 && ms.every(m=>m.played); }
+
 // =====================================================
 // START
 // =====================================================
@@ -56,6 +79,8 @@ setupAdminLogin();
 setupTournamentSettings();
 setupTournamentControls();
 setupPotManagement();
+setupKnockoutAdmin();
+setupHallOfFameAdmin();
 
 loadLeague();
 });
@@ -345,7 +370,9 @@ if (entered === "Gosper2026") {
 
 
   loadAdminMatches();
+  loadAdminKnockoutMatches();
   renderPotManagement();
+  renderAdminHallOfFame();
 
 } else {
 
@@ -374,6 +401,8 @@ await loadMatches();
 await loadTournamentSettings();
 await loadPotState();
 await loadTournamentStatus();
+await loadKnockoutStages();
+await loadHallOfFame();
 
 updateSettingsPreview();
 
@@ -384,10 +413,13 @@ renderGroups();
 renderFixtures();
 renderStandings();
 renderKnockout();
+renderHallOfFame();
 
 if (adminLoggedIn) {
   loadAdminMatches();
+  loadAdminKnockoutMatches();
   renderPotManagement();
+  renderAdminHallOfFame();
 }
 
 } catch (error) {
@@ -1074,66 +1106,40 @@ grid.appendChild(card);
 // =====================================================
 
 function renderKnockout() {
-  const round16 = document.getElementById("round16");
-  const quarterfinals = document.getElementById("quarterfinals");
-  const semifinals = document.getElementById("semifinals");
-  const final = document.getElementById("final");
-
-  if (!round16) return;
-
+  const container = document.getElementById("knockoutDynamic");
+  if (!container) return;
+  container.innerHTML = "";
   if (tournamentSettings.format !== "groups") {
-    round16.innerHTML = "<div class='knockout-match'><span>GROUP FORMAT REQUIRED</span></div>";
-    if (quarterfinals) quarterfinals.innerHTML = "<div class='knockout-match'><span>QUARTERFINALISTS TBD</span></div>";
-    if (semifinals) semifinals.innerHTML = "<div class='knockout-match'><span>SEMIFINALISTS TBD</span></div>";
-    if (final) final.innerHTML = "<div class='knockout-match final-match'><span>FINALISTS TBD</span></div>";
+    container.innerHTML = '<div class="loading">Knockout is available in GROUPS format.</div>';
     return;
   }
-
-  const groups = getGroups();
-  const qualified = groups.map((group) => {
-    const standings = buildGroupStats(group.players, group.shortName);
-    return {
-      group: group.shortName,
-      first: standings[0]?.status === "qualified" ? standings[0].name : null,
-      second: standings[1]?.status === "qualified" ? standings[1].name : null
-    };
+  if (!knockoutStages.length) {
+    container.innerHTML = '<div class="loading">⏳ Knockout has not started yet. Admin will generate the correct round after the group stage.</div>';
+    return;
+  }
+  knockoutStages.forEach(stage => {
+    const stageMatches = getKnockoutMatches(stage.name);
+    const round = document.createElement("div");
+    round.className = "round" + (stage.name === "FINAL" ? " final-round" : "");
+    round.innerHTML = `<h3>${stage.name === "FINAL" ? "🏆 FINAL" : escapeHTML(stage.name)}</h3>`;
+    const body = document.createElement("div");
+    const byTie = {};
+    stageMatches.forEach(m => (byTie[m.tieId] ||= []).push(m));
+    const ties = Object.values(byTie);
+    if (!ties.length) body.innerHTML = '<div class="knockout-match"><span>WAITING FOR QUALIFIERS</span></div>';
+    ties.forEach((tie, i) => {
+      tie.sort((a,b) => Number(a.leg || 1) - Number(b.leg || 1));
+      const first = tie[0], second = tie[1];
+      const winner = knockoutTieWinner(tie);
+      const card = document.createElement("div");
+      card.className = "knockout-match";
+      card.innerHTML = `<small>TIE ${i+1}</small><span>${escapeHTML(first?.homePlayer || "TBD")}</span><strong>VS</strong><span>${escapeHTML(first?.awayPlayer || "TBD")}</span><small>LEG 1: ${first?.played ? `${first.homeGoals} - ${first.awayGoals}` : "—"}</small>` +
+        (second ? `<small>LEG 2: ${escapeHTML(second.homePlayer)} ${second.played ? `${second.homeGoals} - ${second.awayGoals}` : "—"} ${escapeHTML(second.awayPlayer)}</small>` : "<small>BYE</small>") +
+        (winner ? `<strong>🏆 ${escapeHTML(winner)}</strong>` : "");
+      body.appendChild(card);
+    });
+    round.appendChild(body); container.appendChild(round);
   });
-
-  const pairings = [];
-  for (let i = 0; i < qualified.length; i += 2) {
-    const a = qualified[i];
-    const b = qualified[i + 1];
-
-    if (!a || !b) continue;
-
-    pairings.push([a.first || "GROUP " + a.group + " #1", b.second || "GROUP " + b.group + " #2"]);
-    pairings.push([b.first || "GROUP " + b.group + " #1", a.second || "GROUP " + a.group + " #2"]);
-  }
-
-  round16.innerHTML = pairings.map((pair, index) =>
-    "<div class='knockout-match'>" +
-      "<small>R16 MATCH " + (index + 1) + "</small>" +
-      "<span>" + escapeHTML(pair[0]) + "</span>" +
-      "<strong>VS</strong>" +
-      "<span>" + escapeHTML(pair[1]) + "</span>" +
-    "</div>"
-  ).join("");
-
-  if (!round16.innerHTML) {
-    round16.innerHTML = "<div class='knockout-match'><span>QUALIFIERS TBD</span></div>";
-  }
-
-  const qf = Array.from({length: 4}, (_, i) =>
-    "<div class='knockout-match'><small>QF " + (i + 1) + "</small><span>R16 WINNER</span><strong>VS</strong><span>R16 WINNER</span></div>"
-  ).join("");
-  const sf = Array.from({length: 2}, (_, i) =>
-    "<div class='knockout-match'><small>SF " + (i + 1) + "</small><span>QF WINNER</span><strong>VS</strong><span>QF WINNER</span></div>"
-  ).join("");
-
-  if (quarterfinals) quarterfinals.innerHTML = qf;
-  if (semifinals) semifinals.innerHTML = sf;
-  if (final) final.innerHTML =
-    "<div class='knockout-match final-match'><span>SF WINNER</span><strong>VS</strong><span>SF WINNER</span></div>";
 }
 
 // =====================================================
@@ -1490,6 +1496,8 @@ document
 startTournament
 );
 
+document.getElementById("generateKnockoutBtn")?.addEventListener("click", generateNextKnockoutRound);
+
 }
 
 // =====================================================
@@ -1779,23 +1787,12 @@ if (
       j++
     ) {
 
-      await createMatch(
-        matchNumber,
-        "LEAGUE",
-        players[i],
-        players[j],
-        current
-      );
-
-
+      await createMatch(matchNumber, "LEAGUE", players[i], players[j], current, 1);
       matchNumber++;
-
-
-      current =
-        new Date(
-          current.getTime() +
-          interval * 60000
-        );
+      current = new Date(current.getTime() + interval * 60000);
+      await createMatch(matchNumber, "LEAGUE", players[j], players[i], current, 2);
+      matchNumber++;
+      current = new Date(current.getTime() + interval * 60000);
 
     }
 
@@ -1821,23 +1818,12 @@ if (
         j++
       ) {
 
-        await createMatch(
-          matchNumber,
-          group.shortName,
-          group.players[i],
-          group.players[j],
-          current
-        );
-
-
-        matchNumber++;
-
-
-        current =
-          new Date(
-            current.getTime() +
-            interval * 60000
-          );
+        await createMatch(matchNumber, group.shortName, group.players[i], group.players[j], current, 1);
+      matchNumber++;
+      current = new Date(current.getTime() + interval * 60000);
+      await createMatch(matchNumber, group.shortName, group.players[j], group.players[i], current, 2);
+      matchNumber++;
+      current = new Date(current.getTime() + interval * 60000);
 
       }
 
@@ -1880,7 +1866,8 @@ matchNumber,
 group,
 home,
 away,
-date
+date,
+leg = 1
 ) {
 
 await addDoc(
@@ -1890,6 +1877,8 @@ collection(db, "matches"),
   matchNumber: matchNumber,
 
   group: group,
+  leg: leg,
+  stage: "group",
 
   homePlayer:
     home.username ||
@@ -2180,6 +2169,81 @@ alert(
 }
 
 }
+
+// =====================================================
+// KNOCKOUT ADMIN + DYNAMIC ROUNDS
+// =====================================================
+function qualifiedPlayersFromGroups() {
+  const groups = getGroups(); const qualifiers = [];
+  groups.forEach(group => { const stats = buildGroupStats(group.players, group.shortName); if (stats[0]) qualifiers.push(stats[0].name); if (stats[1]) qualifiers.push(stats[1].name); });
+  return qualifiers;
+}
+function pairKnockoutTeams(teams) { const pairs=[]; for(let i=0;i<teams.length;i+=2) if(teams[i]&&teams[i+1]) pairs.push([teams[i],teams[i+1]]); return pairs; }
+async function generateNextKnockoutRound() {
+  if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+  if (tournamentSettings.format !== "groups") return alert("⚠️ Tumia GROUPS format.");
+  const last = currentKnockoutStage(); let teams=[];
+  if (!last) {
+    const groups=getGroups();
+    if(!groups.length || groups.some(g=>g.players.length<2)) return alert("⚠️ Groups bado hazijakamilika.");
+    const groupMatches=matches.filter(m=>m.stage!=="knockout");
+    if(groupMatches.length && !groupMatches.every(m=>m.played)) return alert("⚠️ Maliza group stage kwanza.");
+    groups.forEach(g=>{const st=buildGroupStats(g.players,g.shortName); if(st[0])teams.push(st[0].name); if(st[1])teams.push(st[1].name);});
+  } else {
+    if(!stageIsComplete(last.name)) return alert("⚠️ Maliza matokeo yote ya "+last.name+" kwanza.");
+    const ties={}; getKnockoutMatches(last.name).forEach(m=>(ties[m.tieId] ||= []).push(m));
+    Object.values(ties).forEach(t=>{const w=knockoutTieWinner(t); if(!w) throw new Error("DRAW_TIE_NEEDS_WINNER"); teams.push(w);});
+    if(Array.isArray(last.byeTeams)) teams.push(...last.byeTeams);
+  }
+  if(teams.length===1){ await announceChampion(teams[0]); return; }
+  if(teams.length<2) return alert("⚠️ Hakuna qualifiers wa kutosha.");
+
+  // The bracket size is always the next power of two. If the number of teams
+  // is not a power of two (e.g. 12), the extra slots become BYEs so the next
+  // round is still a normal 8/4/2-team round.
+  const bracketSize=nextPowerOfTwo(teams.length);
+  const roundName=knockoutRoundName(bracketSize);
+  if(knockoutStages.some(st=>st.name===roundName)) return alert("⚠️ "+roundName+" tayari imegenerate.");
+  teams=shuffle(teams);
+  const byeCount=bracketSize-teams.length;
+  const byeTeams=teams.slice(0,byeCount);
+  const playable=teams.slice(byeCount);
+  const pairs=pairKnockoutTeams(playable);
+  const stageRef=await addDoc(collection(db,"knockoutStages"),{name:roundName,order:knockoutStages.length+1,teamCount:teams.length,bracketSize,byeTeams,createdAt:serverTimestamp()});
+  let n=Math.max(0,...matches.map(m=>Number(m.matchNumber||0)))+1;
+  for(let i=0;i<pairs.length;i++){
+    const [a,b]=pairs[i], tieId=stageRef.id+"_TIE_"+(i+1);
+    await addDoc(collection(db,"matches"),{stage:"knockout",round:roundName,tieId,leg:1,homePlayer:a,awayPlayer:b,group:roundName,matchNumber:n++,played:false,createdAt:serverTimestamp()});
+    await addDoc(collection(db,"matches"),{stage:"knockout",round:roundName,tieId,leg:2,homePlayer:b,awayPlayer:a,group:roundName,matchNumber:n++,played:false,createdAt:serverTimestamp()});
+  }
+  alert("✅ "+roundName+" generated dynamically. "+byeTeams.length+" BYE(s), "+pairs.length+" two-leg ties.");
+  await loadLeague();
+}
+
+function loadAdminKnockoutMatches(){
+  const c=document.getElementById("adminKnockoutMatches"); if(!c)return; c.innerHTML="";
+  if(!knockoutStages.length){c.innerHTML='<div class="loading">⚔️ No knockout round generated yet.</div>';return;}
+  knockoutStages.forEach(stage=>{
+    const ms=getKnockoutMatches(stage.name), title=document.createElement("h3"); title.className="knockout-stage-title"; title.textContent=stage.name; c.appendChild(title);
+    const ties={}; ms.forEach(m=>(ties[m.tieId] ||= []).push(m));
+    Object.values(ties).forEach((tie,idx)=>{tie.sort((a,b)=>Number(a.leg)-Number(b.leg)); const card=document.createElement("div"); card.className="knockout-admin-match";
+      card.innerHTML=`<h3>Tie ${idx+1}: ${escapeHTML(tie[0].homePlayer)} VS ${escapeHTML(tie[0].awayPlayer)}</h3>`+tie.map(m=>`<div class="leg-title">LEG ${m.leg}: ${escapeHTML(m.homePlayer)} VS ${escapeHTML(m.awayPlayer)}</div><div class="score-box"><div><label>${escapeHTML(m.homePlayer)}</label><input type="number" min="0" id="ko-home-${m.id}" value="${m.played?m.homeGoals:""}"></div><strong>VS</strong><div><label>${escapeHTML(m.awayPlayer)}</label><input type="number" min="0" id="ko-away-${m.id}" value="${m.played?m.awayGoals:""}"></div></div><button type="button" class="primary-btn" data-ko-save="${m.id}">💾 SAVE LEG ${m.leg}</button>`).join("");
+      card.querySelectorAll("[data-ko-save]").forEach(btn=>btn.addEventListener("click",()=>saveKnockoutResult(btn.dataset.koSave))); c.appendChild(card);
+    });
+  });
+}
+async function saveKnockoutResult(id){ if(!adminLoggedIn)return alert("🔐 Admin login kwanza."); const h=document.getElementById("ko-home-"+id)?.value,a=document.getElementById("ko-away-"+id)?.value; if(h===""||a==="")return alert("⚠️ Weka goals zote mbili."); await updateDoc(doc(db,"matches",id),{homeGoals:Number(h),awayGoals:Number(a),played:true,updatedAt:serverTimestamp()}); await loadLeague(); alert("✅ Knockout result saved!"); }
+function setupKnockoutAdmin(){document.getElementById("generateKnockoutBtn")?.addEventListener("click",generateNextKnockoutRound);}
+
+// =====================================================
+// HALL OF FAME
+// =====================================================
+async function loadHallOfFame(){try{const snap=await getDocs(collection(db,"hallOfFame"));hallOfFame=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>Number(b.year||0)-Number(a.year||0));}catch(e){console.error("Hall of Fame load error",e);hallOfFame=[];}}
+function renderHallOfFame(){const c=document.getElementById("hallOfFameContainer");if(!c)return;c.innerHTML=hallOfFame.length?hallOfFame.map(w=>`<div class="hall-card"><div class="hall-trophy">🏆</div><div><strong>${escapeHTML(w.winner||"CHAMPION")}</strong><span>${escapeHTML(w.edition||"Don Bosco eFootball League")}</span><small>${escapeHTML(w.year||"")}</small></div></div>`).join(""):'<div class="loading">No champions recorded yet.</div>';}
+function setupHallOfFameAdmin(){document.getElementById("addHallWinnerBtn")?.addEventListener("click",addHallWinner);}
+async function addHallWinner(){if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");const edition=document.getElementById("hallEdition")?.value.trim(),winner=document.getElementById("hallWinner")?.value.trim(),year=document.getElementById("hallYear")?.value.trim();if(!edition||!winner||!year)return alert("⚠️ Jaza edition, champion na year.");await addDoc(collection(db,"hallOfFame"),{edition,winner,year:Number(year),createdAt:serverTimestamp()});document.getElementById("hallEdition").value="";document.getElementById("hallWinner").value="";document.getElementById("hallYear").value="";await loadHallOfFame();renderHallOfFame();renderAdminHallOfFame();alert("🏆 Champion added to Hall of Fame.");}
+function renderAdminHallOfFame(){const c=document.getElementById("adminHallOfFame");if(!c)return;c.innerHTML=hallOfFame.map(w=>`<div class="admin-hall-row"><strong>${escapeHTML(w.edition)}</strong><span>🏆 ${escapeHTML(w.winner)} (${escapeHTML(w.year)})</span></div>`).join("")||'<div class="loading">No champions yet.</div>';}
+async function announceChampion(winner){alert("🏆 TOURNAMENT CHAMPION: "+winner+"\nAdd them to Hall of Fame from the Admin Panel.");}
 
 // =====================================================
 // START TOURNAMENT

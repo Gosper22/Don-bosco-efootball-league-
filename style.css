@@ -1175,3 +1175,19 @@ a {
   .pot-grid { grid-template-columns: 1fr; }
   .pot-summary { grid-template-columns: 1fr; }
 }
+
+
+/* Dynamic knockout + Hall of Fame */
+.knockout-grid{display:grid;gap:22px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
+.round{border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:18px;background:rgba(255,255,255,.025);}
+.round h3{margin:0 0 14px;font-weight:900;}
+.knockout-match{display:grid;gap:8px;padding:14px;margin:10px 0;border-radius:14px;background:rgba(255,255,255,.04);text-align:center;}
+.knockout-match small{opacity:.7;font-size:11px;}
+.knockout-admin-management,.hall-admin-management{margin-top:32px;padding-top:28px;border-top:1px solid rgba(255,255,255,.08)}
+.knockout-admin-match{border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:16px;margin:12px 0;background:rgba(255,255,255,.025)}
+.knockout-admin-match .leg-title{font-weight:800;margin:12px 0 8px}
+.knockout-admin-match input{width:100%}
+.hall-of-fame-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.hall-card{display:flex;gap:14px;align-items:center;padding:20px;border:1px solid rgba(255,255,255,.1);border-radius:18px;background:rgba(255,255,255,.035)}
+.hall-trophy{font-size:38px}.hall-card strong,.hall-card span,.hall-card small{display:block}.hall-card span{opacity:.8;margin-top:5px}.hall-card small{opacity:.6;margin-top:4px}.hall-admin-form{display:grid;grid-template-columns:2fr 1.5fr .7fr auto;gap:10px}.hall-admin-form input{width:100%}.admin-hall-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+@media(max-width:760px){.hall-admin-form{grid-template-columns:1fr}.admin-hall-row{display:block}.admin-hall-row span{display:block;margin-top:4px}}
