@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Don Bosco eFootball League</title>
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
+</head>
+
+<body>
+
+<!-- =========================================
+     NAVBAR
+========================================= -->
+
+<header class="navbar">
+
+  <div class="logo">
+    <span>DON BOSCO</span>
+    <strong>eFOOTBALL</strong>
+    <small>LEAGUE</small>
+  </div>
+
+  <nav>
+
+    <a href="#home">Home</a>
+    <a href="#groups">Groups</a>
+    <a href="#fixtures">Fixtures</a>
+    <a href="#standings">Standings</a>
+    <a href="#knockout">Knockout</a>
+
+    <button
+      id="registerBtn"
+      class="nav-register"
+      type="button"
+    >
+      REGISTER NOW
+    </button>
+
+  </nav>
+
+</header>
+
+
+<!-- =========================================
+     HERO
+========================================= -->
+
+<section id="home" class="hero">
+
+  <div class="hero-content">
+
+    <div class="hero-badge">
+      🏆 OFFICIAL TOURNAMENT
+    </div>
+
+    <h1>
+      DON BOSCO
+      <span>eFOOTBALL</span>
+      LEAGUE
+    </h1>
+
+    <p>
+      32 Players • 8 Groups • One Champion
+    </p>
+
+    <div class="hero-buttons">
+
+      <button
+        id="heroRegisterBtn"
+        class="primary-btn"
+        type="button"
+      >
+        REGISTER NOW
+      </button>
+
+      <a
+        href="#fixtures"
+        class="secondary-btn"
+      >
+        VIEW FIXTURES
+      </a>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- =========================================
+     REGISTRATION
+========================================= -->
+
+<section
+  id="register"
+  class="section register-section"
+  style="display:none;"
+>
+
+  <div class="section-heading">
+
+    <span>JOIN THE LEAGUE</span>
+
+    <h2>
+      PLAYER
+      <strong>REGISTRATION</strong>
+    </h2>
+
+    <p>
+      Register now and secure your place
+      in the Don Bosco eFootball League.
+    </p>
+
+  </div>
+
+
+  <form
+    id="registerForm"
+    class="register-form"
+  >
+
+    <div class="input-group">
+
+      <label>Full Name</label>
+
+      <input
+        type="text"
+        id="name"
+        placeholder="Enter your full name"
+        required
+      >
+
+    </div>
+
+
+    <div class="input-group">
+
+      <label>Phone Number</label>
+
+      <input
+        type="tel"
+        id="phone"
+        placeholder="+255..."
+        required
+      >
+
+    </div>
+
+
+    <div class="input-group">
+
+      <label>eFootball Username</label>
+
+      <input
+        type="text"
+        id="username"
+        placeholder="Your eFootball username"
+        required
+      >
+
+    </div>
+
+
+    <button
+      type="submit"
+      id="submitBtn"
+      class="submit-btn"
+    >
+      <span>REGISTER PLAYER</span>
+      <span>→</span>
+    </button>
+
+
+    <div
+      id="message"
+      class="message"
+    ></div>
+
+  </form>
+
+</section>
+
+
+<!-- =========================================
+     GROUPS
+========================================= -->
+
+<section
+  id="groups"
+  class="section"
+>
+
+  <div class="section-heading">
+
+    <span>GROUP STAGE</span>
+
+    <h2>
+      THE
+      <strong>GROUPS</strong>
+    </h2>
+
+    <p>
+      32 players divided into 8 groups.
+    </p>
+
+  </div>
+
+
+  <div
+    id="groupsGrid"
+    class="groups-grid"
+  >
+
+    <div class="loading">
+      Loading groups...
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- =========================================
+     FIXTURES
+========================================= -->
+
+<section
+  id="fixtures"
+  class="section"
+>
+
+  <div class="section-heading">
+
+    <span>MATCH SCHEDULE</span>
+
+    <h2>
+      UPCOMING
+      <strong>FIXTURES</strong>
+    </h2>
+
+    <p>
+      Check every group's opponents, date and time.
+    </p>
+
+  </div>
+
+
+  <div id="fixturesGrid">
+
+    Loading fixtures...
+
+  </div>
+
+</section>
+
+
+<!-- =========================================
+     STANDINGS
+========================================= -->
+
+<section
+  id="standings"
+  class="section"
+>
+
+  <div class="section-heading">
+
+    <span>GROUP STAGE</span>
+
+    <h2>
+      LEAGUE
+      <strong>STANDINGS</strong>
+    </h2>
+
+    <p>
+      Current standings for all groups.
+    </p>
+
+  </div>
+
+
+  <div id="standingsGrid">
+
+    Loading standings...
+
+  </div>
+
+</section>
+
+
+<!-- =========================================
+     KNOCKOUT
+========================================= -->
+
+<section
+  id="knockout"
+  class="section knockout-section"
+>
+
+  <div class="section-heading">
+
+    <span>ROAD TO THE FINAL</span>
+
+    <h2>
+      <strong>KNOCKOUT</strong>
+      STAGE
+    </h2>
+
+    <p>
+      From Round of 16 to the Championship Final.
+    </p>
+
+  </div>
+
+
+  <div class="knockout-grid">
+
+    <div class="round">
+
+      <h3>ROUND OF 16</h3>
+
+      <div id="round16">
+
+        <div class="knockout-match">
+          <span>Qualifier A1</span>
+          <strong>VS</strong>
+          <span>Qualifier B2</span>
+        </div>
+
+        <div class="knockout-match">
+          <span>Qualifier B1</span>
+          <strong>VS</strong>
+          <span>Qualifier A2</span>
+        </div>
+
+        <div class="knockout-match">
+          <span>Qualifier C1</span>
+          <strong>VS</strong>
+          <span>Qualifier D2</span>
+        </div>
+
+        <div class="knockout-match">
+          <span>Qualifier D1</span>
+          <strong>VS</strong>
+          <span>Qualifier C2</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="round">
+
+      <h3>QUARTERFINALS</h3>
+
+      <div id="quarterfinals">
+
+        <div class="knockout-match">
+          <span>Winner R16</span>
+          <strong>VS</strong>
+          <span>Winner R16</span>
+        </div>
+
+        <div class="knockout-match">
+          <span>Winner R16</span>
+          <strong>VS</strong>
+          <span>Winner R16</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="round">
+
+      <h3>SEMIFINALS</h3>
+
+      <div id="semifinals">
+
+        <div class="knockout-match">
+          <span>Winner QF</span>
+          <strong>VS</strong>
+          <span>Winner QF</span>
+        </div>
+
+        <div class="knockout-match">
+          <span>Winner QF</span>
+          <strong>VS</strong>
+          <span>Winner QF</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="round final-round">
+
+      <h3>🏆 FINAL</h3>
+
+      <div id="final">
+
+        <div class="knockout-match final-match">
+
+          <span>FINALIST 1</span>
+
+          <strong>VS</strong>
+
+          <span>FINALIST 2</span>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- =========================================
+     ADMIN
+========================================= -->
+
+<section
+  id="admin"
+  class="section admin-section"
+>
+
+  <div class="section-heading">
+
+    <span>CONTROL CENTER</span>
+
+    <h2>
+      ADMIN
+      <strong>PANEL</strong>
+    </h2>
+
+    <p>
+      Tournament management.
+    </p>
+
+  </div>
+
+
+  <div class="admin-panel">
+
+    <!-- ADMIN LOGIN -->
+
+    <div class="admin-login">
+
+      <h3>ADMIN CONTROL</h3>
+
+      <input
+        type="password"
+        id="adminPassword"
+        placeholder="Admin password"
+      >
+
+      <button
+        type="button"
+        id="adminLoginBtn"
+        class="primary-btn"
+      >
+        LOGIN
+      </button>
+
+    </div>
+
+
+    <!-- ADMIN PANEL -->
+
+    <div
+      id="adminPanel"
+      style="display:none;"
+    >
+
+      <!-- TOURNAMENT STATUS -->
+
+      <div class="tournament-control">
+
+        <h3>TOURNAMENT STATUS</h3>
+
+        <p id="tournamentStatus">
+          ⏳ Checking tournament status...
+        </p>
+
+        <p id="playerCounter">
+          Players: 0 / 32
+        </p>
+
+
+        <!-- FIXTURE GENERATOR -->
+
+        <div id="fixtureGenerator">
+
+          <label>
+            Tournament Start Date
+          </label>
+
+          <input
+            type="date"
+            id="fixtureStartDate"
+          >
+
+
+          <label>
+            First Match Time
+          </label>
+
+          <input
+            type="time"
+            id="fixtureStartTime"
+            value="15:00"
+          >
+
+
+          <label>
+            Match Interval
+          </label>
+
+          <select id="fixtureInterval">
+
+            <option value="120">
+              Every 2 Hours
+            </option>
+
+            <option value="180">
+              Every 3 Hours
+            </option>
+
+            <option value="240">
+              Every 4 Hours
+            </option>
+
+          </select>
+
+
+          <button
+            type="button"
+            id="generateFixturesBtn"
+            class="primary-btn"
+          >
+            GENERATE FULL FIXTURES
+          </button>
+
+        </div>
+
+
+        <!-- START -->
+
+        <div id="startTournamentBox">
+
+          <button
+            type="button"
+            id="startTournamentBtn"
+            class="primary-btn"
+            disabled
+          >
+            START TOURNAMENT
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- MATCH MANAGEMENT -->
+
+      <div class="match-management">
+
+        <h3>
+          MATCH MANAGEMENT
+        </h3>
+
+        <p id="matchManagementNotice">
+          🔒 Match Management itafunguka baada ya
+          players kufika 32.
+        </p>
+
+        <div id="adminMatches">
+
+          Waiting for 32 players...
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- =========================================
+     FOOTER
+========================================= -->
+
+<footer class="footer">
+
+  <p>
+    Powered by
+    <strong>
+      Gosper Nestory Kifaru
+    </strong>
+  </p>
+
+</footer>
+
+
+<!-- =========================================
+     JAVASCRIPT
+========================================= -->
+
+<script
+  type="module"
+  src="script.js"
+></script>
+
+</body>
+</html>
