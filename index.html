@@ -206,7 +206,23 @@
   Loading groups...
 </div>
 
-  </div></section><!-- ================= FIXTURES ================= --><section id="fixtures" class="section">  <div class="section-heading"><span>MATCH SCHEDULE</span>
+  </div></section><!-- ================= RESULTS ================= -->
+<section id="results" class="section results-section">
+  <div class="section-heading">
+    <span>MATCH CENTRE</span>
+    <h2>GAME <strong>RESULTS</strong></h2>
+    <p>All tournament games in one clean match centre.</p>
+  </div>
+  <div class="results-filters" role="tablist" aria-label="Result filters">
+    <button class="result-filter active" data-result-filter="all">ALL</button>
+    <button class="result-filter" data-result-filter="live">LIVE</button>
+    <button class="result-filter" data-result-filter="upcoming">UPCOMING</button>
+    <button class="result-filter" data-result-filter="finished">FINISHED</button>
+  </div>
+  <div id="resultsContainer" class="results-container"><div class="loading">Loading results...</div></div>
+</section>
+
+<!-- ================= FIXTURES ================= --><section id="fixtures" class="section">  <div class="section-heading"><span>MATCH SCHEDULE</span>
 
 <h2>
   UPCOMING
@@ -221,25 +237,7 @@
   Loading fixtures...
 </div>
 
-  </div></section><!-- ================= RESULTS ================= -->
-<section id="results" class="section results-section">
-  <div class="section-heading">
-    <span>ALL MATCHES</span>
-    <h2>MATCH <strong>RESULTS</strong></h2>
-    <p>Simple match results, presented in a premium match-centre style.</p>
-  </div>
-  <div class="results-filter" role="tablist" aria-label="Results filter">
-    <button class="result-filter active" data-result-filter="all" type="button">ALL</button>
-    <button class="result-filter" data-result-filter="live" type="button">LIVE</button>
-    <button class="result-filter" data-result-filter="upcoming" type="button">UPCOMING</button>
-    <button class="result-filter" data-result-filter="finished" type="button">FINISHED</button>
-  </div>
-  <div id="resultsContainer" class="results-container">
-    <div class="loading">Loading results...</div>
-  </div>
-</section>
-
-<!-- ================= STANDINGS ================= --><section id="standings" class="section">  <div class="section-heading"><span>LIVE TABLE</span>
+  </div></section><!-- ================= STANDINGS ================= --><section id="standings" class="section">  <div class="section-heading"><span>LIVE TABLE</span>
 
 <h2>
   LEAGUE
@@ -254,44 +252,37 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
-
-<h2>
-  <strong>KNOCKOUT</strong>
-  STAGE
-</h2>
-
-<p>
-  Qualification and knockout stage.
-</p>
-
-  </div>  <div id="qualificationNotice" class="qualification-notice"></div>
-  <div class="bracket-shell">
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">
+  <div class="section-heading"><span>ROAD TO THE FINAL</span><h2><strong>KNOCKOUT</strong> STAGE</h2><p>Two paths meet in the final. Winners advance automatically.</p></div>
+  <div class="bracket-board">
     <div class="bracket-side bracket-left">
-      <div class="bracket-round round16-side"><h3>ROUND OF 16</h3><div id="round16Left"></div></div>
-      <div class="bracket-round"><h3>QUARTERFINALS</h3><div id="quarterfinalsLeft"></div></div>
-      <div class="bracket-round"><h3>SEMIFINALS</h3><div id="semifinalsLeft"></div></div>
+      <div class="bracket-heading">LEFT PATH <small>TEAMS E–H SIDE</small></div>
+      <div class="bracket-round-labels"><span>ROUND OF 16</span><span>QUARTER-FINAL</span><span>SEMI-FINAL</span></div>
+      <div id="round16-left" class="bracket-column"></div>
+      <div id="quarterfinals-left" class="bracket-column"></div>
+      <div id="semifinals-left" class="bracket-column"></div>
     </div>
     <div class="bracket-center">
-      <div class="final-pillar">
-        <div class="final-badge">🏆 FINAL</div>
-        <div id="final" class="final-slot"></div>
-        <div id="championCard" class="champion-card"><span>CHAMPION</span><strong>WAITING</strong></div>
-      </div>
+      <div class="final-pillar"><span>THE FINAL</span><div id="final"><div class="knockout-empty">Finalists will meet here</div></div><div class="champion-center" id="championCenter">🏆 <span>CHAMPION</span></div></div>
     </div>
     <div class="bracket-side bracket-right">
-      <div class="bracket-round round16-side"><h3>ROUND OF 16</h3><div id="round16Right"></div></div>
-      <div class="bracket-round"><h3>QUARTERFINALS</h3><div id="quarterfinalsRight"></div></div>
-      <div class="bracket-round"><h3>SEMIFINALS</h3><div id="semifinalsRight"></div></div>
+      <div class="bracket-heading">RIGHT PATH <small>TEAMS A–D SIDE</small></div>
+      <div class="bracket-round-labels"><span>ROUND OF 16</span><span>QUARTER-FINAL</span><span>SEMI-FINAL</span></div>
+      <div id="round16-right" class="bracket-column"></div>
+      <div id="quarterfinals-right" class="bracket-column"></div>
+      <div id="semifinals-right" class="bracket-column"></div>
     </div>
-  </div></section><!-- ================= TOURNAMENT HISTORY ================= -->
+  </div>
+</section>
+
+<!-- ================= TOURNAMENT HISTORY ================= -->
 <section id="history" class="section history-section">
   <div class="section-heading">
     <span>HALL OF FAME</span>
     <h2>TOURNAMENT <strong>HISTORY</strong></h2>
-    <p>Previous champions and memorable finals.</p>
+    <p>Previous champions of Don Bosco eFootball League.</p>
   </div>
-  <div id="historyContainer" class="history-container"><div class="loading">Loading champions...</div></div>
+  <div id="historyContainer" class="history-container"><div class="loading">Loading tournament history...</div></div>
 </section>
 
 <!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
