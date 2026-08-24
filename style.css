@@ -1071,3 +1071,107 @@ a {
     text-align: center;
   }
 }
+
+/* =========================================================
+   POT DRAW SYSTEM
+========================================================= */
+
+.pot-management {
+  margin: 25px 0;
+  padding: 25px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(57,255,20,.045), rgba(255,255,255,.015));
+}
+
+.pot-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pot-summary-item {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #080c08;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pot-summary-item strong { color: var(--green); }
+.pot-summary-item span { color: var(--muted); font-size: 12px; }
+
+.pot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.pot-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  background: rgba(0,0,0,.18);
+}
+
+.pot-card.pot-locked { border-color: rgba(255,216,74,.45); }
+
+.pot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.pot-header h3 { color: var(--green); }
+.pot-header span { font-size: 10px; font-weight: 900; color: var(--gold); }
+.pot-count { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+
+.pot-player-list {
+  max-height: 420px;
+  overflow: auto;
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding-right: 4px;
+}
+
+.pot-player-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+  font-size: 11px;
+}
+
+.pot-player-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pot-player-row b { color: var(--green); margin-right: 4px; }
+.pot-player-row select { width: 100%; padding: 7px 5px; border-radius: 7px; background: #080c08; color: #fff; border: 1px solid rgba(255,255,255,.1); }
+.pot-player-row select:disabled { opacity: .55; }
+
+.pot-lock-btn { width: 100%; }
+
+.pot-actions {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.pot-help { color: var(--muted); font-size: 12px; flex: 1 1 100%; }
+.draw-locked { color: var(--gold); font-weight: 900; font-size: 12px; }
+
+@media (max-width: 850px) {
+  .pot-grid { grid-template-columns: 1fr; }
+  .pot-summary { grid-template-columns: 1fr; }
+}

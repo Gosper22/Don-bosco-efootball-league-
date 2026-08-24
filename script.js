@@ -5,7 +5,9 @@ getFirestore,
 collection,
 addDoc,
 getDocs,
+getDoc,
 updateDoc,
+setDoc,
 doc,
 serverTimestamp,
 runTransaction
@@ -35,6 +37,8 @@ let players = [];
 let matches = [];
 let tournamentStarted = false;
 let adminLoggedIn = false;
+let settingsDocId = null;
+let potState = { pot1Locked: false, pot2Locked: false, pot3Locked: false, groupingLocked: false };
 
 let tournamentSettings = {
 format: "groups",
@@ -51,6 +55,7 @@ setupRegistration();
 setupAdminLogin();
 setupTournamentSettings();
 setupTournamentControls();
+setupPotManagement();
 
 loadLeague();
 });
@@ -129,7 +134,7 @@ if (!teamNumber || !name || !phone || !username) {
 }
 
 
-if (tournamentStarted) {
+if (tournamentStarted || potState.groupingLocked) {
 
   showMessage(
     message,
@@ -340,6 +345,7 @@ if (entered === "Gosper2026") {
 
 
   loadAdminMatches();
+  renderPotManagement();
 
 } else {
 
@@ -366,6 +372,7 @@ try {
 await loadPlayers();
 await loadMatches();
 await loadTournamentSettings();
+await loadPotState();
 await loadTournamentStatus();
 
 updateSettingsPreview();
@@ -380,6 +387,7 @@ renderKnockout();
 
 if (adminLoggedIn) {
   loadAdminMatches();
+  renderPotManagement();
 }
 
 } catch (error) {
@@ -454,6 +462,7 @@ const snapshot =
 
 if (snapshot.empty) {
 
+  settingsDocId = null;
   tournamentSettings = {
     format: "groups",
     groupCount: 2
@@ -463,9 +472,8 @@ if (snapshot.empty) {
 }
 
 
-const data =
-  snapshot.docs[0].data();
-
+settingsDocId = snapshot.docs[0].id;
+const data = snapshot.docs[0].data();
 
 tournamentSettings = {
 
@@ -485,6 +493,13 @@ tournamentSettings = {
 
 };
 
+potState = {
+  pot1Locked: data.pot1Locked === true,
+  pot2Locked: data.pot2Locked === true,
+  pot3Locked: data.pot3Locked === true,
+  groupingLocked: data.groupingLocked === true
+};
+
 } catch (error) {
 
 console.error(
@@ -494,6 +509,27 @@ console.error(
 
 }
 
+}
+
+// =====================================================
+// POT / GROUP DRAW STATE
+// =====================================================
+
+async function loadPotState() {
+  try {
+    if (!settingsDocId) return;
+    const snap = await getDoc(doc(db, "settings", settingsDocId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    potState = {
+      pot1Locked: data.pot1Locked === true,
+      pot2Locked: data.pot2Locked === true,
+      pot3Locked: data.pot3Locked === true,
+      groupingLocked: data.groupingLocked === true
+    };
+  } catch (error) {
+    console.error("Pot state error:", error);
+  }
 }
 
 // =====================================================
@@ -608,6 +644,11 @@ return;
 
 }
 
+if (potState.groupingLocked) {
+  alert("🔒 Grouping tayari imefungwa. Huwezi kubadilisha group count.");
+  return;
+}
+
 const format =
 document.getElementById("tournamentFormat")?.value ||
 "groups";
@@ -634,6 +675,10 @@ const data = {
 
   format: format,
   groupCount: groupCount,
+  pot1Locked: potState.pot1Locked,
+  pot2Locked: potState.pot2Locked,
+  pot3Locked: potState.pot3Locked,
+  groupingLocked: potState.groupingLocked,
   updatedAt: serverTimestamp()
 
 };
@@ -641,10 +686,11 @@ const data = {
 
 if (snapshot.empty) {
 
-  await addDoc(
+  const ref = await addDoc(
     collection(db, "settings"),
     data
   );
+  settingsDocId = ref.id;
 
 } else {
 
@@ -772,56 +818,42 @@ Math.max(
 Number(tournamentSettings.groupCount || 2)
 );
 
-const groups = [];
-
 if (tournamentSettings.format === "league") {
-
-return [
-  {
-    name: "LEAGUE",
-    shortName: "LEAGUE",
-    players: [...players]
-  }
-];
-
+  return [{ name: "LEAGUE", shortName: "LEAGUE", players: [...players] }];
 }
 
-const sizes =
-calculateGroupSizes(
-players.length,
-count
-);
+const assignedPlayers = players.filter((p) => p.group);
 
+if (potState.groupingLocked && assignedPlayers.length) {
+  const groups = Array.from({ length: count }, (_, i) => ({
+    name: "GROUP " + groupLetter(i),
+    shortName: groupLetter(i),
+    players: []
+  }));
+
+  assignedPlayers.forEach((player) => {
+    const idx = groups.findIndex((g) => g.shortName === player.group);
+    if (idx >= 0) groups[idx].players.push(player);
+  });
+
+  return groups;
+}
+
+const sizes = calculateGroupSizes(players.length, count);
 let position = 0;
+const groups = [];
 
 for (let i = 0; i < count; i++) {
-
-const size = sizes[i] || 0;
-
-
-groups.push({
-
-  name:
-    "GROUP " + groupLetter(i),
-
-  shortName:
-    groupLetter(i),
-
-  players:
-    players.slice(
-      position,
-      position + size
-    )
-
-});
-
-
-position += size;
-
+  const size = sizes[i] || 0;
+  groups.push({
+    name: "GROUP " + groupLetter(i),
+    shortName: groupLetter(i),
+    players: players.slice(position, position + size)
+  });
+  position += size;
 }
 
 return groups;
-
 }
 
 // =====================================================
@@ -1458,6 +1490,207 @@ document
 startTournament
 );
 
+}
+
+// =====================================================
+// POT MANAGEMENT / GROUP DRAW
+// =====================================================
+
+function setupPotManagement() {
+  document.getElementById("drawGroupsFromPotsBtn")?.addEventListener("click", drawGroupsFromPots);
+}
+
+function potPlayers(pot) {
+  return players.filter((p) => Number(p.pot) === pot);
+}
+
+function renderPotManagement() {
+  const container = document.getElementById("potManagementContent");
+  if (!container || !adminLoggedIn) return;
+
+  const potNames = ["POT 1", "POT 2", "POT 3"];
+  const locks = [potState.pot1Locked, potState.pot2Locked, potState.pot3Locked];
+
+  container.innerHTML = `
+    <div class="pot-summary">
+      ${[1,2,3].map(p => `<div class="pot-summary-item"><strong>POT ${p}</strong><span>${potPlayers(p).length} players</span></div>`).join("")}
+    </div>
+    <div class="pot-grid">
+      ${[1,2,3].map((pot) => {
+        const list = potPlayers(pot);
+        const locked = locks[pot - 1];
+        return `
+          <div class="pot-card ${locked ? "pot-locked" : ""}">
+            <div class="pot-header"><h3>${potNames[pot-1]}</h3><span>${locked ? "🔒 LOCKED" : "🟢 OPEN"}</span></div>
+            <div class="pot-count">${list.length} players</div>
+            <div class="pot-player-list">
+              ${players.map((player) => {
+                const current = Number(player.pot) || 0;
+                const disabled = current === pot ? locked : (potState["pot" + pot + "Locked"] || false);
+                const label = escapeHTML(player.username || player.name || "PLAYER");
+                return `<div class="pot-player-row">
+                  <span><b>${String(player.teamNumber || "-").padStart(2,"0")}</b> ${label}</span>
+                  <select data-pot-player="${player.id}" ${disabled ? "disabled" : ""}>
+                    <option value="0" ${current===0 ? "selected" : ""}>Unassigned</option>
+                    <option value="1" ${current===1 ? "selected" : ""}>Pot 1</option>
+                    <option value="2" ${current===2 ? "selected" : ""}>Pot 2</option>
+                    <option value="3" ${current===3 ? "selected" : ""}>Pot 3</option>
+                  </select>
+                </div>`;
+              }).join("")}
+            </div>
+            <button type="button" class="primary-btn pot-lock-btn" data-lock-pot="${pot}" ${locked ? "disabled" : ""}>${locked ? "🔒 POT ${pot} LOCKED" : "🔒 LOCK POT ${pot}"}</button>
+          </div>`;
+      }).join("")}
+    </div>
+    <div class="pot-actions">
+      <p class="pot-help">Assign every registered player to Pot 1, 2 or 3. Lock each pot when you are satisfied, then draw the groups.</p>
+      <button type="button" class="primary-btn" id="drawGroupsFromPotsBtn" ${potState.groupingLocked ? "disabled" : ""}>🎲 DRAW GROUPS FROM POTS</button>
+      ${potState.groupingLocked ? `<span class="draw-locked">🔒 GROUPS LOCKED</span>` : ""}
+    </div>`;
+
+  container.querySelectorAll("select[data-pot-player]").forEach((select) => {
+    select.addEventListener("change", async () => {
+      await assignPlayerPot(select.dataset.potPlayer, Number(select.value));
+    });
+  });
+
+  container.querySelectorAll("[data-lock-pot]").forEach((button) => {
+    button.addEventListener("click", () => lockPot(Number(button.dataset.lockPot)));
+  });
+
+  document.getElementById("drawGroupsFromPotsBtn")?.addEventListener("click", drawGroupsFromPots);
+}
+
+async function assignPlayerPot(playerId, pot) {
+  if (!adminLoggedIn || potState.groupingLocked) return;
+  if (pot < 0 || pot > 3) return;
+  if (pot > 0 && potState["pot" + pot + "Locked"]) {
+    alert("🔒 Pot hiyo imefungwa.");
+    renderPotManagement();
+    return;
+  }
+  const player = players.find((p) => p.id === playerId);
+  if (!player) return;
+  const current = Number(player.pot) || 0;
+  if (current > 0 && potState["pot" + current + "Locked"] && current !== pot) {
+    alert("🔒 Mchezaji wa pot iliyofungwa hawezi kuhamishwa.");
+    renderPotManagement();
+    return;
+  }
+  try {
+    await updateDoc(doc(db, "registrations", playerId), { pot, updatedAt: serverTimestamp() });
+    player.pot = pot;
+    renderPotManagement();
+  } catch (error) {
+    console.error("Pot assignment error:", error);
+    alert("❌ Failed to assign player to pot.");
+  }
+}
+
+async function lockPot(pot) {
+  if (!adminLoggedIn) return;
+  if (pot < 1 || pot > 3) return;
+  const count = potPlayers(pot).length;
+  const groupCount = Number(tournamentSettings.groupCount || 2);
+  if (count < groupCount) {
+    alert(`⚠️ Pot ${pot} ina players ${count}, lakini una groups ${groupCount}. Weka angalau ${groupCount} players kwenye pot hii.`);
+    return;
+  }
+  if (players.some((p) => !Number(p.pot))) {
+    alert("⚠️ Assign players wote kwenye pots kwanza.");
+    return;
+  }
+  potState["pot" + pot + "Locked"] = true;
+  await savePotState();
+  renderPotManagement();
+}
+
+async function savePotState() {
+  try {
+    const data = {
+      ...tournamentSettings,
+      ...potState,
+      updatedAt: serverTimestamp()
+    };
+    if (settingsDocId) {
+      await updateDoc(doc(db, "settings", settingsDocId), data);
+    } else {
+      const ref = await addDoc(collection(db, "settings"), data);
+      settingsDocId = ref.id;
+    }
+  } catch (error) {
+    console.error("Save pot state error:", error);
+    alert("❌ Failed to save pot state.");
+  }
+}
+
+function shuffle(list) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+async function drawGroupsFromPots() {
+  if (!adminLoggedIn) return;
+  if (potState.groupingLocked) { alert("🔒 Grouping tayari imefungwa."); return; }
+  if (tournamentSettings.format !== "groups") { alert("⚠️ Chagua GROUPS format kwanza."); return; }
+  if (![1,2,3].every((p) => potState["pot" + p + "Locked"])) {
+    alert("🔒 Funga Pot 1, Pot 2 na Pot 3 kwanza.");
+    return;
+  }
+  if (players.some((p) => !Number(p.pot))) {
+    alert("⚠️ Kila player lazima awe kwenye pot.");
+    return;
+  }
+
+  const groupCount = Number(tournamentSettings.groupCount || 2);
+  if (players.length < groupCount) { alert("⚠️ Players wachache kuliko groups."); return; }
+
+  const confirmed = confirm(`🎲 Generate ${groupCount} groups kutoka Pot 1–3? Hii itafunga grouping.`);
+  if (!confirmed) return;
+
+  try {
+    const groups = Array.from({ length: groupCount }, (_, i) => ({ shortName: groupLetter(i), players: [] }));
+    const used = new Set();
+
+    // First round: one player from every pot per group.
+    for (const pot of [1,2,3]) {
+      const pool = shuffle(potPlayers(pot));
+      for (let i = 0; i < groupCount; i++) {
+        const player = pool[i];
+        if (!player) continue;
+        groups[i].players.push(player);
+        used.add(player.id);
+      }
+    }
+
+    // Any remaining players are distributed fairly across groups.
+    const remaining = shuffle(players.filter((p) => !used.has(p.id)));
+    remaining.forEach((player, index) => {
+      groups[index % groupCount].players.push(player);
+    });
+
+    for (const group of groups) {
+      for (const player of group.players) {
+        await updateDoc(doc(db, "registrations", player.id), { group: group.shortName, updatedAt: serverTimestamp() });
+      }
+    }
+
+    potState.groupingLocked = true;
+    await savePotState();
+    await loadPlayers();
+    renderGroups();
+    renderKnockout();
+    renderPotManagement();
+    alert("🏆 Groups generated successfully and locked!");
+  } catch (error) {
+    console.error("Group draw error:", error);
+    alert("❌ Failed to generate groups.");
+  }
 }
 
 // =====================================================
