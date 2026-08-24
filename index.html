@@ -11,10 +11,8 @@
     <a href="#register">Register</a>
     <a href="#groups">Groups</a>
     <a href="#fixtures">Fixtures</a>
-    <a href="#results">Results</a>
     <a href="#standings">Standings</a>
     <a href="#knockout">Knockout</a>
-    <a href="#history">History</a>
     <a href="#contact">Contact Admin</a>
     <a href="#admin">Admin</a><button id="registerBtn" class="nav-register" type="button">
   REGISTER NOW
@@ -206,23 +204,7 @@
   Loading groups...
 </div>
 
-  </div></section><!-- ================= RESULTS ================= -->
-<section id="results" class="section results-section">
-  <div class="section-heading">
-    <span>MATCH CENTRE</span>
-    <h2>GAME <strong>RESULTS</strong></h2>
-    <p>All tournament games in one clean match centre.</p>
-  </div>
-  <div class="results-filters" role="tablist" aria-label="Result filters">
-    <button class="result-filter active" data-result-filter="all">ALL</button>
-    <button class="result-filter" data-result-filter="live">LIVE</button>
-    <button class="result-filter" data-result-filter="upcoming">UPCOMING</button>
-    <button class="result-filter" data-result-filter="finished">FINISHED</button>
-  </div>
-  <div id="resultsContainer" class="results-container"><div class="loading">Loading results...</div></div>
-</section>
-
-<!-- ================= FIXTURES ================= --><section id="fixtures" class="section">  <div class="section-heading"><span>MATCH SCHEDULE</span>
+  </div></section><!-- ================= FIXTURES ================= --><section id="fixtures" class="section">  <div class="section-heading"><span>MATCH SCHEDULE</span>
 
 <h2>
   UPCOMING
@@ -252,40 +234,85 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">
-  <div class="section-heading"><span>ROAD TO THE FINAL</span><h2><strong>KNOCKOUT</strong> STAGE</h2><p>Two paths meet in the final. Winners advance automatically.</p></div>
-  <div class="bracket-board">
-    <div class="bracket-side bracket-left">
-      <div class="bracket-heading">LEFT PATH <small>TEAMS E–H SIDE</small></div>
-      <div class="bracket-round-labels"><span>ROUND OF 16</span><span>QUARTER-FINAL</span><span>SEMI-FINAL</span></div>
-      <div id="round16-left" class="bracket-column"></div>
-      <div id="quarterfinals-left" class="bracket-column"></div>
-      <div id="semifinals-left" class="bracket-column"></div>
-    </div>
-    <div class="bracket-center">
-      <div class="final-pillar"><span>THE FINAL</span><div id="final"><div class="knockout-empty">Finalists will meet here</div></div><div class="champion-center" id="championCenter">🏆 <span>CHAMPION</span></div></div>
-    </div>
-    <div class="bracket-side bracket-right">
-      <div class="bracket-heading">RIGHT PATH <small>TEAMS A–D SIDE</small></div>
-      <div class="bracket-round-labels"><span>ROUND OF 16</span><span>QUARTER-FINAL</span><span>SEMI-FINAL</span></div>
-      <div id="round16-right" class="bracket-column"></div>
-      <div id="quarterfinals-right" class="bracket-column"></div>
-      <div id="semifinals-right" class="bracket-column"></div>
-    </div>
-  </div>
-</section>
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
 
-<!-- ================= TOURNAMENT HISTORY ================= -->
-<section id="history" class="section history-section">
-  <div class="section-heading">
-    <span>HALL OF FAME</span>
-    <h2>TOURNAMENT <strong>HISTORY</strong></h2>
-    <p>Previous champions of Don Bosco eFootball League.</p>
-  </div>
-  <div id="historyContainer" class="history-container"><div class="loading">Loading tournament history...</div></div>
-</section>
+<h2>
+  <strong>KNOCKOUT</strong>
+  STAGE
+</h2>
 
-<!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+<p>
+  Qualification and knockout stage.
+</p>
+
+  </div>  <div class="knockout-grid"><div class="round">
+
+  <h3>ROUND OF 16</h3>
+
+  <div id="round16">
+
+    <div class="knockout-match">
+      <span>QUALIFIER</span>
+      <strong>VS</strong>
+      <span>QUALIFIER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round">
+
+  <h3>QUARTERFINALS</h3>
+
+  <div id="quarterfinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round">
+
+  <h3>SEMIFINALS</h3>
+
+  <div id="semifinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round final-round">
+
+  <h3>🏆 FINAL</h3>
+
+  <div id="final">
+
+    <div class="knockout-match final-match">
+      <span>FINALIST 1</span>
+      <strong>VS</strong>
+      <span>FINALIST 2</span>
+    </div>
+
+  </div>
+
+</div>
+
+  </div></section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
 
 <h2>
   CONTACT
