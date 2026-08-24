@@ -11,8 +11,10 @@
     <a href="#register">Register</a>
     <a href="#groups">Groups</a>
     <a href="#fixtures">Fixtures</a>
+    <a href="#results">Results</a>
     <a href="#standings">Standings</a>
     <a href="#knockout">Knockout</a>
+    <a href="#history">History</a>
     <a href="#contact">Contact Admin</a>
     <a href="#admin">Admin</a><button id="registerBtn" class="nav-register" type="button">
   REGISTER NOW
@@ -219,7 +221,25 @@
   Loading fixtures...
 </div>
 
-  </div></section><!-- ================= STANDINGS ================= --><section id="standings" class="section">  <div class="section-heading"><span>LIVE TABLE</span>
+  </div></section><!-- ================= RESULTS ================= -->
+<section id="results" class="section results-section">
+  <div class="section-heading">
+    <span>ALL MATCHES</span>
+    <h2>MATCH <strong>RESULTS</strong></h2>
+    <p>Simple match results, presented in a premium match-centre style.</p>
+  </div>
+  <div class="results-filter" role="tablist" aria-label="Results filter">
+    <button class="result-filter active" data-result-filter="all" type="button">ALL</button>
+    <button class="result-filter" data-result-filter="live" type="button">LIVE</button>
+    <button class="result-filter" data-result-filter="upcoming" type="button">UPCOMING</button>
+    <button class="result-filter" data-result-filter="finished" type="button">FINISHED</button>
+  </div>
+  <div id="resultsContainer" class="results-container">
+    <div class="loading">Loading results...</div>
+  </div>
+</section>
+
+<!-- ================= STANDINGS ================= --><section id="standings" class="section">  <div class="section-heading"><span>LIVE TABLE</span>
 
 <h2>
   LEAGUE
@@ -245,74 +265,36 @@
   Qualification and knockout stage.
 </p>
 
-  </div>  <div class="knockout-grid"><div class="round">
-
-  <h3>ROUND OF 16</h3>
-
-  <div id="round16">
-
-    <div class="knockout-match">
-      <span>QUALIFIER</span>
-      <strong>VS</strong>
-      <span>QUALIFIER</span>
+  </div>  <div id="qualificationNotice" class="qualification-notice"></div>
+  <div class="bracket-shell">
+    <div class="bracket-side bracket-left">
+      <div class="bracket-round round16-side"><h3>ROUND OF 16</h3><div id="round16Left"></div></div>
+      <div class="bracket-round"><h3>QUARTERFINALS</h3><div id="quarterfinalsLeft"></div></div>
+      <div class="bracket-round"><h3>SEMIFINALS</h3><div id="semifinalsLeft"></div></div>
     </div>
-
-  </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>QUARTERFINALS</h3>
-
-  <div id="quarterfinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
+    <div class="bracket-center">
+      <div class="final-pillar">
+        <div class="final-badge">🏆 FINAL</div>
+        <div id="final" class="final-slot"></div>
+        <div id="championCard" class="champion-card"><span>CHAMPION</span><strong>WAITING</strong></div>
+      </div>
     </div>
-
-  </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>SEMIFINALS</h3>
-
-  <div id="semifinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
+    <div class="bracket-side bracket-right">
+      <div class="bracket-round round16-side"><h3>ROUND OF 16</h3><div id="round16Right"></div></div>
+      <div class="bracket-round"><h3>QUARTERFINALS</h3><div id="quarterfinalsRight"></div></div>
+      <div class="bracket-round"><h3>SEMIFINALS</h3><div id="semifinalsRight"></div></div>
     </div>
-
+  </div></section><!-- ================= TOURNAMENT HISTORY ================= -->
+<section id="history" class="section history-section">
+  <div class="section-heading">
+    <span>HALL OF FAME</span>
+    <h2>TOURNAMENT <strong>HISTORY</strong></h2>
+    <p>Previous champions and memorable finals.</p>
   </div>
+  <div id="historyContainer" class="history-container"><div class="loading">Loading champions...</div></div>
+</section>
 
-</div>
-
-
-<div class="round final-round">
-
-  <h3>🏆 FINAL</h3>
-
-  <div id="final">
-
-    <div class="knockout-match final-match">
-      <span>FINALIST 1</span>
-      <strong>VS</strong>
-      <span>FINALIST 2</span>
-    </div>
-
-  </div>
-
-</div>
-
-  </div></section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+<!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
 
 <h2>
   CONTACT
@@ -704,4 +686,4 @@
   type="module"
   src="script.js"
 ></script></body>
-        </html>
+</html>

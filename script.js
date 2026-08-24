@@ -2193,3 +2193,221 @@ button.innerHTML =
 "<span>→</span>";
 
 }
+// =====================================================
+// PREMIUM RESULTS + AUTOMATIC KNOCKOUT SYSTEM
+// =====================================================
+
+function resultStatus(match) {
+  if (match.played) return "finished";
+  return "upcoming";
+}
+
+function renderResults(filter = "all") {
+  const container = document.getElementById("resultsContainer");
+  if (!container) return;
+  const filtered = matches.filter((m) => {
+    if (filter === "finished") return !!m.played;
+    if (filter === "live") return m.status === "live";
+    if (filter === "upcoming") return !m.played && m.status !== "live";
+    return true;
+  });
+  container.innerHTML = "";
+  if (!filtered.length) {
+    container.innerHTML = "<div class='loading'>No matches in this category yet.</div>";
+    return;
+  }
+  filtered.forEach((match) => {
+    const card = document.createElement("article");
+    card.className = "result-card";
+    const stage = match.stage === "knockout" ? (match.round || "KNOCKOUT") : (match.group || "LEAGUE");
+    const status = match.status === "live" ? "LIVE" : (match.played ? "FULL TIME" : "UPCOMING");
+    const score = match.played ? `${Number(match.homeGoals || 0)} — ${Number(match.awayGoals || 0)}` : "VS";
+    card.innerHTML = `
+      <div class="result-top"><span>${escapeHTML(stage)}</span><b class="result-status ${status.toLowerCase().replace(/\s/g,'-')}">${status}</b></div>
+      <div class="result-teams"><strong>${escapeHTML(match.homePlayer || "TBD")}</strong><div class="result-score">${score}</div><strong>${escapeHTML(match.awayPlayer || "TBD")}</strong></div>
+      <div class="result-meta"><span>📅 ${escapeHTML(match.date || "TBD")}</span><span>⏰ ${escapeHTML(match.time || "--:--")}</span></div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function setupResultsFilters() {
+  document.querySelectorAll("[data-result-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-result-filter]").forEach((b) => b.classList.remove("active"));
+      button.classList.add("active");
+      renderResults(button.dataset.resultFilter || "all");
+    });
+  });
+}
+
+document.addEventListener("DOMContentLoaded", setupResultsFilters);
+
+function getQualifiedPlayers() {
+  if (tournamentSettings.format === "league") {
+    const table = buildStats(players);
+    return table.slice(0, 16);
+  }
+  const groups = getGroups();
+  const targetPerGroup = Math.floor(16 / groups.length);
+  const remainder = 16 % groups.length;
+  const qualified = [];
+  groups.forEach((group, i) => {
+    const count = targetPerGroup + (i < remainder ? 1 : 0);
+    qualified.push(...buildStats(group.players).slice(0, count));
+  });
+  return qualified.slice(0, 16);
+}
+
+function buildStats(groupPlayers) {
+  const stats = {};
+  groupPlayers.forEach((player) => {
+    const name = player.username || player.name || "PLAYER";
+    stats[name] = { name, P:0, W:0, D:0, L:0, GF:0, GA:0, GD:0, PTS:0 };
+  });
+  matches.forEach((match) => {
+    if (!match.played || match.stage === "knockout") return;
+    const home = stats[match.homePlayer], away = stats[match.awayPlayer];
+    if (!home || !away) return;
+    const hg = Number(match.homeGoals || 0), ag = Number(match.awayGoals || 0);
+    home.P++; away.P++; home.GF += hg; home.GA += ag; away.GF += ag; away.GA += hg;
+    if (hg > ag) { home.W++; home.PTS += 3; away.L++; }
+    else if (hg < ag) { away.W++; away.PTS += 3; home.L++; }
+    else { home.D++; away.D++; home.PTS++; away.PTS++; }
+  });
+  return Object.values(stats).map(p => ({...p, GD:p.GF-p.GA})).sort((a,b) => b.PTS-a.PTS || b.GD-a.GD || b.GF-a.GF);
+}
+
+async function ensureKnockoutStage() {
+  if (tournamentSettings.format === "league") return;
+  const qualified = getQualifiedPlayers();
+  if (qualified.length < 16) return;
+  const groupMatches = matches.filter(m => m.stage !== "knockout");
+  const completed = groupMatches.length > 0 && groupMatches.every(m => m.played);
+  if (!completed) return;
+  const existing = matches.filter(m => m.stage === "knockout");
+  if (existing.length) return;
+  const now = new Date();
+  const seeds = qualified.map(p => p.name);
+  for (let i=0;i<8;i++) {
+    const home = seeds[i*2], away = seeds[i*2+1];
+    await addDoc(collection(db,"matches"), {
+      matchNumber: 1000+i+1, stage:"knockout", round:"ROUND OF 16", pair:i+1,
+      side:i<4?"right":"left", homePlayer:home, awayPlayer:away,
+      homeGoals:null, awayGoals:null, played:false, date:formatDate(now), time:formatTime(now), createdAt:serverTimestamp()
+    });
+  }
+  const rounds = [
+    {round:"QUARTERFINALS", count:4, base:1100},
+    {round:"SEMIFINALS", count:2, base:1200},
+    {round:"FINAL", count:1, base:1300}
+  ];
+  for (const r of rounds) for (let i=0;i<r.count;i++) {
+    await addDoc(collection(db,"matches"), {
+      matchNumber:r.base+i+1, stage:"knockout", round:r.round, pair:i+1,
+      side:i < Math.ceil(r.count/2) ? "right" : "left", homePlayer:null, awayPlayer:null,
+      homeGoals:null, awayGoals:null, played:false, date:formatDate(now), time:formatTime(now), createdAt:serverTimestamp()
+    });
+  }
+}
+
+function knockoutMatches(round) {
+  return matches.filter(m => m.stage === "knockout" && m.round === round).sort((a,b)=>Number(a.pair||0)-Number(b.pair||0));
+}
+
+function renderQualificationNotice() {
+  const el=document.getElementById("qualificationNotice"); if(!el) return;
+  const qualified=getQualifiedPlayers();
+  if(qualified.length<16){ el.textContent="🔒 Knockout will unlock automatically when the group stage is complete and 16 teams are qualified."; return; }
+  const names=qualified.map(p=>p.name).join(" • ");
+  el.innerHTML=`🎉 <strong>${qualified.length} teams qualified</strong> — ${escapeHTML(names)}. The Round of 16 bracket is generated automatically.`;
+}
+
+function renderKnockout() {
+  const ids = ["round16Left","round16Right","quarterfinalsLeft","quarterfinalsRight","semifinalsLeft","semifinalsRight","final"];
+  ids.forEach(id => { const el=document.getElementById(id); if(el) el.innerHTML=""; });
+  const renderRound = (round, leftId, rightId) => {
+    const left=document.getElementById(leftId), right=document.getElementById(rightId);
+    knockoutMatches(round).forEach((m,i)=>{
+      const el=document.createElement("div"); el.className="bracket-match";
+      el.innerHTML=`<div>${escapeHTML(m.homePlayer||"QUALIFIER")}</div><b>VS</b><div>${escapeHTML(m.awayPlayer||"QUALIFIER")}</div>`;
+      const target=(m.side==="left"?left:right) || right || left; target?.appendChild(el);
+    });
+  };
+  renderRound("ROUND OF 16","round16Left","round16Right");
+  renderRound("QUARTERFINALS","quarterfinalsLeft","quarterfinalsRight");
+  renderRound("SEMIFINALS","semifinalsLeft","semifinalsRight");
+  const finalEl=document.getElementById("final");
+  const final=knockoutMatches("FINAL")[0];
+  if(finalEl && final) finalEl.innerHTML=`<div class="bracket-match final-bracket-match"><div>${escapeHTML(final.homePlayer||"FINALIST")}</div><b>VS</b><div>${escapeHTML(final.awayPlayer||"FINALIST")}</div></div>`;
+  const champion=document.getElementById("championCard");
+  const championName=final?.played ? (Number(final.homeGoals)>Number(final.awayGoals)?final.homePlayer:final.awayPlayer) : null;
+  if(champion) champion.innerHTML=`<span>🏆 CHAMPION</span><strong>${escapeHTML(championName||"WAITING")}</strong>`;
+}
+
+async function advanceKnockout(match) {
+  if (!match.played || match.homePlayer == null || match.awayPlayer == null) return;
+  if (Number(match.homeGoals) === Number(match.awayGoals)) return;
+  const winner = Number(match.homeGoals) > Number(match.awayGoals) ? match.homePlayer : match.awayPlayer;
+  const map = {"ROUND OF 16":"QUARTERFINALS","QUARTERFINALS":"SEMIFINALS","SEMIFINALS":"FINAL"};
+  const nextRound = map[match.round];
+  if (!nextRound) {
+    if (match.round === "FINAL") await saveChampion(winner, match);
+    return;
+  }
+  const next = knockoutMatches(nextRound);
+  const nextIndex = Math.floor((Number(match.pair)-1)/2);
+  const nextMatch = next[nextIndex];
+  if (!nextMatch) return;
+  const patch = Number(match.pair)%2===1 ? {homePlayer:winner} : {awayPlayer:winner};
+  await updateDoc(doc(db,"matches",nextMatch.id), patch);
+}
+
+async function saveChampion(name, finalMatch) {
+  const historySnap = await getDocs(collection(db,"history"));
+  const year = new Date().getFullYear();
+  const exists = historySnap.docs.some(d => d.data().year === year);
+  if (exists) return;
+  const runnerUp = Number(finalMatch.homeGoals)>Number(finalMatch.awayGoals) ? finalMatch.awayPlayer : finalMatch.homePlayer;
+  await addDoc(collection(db,"history"), { year, champion:name, runnerUp, score:`${finalMatch.homeGoals}-${finalMatch.awayGoals}`, createdAt:serverTimestamp() });
+}
+
+async function renderHistory() {
+  const container=document.getElementById("historyContainer"); if(!container) return;
+  try {
+    const snap=await getDocs(collection(db,"history"));
+    const rows=snap.docs.map(d=>d.data()).sort((a,b)=>Number(b.year||0)-Number(a.year||0));
+    container.innerHTML="";
+    if(!rows.length){container.innerHTML="<div class='loading'>No champions recorded yet.</div>";return;}
+    rows.forEach(r=>{const card=document.createElement("div");card.className="history-card";card.innerHTML=`<span>${escapeHTML(r.year||"")}</span><div><strong>🏆 ${escapeHTML(r.champion||"UNKNOWN")}</strong><small>Runner-up: ${escapeHTML(r.runnerUp||"—")} · Final ${escapeHTML(r.score||"—")}</small></div>`;container.appendChild(card);});
+  } catch(e){console.error("History error",e);}
+}
+
+// Replace the old public fixture renderer with the richer Results Centre.
+function renderFixtures() {
+  const container=document.getElementById("fixturesContainer"); if(!container)return;
+  container.innerHTML="";
+  if(!matches.length){container.innerHTML="<div class='loading'>⏳ Fixtures are not generated yet.</div>";return;}
+  matches.filter(m=>m.stage!=="knockout").forEach(match=>{
+    const card=document.createElement("div"); card.className="fixture";
+    card.innerHTML=`<div class="fixture-players"><strong>${escapeHTML(match.homePlayer||"TBD")}</strong><span>VS</span><strong>${escapeHTML(match.awayPlayer||"TBD")}</strong></div><div class="match-schedule">📍 ${escapeHTML(match.group||"LEAGUE")} &nbsp; 📅 ${escapeHTML(match.date||"TBD")} &nbsp; ⏰ ${escapeHTML(match.time||"--:--")}</div><div class="match-status">${match.played?`${match.homeGoals} - ${match.awayGoals}`:"UPCOMING"}</div>`;
+    container.appendChild(card);
+  });
+}
+
+// Add knockout/history/result rendering after every normal data refresh.
+const originalLoadLeague = loadLeague;
+loadLeague = async function(){
+  await originalLoadLeague();
+  try { await ensureKnockoutStage(); await loadMatches(); renderResults(); renderQualificationNotice(); renderKnockout(); await renderHistory(); } catch(e){ console.error("Enhanced tournament render error",e); }
+};
+
+const originalSaveAdminMatch = saveAdminMatch;
+saveAdminMatch = async function(matchId){
+  await originalSaveAdminMatch(matchId);
+  const match=matches.find(m=>m.id===matchId);
+  if(match && match.stage==="knockout") {
+    await advanceKnockout(match);
+    await loadLeague();
+  }
+};

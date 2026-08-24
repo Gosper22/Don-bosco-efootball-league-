@@ -1010,4 +1010,45 @@ a {
     width: 100%;
   }
 
-           }
+}
+/* =========================================================
+   PREMIUM RESULTS CENTRE
+========================================================= */
+.results-filter{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:-15px 0 30px}
+.result-filter{border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);color:#b9c3ba;padding:10px 16px;border-radius:999px;font-weight:900;font-size:11px;letter-spacing:1px;cursor:pointer;transition:.2s ease}
+.result-filter:hover,.result-filter.active{background:var(--green);border-color:var(--green);color:#031003;box-shadow:0 0 20px rgba(57,255,20,.18)}
+.results-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.result-card{position:relative;overflow:hidden;padding:22px;border:1px solid rgba(255,255,255,.08);border-radius:20px;background:linear-gradient(145deg,#101710,#080b08);box-shadow:0 18px 45px rgba(0,0,0,.3);transition:.25s ease}
+.result-card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% -20%,rgba(57,255,20,.13),transparent 50%);pointer-events:none}
+.result-card:hover{transform:translateY(-4px);border-color:rgba(57,255,20,.4)}
+.result-top,.result-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:1px;text-transform:uppercase}
+.result-status{padding:5px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.1)}
+.result-status.finished{color:#dfe8df}.result-status.upcoming{color:var(--gold)}.result-status.live{color:#fff;background:rgba(255,69,69,.16);border-color:rgba(255,69,69,.4)}
+.result-teams{position:relative;z-index:1;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;margin:24px 0;text-align:center}
+.result-teams strong{font-size:15px;line-height:1.25}.result-teams strong:last-child{text-align:center}.result-score{font-size:28px;font-weight:1000;color:var(--green);white-space:nowrap;text-shadow:0 0 18px rgba(57,255,20,.2)}
+.result-meta{padding-top:14px;border-top:1px solid rgba(255,255,255,.06);font-size:9px;letter-spacing:.5px}
+
+/* =========================================================
+   TWO-SIDED KNOCKOUT BRACKET
+========================================================= */
+.qualification-notice{margin:0 auto 25px;max-width:900px;padding:14px 18px;border:1px solid var(--border);border-radius:14px;background:rgba(57,255,20,.05);text-align:center;color:var(--muted);font-size:12px}
+.bracket-shell{display:grid;grid-template-columns:minmax(0,1fr) 180px minmax(0,1fr);gap:24px;align-items:stretch;min-height:680px}
+.bracket-side{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:center}
+.bracket-right .bracket-round{text-align:left}.bracket-left .bracket-round{text-align:right}
+.bracket-round h3{color:var(--green);font-size:10px;letter-spacing:1.5px;margin-bottom:12px;text-align:center}
+.bracket-round>div{display:flex;flex-direction:column;justify-content:space-around;gap:18px;height:calc(100% - 28px)}
+.bracket-match{position:relative;padding:10px 11px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:var(--card);font-size:11px;font-weight:800;line-height:1.8;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.bracket-match::after{content:"";position:absolute;top:50%;width:18px;height:1px;background:rgba(57,255,20,.28)}
+.bracket-right .bracket-match::after{right:-19px}.bracket-left .bracket-match::after{left:-19px}
+.bracket-match b{display:block;color:var(--green);font-size:9px;text-align:center}
+.bracket-center{display:flex;align-items:center;justify-content:center;position:relative}.bracket-center::before,.bracket-center::after{content:"";position:absolute;top:50%;width:35px;height:1px;background:rgba(255,216,74,.35)}.bracket-center::before{left:-25px}.bracket-center::after{right:-25px}
+.final-pillar{width:100%;display:grid;gap:14px;text-align:center}.final-badge{color:var(--gold);font-weight:1000;font-size:13px;letter-spacing:2px}.final-slot{min-height:90px;display:flex;align-items:center;justify-content:center}.final-bracket-match{width:100%;border-color:rgba(255,216,74,.35);box-shadow:0 0 30px rgba(255,216,74,.08)}.final-bracket-match b{color:var(--gold)}
+.champion-card{padding:22px 12px;border:1px solid rgba(255,216,74,.35);border-radius:16px;background:linear-gradient(145deg,rgba(255,216,74,.09),rgba(255,255,255,.02));box-shadow:0 0 30px rgba(255,216,74,.08)}.champion-card span{display:block;color:var(--gold);font-size:9px;letter-spacing:2px;font-weight:1000}.champion-card strong{display:block;margin-top:8px;color:#fff;font-size:18px}
+
+/* =========================================================
+   HISTORY
+========================================================= */
+.history-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:15px}.history-card{display:flex;align-items:center;gap:16px;padding:20px;border:1px solid rgba(255,255,255,.08);border-radius:17px;background:linear-gradient(145deg,#101710,#080b08);transition:.2s ease}.history-card:hover{border-color:rgba(255,216,74,.35);transform:translateY(-3px)}.history-card>span{font-size:24px;font-weight:1000;color:var(--gold)}.history-card strong{display:block;color:#fff;font-size:14px}.history-card small{display:block;margin-top:5px;color:var(--muted);font-size:10px}
+
+@media (max-width:1000px){.bracket-shell{grid-template-columns:1fr;gap:35px}.bracket-side{grid-template-columns:repeat(3,1fr)}.bracket-center{order:-1;min-height:180px}.bracket-center::before,.bracket-center::after{display:none}.bracket-left .bracket-match::after{left:auto;right:-19px}.bracket-left .bracket-round{text-align:left}}
+@media (max-width:600px){.results-container{grid-template-columns:1fr}.result-teams{grid-template-columns:1fr auto 1fr;gap:7px}.result-teams strong{font-size:12px}.result-score{font-size:22px}.bracket-side{grid-template-columns:1fr;gap:25px}.bracket-round>div{height:auto}.bracket-match::after{display:none}.bracket-left .bracket-round{text-align:left}}
