@@ -1877,18 +1877,29 @@ function getQualifiedTeams() {
 }
 
 function knockoutRounds() {
-  const r16=matches.filter(m=>String(m.stage||m.group||"").toUpperCase()==="ROUND OF 16");
-  const qf=matches.filter(m=>String(m.stage||m.group||"").toUpperCase()==="QUARTERFINAL");
-  const sf=matches.filter(m=>String(m.stage||m.group||"").toUpperCase()==="SEMIFINAL");
-  const f=matches.filter(m=>String(m.stage||m.group||"").toUpperCase()==="FINAL");
-  return {r16,qf,sf,f};
+  const stage = m => String(m.stage||m.group||"").toUpperCase();
+  const preliminary=matches.filter(m=>["PRELIMINARY","PLAY-IN","ROUND 1"].includes(stage(m)));
+  const r16=matches.filter(m=>stage(m)==="ROUND OF 16");
+  const qf=matches.filter(m=>stage(m)==="QUARTERFINAL");
+  const sf=matches.filter(m=>stage(m)==="SEMIFINAL");
+  const f=matches.filter(m=>stage(m)==="FINAL");
+  return {preliminary,r16,qf,sf,f};
 }
 
-function winnerOf(match) {
-  if (!match || !match.played) return null;
-  const hg=Number(match.homeGoals||0), ag=Number(match.awayGoals||0);
-  if(hg===ag) return match.winner || null;
-  return hg>ag ? match.homePlayer : match.awayPlayer;
+function nextPowerOfTwo(n){
+  let p=1; while(p<n) p*=2; return p;
+}
+
+function knockoutPlan(teamCount){
+  if(teamCount<=0) return {bracketSize:0,preliminary:false,firstStage:"",nextStage:""};
+  const size=nextPowerOfTwo(teamCount);
+  if(teamCount===size){
+    if(size===2) return {bracketSize:2,preliminary:false,firstStage:"FINAL",nextStage:""};
+    if(size===4) return {bracketSize:4,preliminary:false,firstStage:"SEMIFINAL",nextStage:"FINAL"};
+    if(size===8) return {bracketSize:8,preliminary:false,firstStage:"QUARTERFINAL",nextStage:"SEMIFINAL"};
+    if(size===16) return {bracketSize:16,preliminary:false,firstStage:"ROUND OF 16",nextStage:"QUARTERFINAL"};
+  }
+  return {bracketSize:size,preliminary:true,firstStage:"PRELIMINARY",nextStage:size===8?"QUARTERFINAL":"ROUND OF 16"};
 }
 
 function bracketSlot(match) {
@@ -1896,21 +1907,52 @@ function bracketSlot(match) {
   return `<span class="bracket-team">${escapeHTML(match.homePlayer||"TBD")}</span><b>${match.played?`${Number(match.homeGoals||0)} — ${Number(match.awayGoals||0)}`:"VS"}</b><span class="bracket-team">${escapeHTML(match.awayPlayer||"TBD")}</span>`;
 }
 
+function setBracketLabel(selector,text){
+  const el=document.querySelector(selector); if(el) el.textContent=text;
+}
+
 function renderKnockoutBracket() {
-  const {r16,qf,sf,f}=knockoutRounds();
-  const ids=["round16-left","round16-right","quarterfinals-left","quarterfinals-right","semifinals-left","semifinals-right"];
-  ids.forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML="";});
+  const {preliminary,r16,qf,sf,f}=knockoutRounds();
+  ["round16-left","round16-right","quarterfinals-left","quarterfinals-right","semifinals-left","semifinals-right"].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML="";});
   const drawColumn=(id,list,empty)=>{const e=document.getElementById(id);if(!e)return;if(!list.length){e.innerHTML=`<div class="knockout-empty">${empty}</div>`;return;}list.forEach(m=>{const d=document.createElement("div");d.className="modern-bracket-match";d.innerHTML=bracketSlot(m);e.appendChild(d);});};
-  drawColumn("round16-left",r16.slice(0,4),"Awaiting qualified teams");
-  drawColumn("round16-right",r16.slice(4,8),"Awaiting qualified teams");
-  drawColumn("quarterfinals-left",qf.slice(0,2),"QF pending");
-  drawColumn("quarterfinals-right",qf.slice(2,4),"QF pending");
-  drawColumn("semifinals-left",sf.slice(0,1),"SF pending");
-  drawColumn("semifinals-right",sf.slice(1,2),"SF pending");
+  const teams=[...new Set(matches.filter(m=>m.homePlayer||m.awayPlayer).flatMap(m=>[m.homePlayer,m.awayPlayer]).filter(Boolean))];
+  const plan=knockoutPlan(Math.max(teams.length,getQualifiedTeams().length));
+  const first=preliminary.length?preliminary:r16;
+
+  // The three visible columns are reused dynamically: first stage, next stage, semi-final.
+  const firstLabel=plan.preliminary?(plan.bracketSize<=8?"PLAY-IN":"PRELIMINARY"):plan.firstStage;
+  const middleLabel=plan.preliminary?plan.nextStage:(plan.firstStage==="FINAL"?"":"");
+  setBracketLabel(".bracket-left .bracket-round-labels span:nth-child(1)",firstLabel||"—");
+  setBracketLabel(".bracket-left .bracket-round-labels span:nth-child(2)",middleLabel||"—");
+  setBracketLabel(".bracket-left .bracket-round-labels span:nth-child(3)","SEMIFINAL");
+  setBracketLabel(".bracket-right .bracket-round-labels span:nth-child(1)",firstLabel||"—");
+  setBracketLabel(".bracket-right .bracket-round-labels span:nth-child(2)",middleLabel||"—");
+  setBracketLabel(".bracket-right .bracket-round-labels span:nth-child(3),.bracket-right .bracket-round-labels span:nth-child(3)","SEMIFINAL");
+
+  if(plan.firstStage==="FINAL"){
+    drawColumn("round16-left",[],"Finalists will meet in the centre");
+    drawColumn("round16-right",[],"Finalists will meet in the centre");
+    drawColumn("quarterfinals-left",[],""); drawColumn("quarterfinals-right",[],"");
+    drawColumn("semifinals-left",[],""); drawColumn("semifinals-right",[],"");
+  } else if(plan.firstStage==="SEMIFINAL"){
+    drawColumn("round16-left",[],"No earlier round"); drawColumn("round16-right",[],"No earlier round");
+    drawColumn("quarterfinals-left",[],"No quarter-final"); drawColumn("quarterfinals-right",[],"No quarter-final");
+    drawColumn("semifinals-left",sf.slice(0,1),"Waiting"); drawColumn("semifinals-right",sf.slice(1,2),"Waiting");
+  } else if(plan.firstStage==="QUARTERFINAL"){
+    drawColumn("round16-left",qf.slice(0,2),"Quarter-final"); drawColumn("round16-right",qf.slice(2,4),"Quarter-final");
+    drawColumn("quarterfinals-left",[],""); drawColumn("quarterfinals-right",[],"");
+    drawColumn("semifinals-left",sf.slice(0,1),"SF pending"); drawColumn("semifinals-right",sf.slice(1,2),"SF pending");
+  } else {
+    drawColumn("round16-left",first.slice(0,Math.ceil(first.length/2)),"Awaiting teams");
+    drawColumn("round16-right",first.slice(Math.ceil(first.length/2)),"Awaiting teams");
+    const middle=qf.length?r16.length?qf:r16:[];
+    drawColumn("quarterfinals-left",middle.slice(0,Math.ceil(middle.length/2)),"Next round pending");
+    drawColumn("quarterfinals-right",middle.slice(Math.ceil(middle.length/2)),"Next round pending");
+    drawColumn("semifinals-left",sf.slice(0,1),"SF pending"); drawColumn("semifinals-right",sf.slice(1,2),"SF pending");
+  }
   const finalEl=document.getElementById("final");
-  if(finalEl){finalEl.innerHTML=f.length?f.map(m=>`<div class="modern-bracket-match">${bracketSlot(m)}</div>`).join(""):"<div class='knockout-empty'>Finalists will meet here</div>";}
-  const champ=document.getElementById("championCenter");
-  const final=f[0], winner=winnerOf(final);
+  if(finalEl) finalEl.innerHTML=f.length?f.map(m=>`<div class="modern-bracket-match">${bracketSlot(m)}</div>`).join(""):"<div class='knockout-empty'>Finalists will meet here</div>";
+  const champ=document.getElementById("championCenter"); const final=f[0], winner=winnerOf(final);
   if(champ) champ.innerHTML=winner?`🏆 <span>${escapeHTML(winner)}</span>`:`🏆 <span>CHAMPION</span>`;
 }
 
@@ -1926,46 +1968,71 @@ function renderTournamentHistory() {
 async function ensureKnockoutCreated() {
   if(!tournamentStarted || tournamentSettings.format !== "groups") return;
   const groupMatches=matches.filter(m=>!isKnockoutMatch(m));
-  const {r16,qf,sf,f}=knockoutRounds();
-  if(!r16.length){
-    const qualified=getQualifiedTeams();
-    if(qualified.length<16 || !groupMatches.length || groupMatches.some(m=>!m.played)) return;
-    const pairs=[]; for(let i=0;i<16;i+=2)pairs.push([qualified[i],qualified[i+1]]);
-    const seedPairs=[pairs[4],pairs[5],pairs[6],pairs[7],pairs[0],pairs[1],pairs[2],pairs[3]];
-    for(let i=0;i<8;i++) await addDoc(collection(db,"matches"),{matchNumber:100+i+1,stage:"ROUND OF 16",group:"ROUND OF 16",homePlayer:seedPairs[i][0],awayPlayer:seedPairs[i][1],date:"TBD",time:"TBD",homeGoals:null,awayGoals:null,played:false,createdAt:serverTimestamp()});
-    await loadMatches();
+  if(!groupMatches.length || groupMatches.some(m=>!m.played)) return;
+  const qualified=getQualifiedTeams();
+  if(qualified.length<2) return;
+
+  const existing=knockoutRounds();
+  const allKnockout=[...existing.preliminary,...existing.r16,...existing.qf,...existing.sf,...existing.f];
+  if(!allKnockout.length){
+    const plan=knockoutPlan(qualified.length);
+    let pairs=[];
+    if(plan.preliminary){
+      // Top seeds receive byes; the remaining teams play the preliminary round.
+      const byeCount=plan.bracketSize-qualified.length;
+      const playing=qualified.slice(byeCount);
+      for(let i=0;i<playing.length;i+=2){ if(playing[i+1]) pairs.push([playing[i],playing[i+1]]); }
+      for(let i=0;i<pairs.length;i++) await addDoc(collection(db,"matches"),{matchNumber:100+i+1,stage:"PRELIMINARY",group:"PRELIMINARY",homePlayer:pairs[i][0],awayPlayer:pairs[i][1],date:"TBD",time:"TBD",homeGoals:null,awayGoals:null,played:false,createdAt:serverTimestamp()});
+      // Store the seeded byes so the next round can be generated once preliminaries finish.
+      await loadMatches();
+    } else {
+      for(let i=0;i<qualified.length;i+=2) pairs.push([qualified[i],qualified[i+1]]);
+      for(let i=0;i<pairs.length;i++) await addDoc(collection(db,"matches"),{matchNumber:100+i+1,stage:plan.firstStage,group:plan.firstStage,homePlayer:pairs[i][0],awayPlayer:pairs[i][1],date:"TBD",time:"TBD",homeGoals:null,awayGoals:null,played:false,createdAt:serverTimestamp()});
+      await loadMatches();
+    }
   }
-  const current=knockoutRounds();
+
   async function makeStage(stage,pairs,base){
-    if(!pairs.length)return;
-    if(matches.some(m => String(m.stage||"").toUpperCase() === stage)) return;
-    for(let i=0;i<pairs.length;i++) await addDoc(collection(db,"matches"),{matchNumber:base+i,stage,group:stage,homePlayer:pairs[i][0],awayPlayer:pairs[i][1],date:"TBD",time:"TBD",homeGoals:null,awayGoals:null,played:false,createdAt:serverTimestamp()});
+    if(!pairs.length || matches.some(m=>String(m.stage||"").toUpperCase()===stage)) return;
+    for(let i=0;i<pairs.length;i++) if(pairs[i][0]&&pairs[i][1]) await addDoc(collection(db,"matches"),{matchNumber:base+i,stage,group:stage,homePlayer:pairs[i][0],awayPlayer:pairs[i][1],date:"TBD",time:"TBD",homeGoals:null,awayGoals:null,played:false,createdAt:serverTimestamp()});
   }
-  const stageKey=s=>s==="QUARTERFINAL"?"qf":s==="SEMIFINAL"?"sf":"f";
-  const r=current.r16||[];
-  if(r.length===8 && r.every(m=>m.played)){
-    const w=r.map(winnerOf); if(w.every(Boolean)) await makeStage("QUARTERFINAL",[[w[0],w[1]],[w[2],w[3]],[w[4],w[5]],[w[6],w[7]]],200);
-  }
+
   await loadMatches();
-  const c2=knockoutRounds();
-  if(c2.qf.length===4 && c2.qf.every(m=>m.played)){
-    const w=c2.qf.map(winnerOf); if(w.every(Boolean)) await makeStage("SEMIFINAL",[[w[0],w[1]],[w[2],w[3]]],300);
+  let r=knockoutRounds();
+  const prelim=r.preliminary;
+  if(prelim.length && prelim.every(m=>m.played)){
+    const winners=prelim.map(winnerOf).filter(Boolean);
+    const qualifiedNow=getQualifiedTeams();
+    const plan=knockoutPlan(qualifiedNow.length);
+    const byeCount=plan.bracketSize-qualifiedNow.length;
+    const byes=qualifiedNow.slice(0,byeCount);
+    const entrants=[...byes,...winners];
+    const nextSize=plan.bracketSize/2;
+    let pairs=[];
+    for(let i=0;i<entrants.length;i+=2) if(entrants[i+1]) pairs.push([entrants[i],entrants[i+1]]);
+    const nextStage=nextSize===8?"QUARTERFINAL":nextSize===4?"SEMIFINAL":"FINAL";
+    await makeStage(nextStage,pairs,200);
   }
-  await loadMatches();
-  const c3=knockoutRounds();
-  if(c3.sf.length===2 && c3.sf.every(m=>m.played)){
-    const w=c3.sf.map(winnerOf); if(w.every(Boolean)) await makeStage("FINAL",[[w[0],w[1]]],400);
+  await loadMatches(); r=knockoutRounds();
+  if(r.r16.length && r.r16.every(m=>m.played)){
+    const w=r.r16.map(winnerOf); if(w.every(Boolean)) await makeStage("QUARTERFINAL",[[w[0],w[1]],[w[2],w[3]],[w[4],w[5]],[w[6],w[7]]],250);
   }
-  await loadMatches();
-  const c4=knockoutRounds();
-  if(c4.f.length===1 && c4.f[0].played){
-    const winner=winnerOf(c4.f[0]);
+  await loadMatches(); r=knockoutRounds();
+  if(r.qf.length && r.qf.every(m=>m.played)){
+    const w=r.qf.map(winnerOf); if(w.every(Boolean)) await makeStage("SEMIFINAL",[[w[0],w[1]],[w[2],w[3]]],300);
+  }
+  await loadMatches(); r=knockoutRounds();
+  if(r.sf.length && r.sf.every(m=>m.played)){
+    const w=r.sf.map(winnerOf); if(w.every(Boolean)) await makeStage("FINAL",[[w[0],w[1]]],400);
+  }
+  await loadMatches(); r=knockoutRounds();
+  if(r.f.length===1 && r.f[0].played){
+    const winner=winnerOf(r.f[0]);
     if(winner){
       const snap=await getDocs(collection(db,"champions"));
-      const exists=snap.docs.some(d=>String(d.data().finalMatchId||"")===String(c4.f[0].id));
-      if(!exists){
-        const runner=winner===c4.f[0].homePlayer?c4.f[0].awayPlayer:c4.f[0].homePlayer;
-        await addDoc(collection(db,"champions"),{year:new Date().getFullYear(),champion:winner,runnerUp:runner,score:`${c4.f[0].homeGoals} — ${c4.f[0].awayGoals}`,finalMatchId:c4.f[0].id,createdAt:serverTimestamp()});
+      if(!snap.docs.some(d=>String(d.data().finalMatchId||"")===String(r.f[0].id))){
+        const runner=winner===r.f[0].homePlayer?r.f[0].awayPlayer:r.f[0].homePlayer;
+        await addDoc(collection(db,"champions"),{year:new Date().getFullYear(),champion:winner,runnerUp:runner,score:`${r.f[0].homeGoals} — ${r.f[0].awayGoals}`,finalMatchId:r.f[0].id,createdAt:serverTimestamp()});
       }
     }
   }
