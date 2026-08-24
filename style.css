@@ -1191,3 +1191,20 @@ a {
 .hall-card{display:flex;gap:14px;align-items:center;padding:20px;border:1px solid rgba(255,255,255,.1);border-radius:18px;background:rgba(255,255,255,.035)}
 .hall-trophy{font-size:38px}.hall-card strong,.hall-card span,.hall-card small{display:block}.hall-card span{opacity:.8;margin-top:5px}.hall-card small{opacity:.6;margin-top:4px}.hall-admin-form{display:grid;grid-template-columns:2fr 1.5fr .7fr auto;gap:10px}.hall-admin-form input{width:100%}.admin-hall-row{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.08)}
 @media(max-width:760px){.hall-admin-form{grid-template-columns:1fr}.admin-hall-row{display:block}.admin-hall-row span{display:block;margin-top:4px}}
+
+/* =========================================================
+   SEASON MANAGEMENT
+========================================================= */
+.season-manager { margin: 28px 0; }
+.season-active-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px; border:1px solid var(--border); border-radius:12px; background:var(--card); margin-bottom:14px; }
+.season-status { padding:5px 10px; border-radius:999px; font-size:11px; font-weight:900; border:1px solid var(--border); }
+.season-status.ongoing { color:var(--green); }
+.season-status.upcoming { color:var(--gold); }
+.season-status.completed { color:#8fb0ff; }
+.season-list { display:grid; gap:10px; margin-bottom:14px; }
+.season-row { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:14px; background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:10px; }
+.season-row.selected { border-color:var(--green); box-shadow:0 0 18px rgba(57,255,20,.08); }
+.season-row > div:first-child { display:flex; flex-direction:column; gap:3px; }
+.season-row > div:first-child span { color:var(--muted); font-size:11px; font-weight:800; }
+.season-actions { display:flex; gap:8px; flex-wrap:wrap; }
+@media(max-width:700px){ .season-active-banner,.season-row{flex-direction:column;align-items:flex-start}.season-actions{width:100%}.season-actions button{flex:1} }

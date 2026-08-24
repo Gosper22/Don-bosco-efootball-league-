@@ -41,16 +41,120 @@ let settingsDocId = null;
 let potState = { pot1Locked: false, pot2Locked: false, pot3Locked: false, groupingLocked: false };
 let knockoutStages = [];
 let hallOfFame = [];
+let seasons = [];
+let activeSeasonId = null;
+let activeSeason = null;
 
 let tournamentSettings = {
 format: "groups",
 groupCount: 2
 };
 
+async function ensureSeasons() {
+  try {
+    const snap = await getDocs(collection(db, "seasons"));
+    seasons = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    seasons.sort((a,b) => Number(a.number || 0) - Number(b.number || 0));
+
+    if (!seasons.length) {
+      const ref = await addDoc(collection(db, "seasons"), {
+        number: 1,
+        name: "Season 1",
+        status: "ONGOING",
+        createdAt: serverTimestamp()
+      });
+      seasons = [{ id: ref.id, number: 1, name: "Season 1", status: "ONGOING" }];
+    }
+
+    const preferred = activeSeasonId && seasons.find(s => s.id === activeSeasonId);
+    activeSeason = preferred || seasons.find(s => s.status === "ONGOING") || seasons.find(s => s.status === "UPCOMING") || seasons[seasons.length - 1];
+    activeSeasonId = activeSeason.id;
+  } catch (e) {
+    console.error("Seasons load error:", e);
+  }
+}
+
+function seasonMatches(data) {
+  return !data.seasonId ? (activeSeason?.number === 1) : data.seasonId === activeSeasonId;
+}
+
+async function createSeason() {
+  if (!adminLoggedIn) return;
+  const nextNumber = seasons.reduce((max, s) => Math.max(max, Number(s.number || 0)), 0) + 1;
+  const name = (prompt("Season name:", "Season " + nextNumber) || "").trim();
+  if (!name) return;
+
+  const ref = await addDoc(collection(db, "seasons"), {
+    number: nextNumber,
+    name,
+    status: "UPCOMING",
+    createdAt: serverTimestamp()
+  });
+
+  seasons.push({ id: ref.id, number: nextNumber, name, status: "UPCOMING" });
+  await selectSeason(ref.id);
+  alert("✅ " + name + " created as UPCOMING. Set it to ONGOING when ready.");
+}
+
+async function setSeasonOngoing(id) {
+  if (!adminLoggedIn) return;
+  const target = seasons.find(s => s.id === id);
+  if (!target) return;
+  if (!confirm("Set " + target.name + " to ONGOING? The current ONGOING season will become COMPLETED.")) return;
+
+  for (const s of seasons) {
+    if (s.id === id) {
+      await updateDoc(doc(db, "seasons", s.id), { status: "ONGOING", updatedAt: serverTimestamp() });
+      s.status = "ONGOING";
+    } else if (s.status === "ONGOING") {
+      await updateDoc(doc(db, "seasons", s.id), { status: "COMPLETED", updatedAt: serverTimestamp() });
+      s.status = "COMPLETED";
+    }
+  }
+  activeSeasonId = id;
+  activeSeason = seasons.find(s => s.id === id);
+  await loadLeague();
+  renderSeasonManager();
+}
+
+async function selectSeason(id) {
+  if (!adminLoggedIn) return;
+  const found = seasons.find(s => s.id === id);
+  if (!found) return;
+  activeSeasonId = id;
+  activeSeason = found;
+  await loadLeague();
+  renderSeasonManager();
+}
+
+function renderSeasonManager() {
+  const box = document.getElementById("seasonManagerContent");
+  if (!box || !adminLoggedIn) return;
+  box.innerHTML = `
+    <div class="season-active-banner">
+      <strong>Viewing: ${escapeHTML(activeSeason?.name || "")}</strong>
+      <span class="season-status ${String(activeSeason?.status || "").toLowerCase()}">${escapeHTML(activeSeason?.status || "")}</span>
+    </div>
+    <div class="season-list">
+      ${seasons.map(s => `
+        <div class="season-row ${s.id === activeSeasonId ? "selected" : ""}">
+          <div><strong>${escapeHTML(s.name)}</strong><span>${escapeHTML(s.status)}</span></div>
+          <div class="season-actions">
+            <button type="button" class="secondary-btn" data-select-season="${s.id}">VIEW</button>
+            ${s.status !== "ONGOING" ? `<button type="button" class="primary-btn" data-ongoing-season="${s.id}">SET ONGOING</button>` : ""}
+          </div>
+        </div>`).join("")}
+    </div>
+    <button type="button" id="createSeasonBtn" class="primary-btn">➕ CREATE NEW SEASON</button>`;
+  box.querySelectorAll("[data-select-season]").forEach(b => b.addEventListener("click", () => selectSeason(b.dataset.selectSeason)));
+  box.querySelectorAll("[data-ongoing-season]").forEach(b => b.addEventListener("click", () => setSeasonOngoing(b.dataset.ongoingSeason)));
+  document.getElementById("createSeasonBtn")?.addEventListener("click", createSeason);
+}
+
 async function loadKnockoutStages() {
   try {
     const snapshot = await getDocs(collection(db, "knockoutStages"));
-    knockoutStages = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    knockoutStages = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(seasonMatches);
     knockoutStages.sort((a,b) => Number(a.order || 0) - Number(b.order || 0));
   } catch (e) { console.error("Knockout stages load error", e); knockoutStages = []; }
 }
@@ -161,7 +265,7 @@ if (!teamNumber || !name || !phone || !username) {
 }
 
 
-if (tournamentStarted || potState.groupingLocked) {
+if (activeSeason?.status === "COMPLETED" || tournamentStarted || potState.groupingLocked) {
 
   showMessage(
     message,
@@ -242,9 +346,10 @@ try {
   // Re-check uniqueness inside a Firestore transaction.
   // This prevents two people submitting the same team/username
   // at almost exactly the same time.
-  const teamKey = "team_" + String(Number(teamNumber)).padStart(2, "0");
-  const usernameKey = "username_" + normalizedUsername;
-  const phoneKey = "phone_" + normalizedPhone;
+  const seasonKey = activeSeasonId || "season1";
+  const teamKey = seasonKey + "_team_" + String(Number(teamNumber)).padStart(2, "0");
+  const usernameKey = seasonKey + "_username_" + normalizedUsername;
+  const phoneKey = seasonKey + "_phone_" + normalizedPhone;
   const phoneUniqueRef = doc(db, "registration_uniques", phoneKey);
   const teamUniqueRef = doc(db, "registration_uniques", teamKey);
   const usernameUniqueRef = doc(db, "registration_uniques", usernameKey);
@@ -272,6 +377,8 @@ try {
       name: name,
       phone: phone,
       username: username,
+      seasonId: activeSeasonId,
+      seasonName: activeSeason?.name || "Season 1",
       usernameKey: normalizedUsername,
       phoneKey: normalizedPhone,
       playerNumber: playerNumber,
@@ -425,6 +532,7 @@ async function loadLeague() {
 
 try {
 
+await ensureSeasons();
 await loadPlayers();
 await loadMatches();
 await loadTournamentSettings();
@@ -443,6 +551,7 @@ renderFixtures();
 renderStandings();
 renderKnockout();
 renderHallOfFame();
+renderSeasonManager();
 
 if (adminLoggedIn) {
   loadAdminMatches();
@@ -471,7 +580,7 @@ await getDocs(collection(db, "registrations"));
 players = snapshot.docs.map((item) => ({
 id: item.id,
 ...item.data()
-}));
+})).filter(seasonMatches);
 
 players.sort((a, b) => {
 
@@ -496,7 +605,7 @@ await getDocs(collection(db, "matches"));
 matches = snapshot.docs.map((item) => ({
 id: item.id,
 ...item.data()
-}));
+})).filter(seasonMatches);
 
 matches.sort((a, b) => {
 
@@ -517,8 +626,9 @@ async function loadTournamentSettings() {
 
 try {
 
-const snapshot =
+const allSettings =
   await getDocs(collection(db, "settings"));
+const snapshot = { docs: allSettings.docs.filter(d => seasonMatches(d.data())), empty: allSettings.docs.filter(d => seasonMatches(d.data())).length === 0 };
 
 
 if (snapshot.empty) {
@@ -720,19 +830,24 @@ document.getElementById("groupCount")?.value || 2
 );
 
 if (format === "groups" && groupCount < 1) {
+  alert("⚠️ Chagua number ya groups.");
+  return;
+}
 
-alert("⚠️ Chagua number ya groups.");
-return;
-
+if (format === "groups" && players.length && groupCount * 3 > players.length) {
+  alert("⚠️ Group count hii haiwezekani kwa " + players.length + " players kwa sababu Pot 1, Pot 2 na Pot 3 kila moja inahitaji angalau player mmoja kwa kila group.");
+  return;
 }
 
 try {
 
-const snapshot =
-  await getDocs(collection(db, "settings"));
+const allSettings = await getDocs(collection(db, "settings"));
+const snapshot = { docs: allSettings.docs.filter(d => seasonMatches(d.data())), empty: allSettings.docs.filter(d => seasonMatches(d.data())).length === 0 };
 
 
 const data = {
+  seasonId: activeSeasonId,
+  seasonName: activeSeason?.name || "Season 1",
 
   format: format,
   groupCount: groupCount,
@@ -1614,6 +1729,8 @@ async function lockPot(pot) {
 async function savePotState() {
   try {
     const data = {
+      seasonId: activeSeasonId,
+      seasonName: activeSeason?.name || "Season 1",
       ...tournamentSettings,
       ...potState,
       updatedAt: serverTimestamp()
@@ -1654,6 +1771,7 @@ async function drawGroupsFromPots() {
 
   const groupCount = Number(tournamentSettings.groupCount || 2);
   if (players.length < groupCount) { alert("⚠️ Players wachache kuliko groups."); return; }
+  if (groupCount * 3 > players.length) { alert("⚠️ Group count hii haiwezi kugawa players kwenye Pot 1–3 kwa usawa. Punguza number ya groups."); return; }
 
   const confirmed = confirm(`🎲 Generate ${groupCount} groups kutoka Pot 1–3? Hii itafunga grouping.`);
   if (!confirmed) return;
@@ -1744,15 +1862,8 @@ return;
 }
 
 if (matches.length > 0) {
-
-const proceed =
-  confirm(
-    "Fixtures tayari zipo. Ongeza fixtures mpya?"
-  );
-
-
-if (!proceed) return;
-
+  alert("⚠️ Fixtures tayari zimetengenezwa kwa season hii. Huwezi kuzalisha duplicate fixtures.");
+  return;
 }
 
 try {
@@ -1872,6 +1983,7 @@ collection(db, "matches"),
 {
 
   matchNumber: matchNumber,
+  seasonId: activeSeasonId,
 
   group: group,
   leg: leg,
@@ -1941,7 +2053,7 @@ return;
 
 }
 
-matches.forEach((match, index) => {
+matches.filter(match => match.stage !== "knockout").forEach((match, index) => {
 
 const card =
   document.createElement("div");
@@ -2179,41 +2291,86 @@ function pairKnockoutTeams(teams) { const pairs=[]; for(let i=0;i<teams.length;i
 async function generateNextKnockoutRound() {
   if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
   if (tournamentSettings.format !== "groups") return alert("⚠️ Tumia GROUPS format.");
-  const last = currentKnockoutStage(); let teams=[];
-  if (!last) {
-    const groups=getGroups();
-    if(!groups.length || groups.some(g=>g.players.length<2)) return alert("⚠️ Groups bado hazijakamilika.");
-    const groupMatches=matches.filter(m=>m.stage!=="knockout");
-    if(groupMatches.length && !groupMatches.every(m=>m.played)) return alert("⚠️ Maliza group stage kwanza.");
-    groups.forEach(g=>{const st=buildGroupStats(g.players,g.shortName); if(st[0])teams.push(st[0].name); if(st[1])teams.push(st[1].name);});
-  } else {
-    if(!stageIsComplete(last.name)) return alert("⚠️ Maliza matokeo yote ya "+last.name+" kwanza.");
-    const ties={}; getKnockoutMatches(last.name).forEach(m=>(ties[m.tieId] ||= []).push(m));
-    Object.values(ties).forEach(t=>{const w=knockoutTieWinner(t); if(!w) throw new Error("DRAW_TIE_NEEDS_WINNER"); teams.push(w);});
-    if(Array.isArray(last.byeTeams)) teams.push(...last.byeTeams);
-  }
-  if(teams.length===1){ await announceChampion(teams[0]); return; }
-  if(teams.length<2) return alert("⚠️ Hakuna qualifiers wa kutosha.");
+  if (!potState.groupingLocked) return alert("⚠️ Generate groups kwanza.");
 
-  // The bracket size is always the next power of two. If the number of teams
-  // is not a power of two (e.g. 12), the extra slots become BYEs so the next
-  // round is still a normal 8/4/2-team round.
-  const bracketSize=nextPowerOfTwo(teams.length);
-  const roundName=knockoutRoundName(bracketSize);
-  if(knockoutStages.some(st=>st.name===roundName)) return alert("⚠️ "+roundName+" tayari imegenerate.");
-  teams=shuffle(teams);
-  const byeCount=bracketSize-teams.length;
-  const byeTeams=teams.slice(0,byeCount);
-  const playable=teams.slice(byeCount);
-  const pairs=pairKnockoutTeams(playable);
-  const stageRef=await addDoc(collection(db,"knockoutStages"),{name:roundName,order:knockoutStages.length+1,teamCount:teams.length,bracketSize,byeTeams,createdAt:serverTimestamp()});
-  let n=Math.max(0,...matches.map(m=>Number(m.matchNumber||0)))+1;
-  for(let i=0;i<pairs.length;i++){
-    const [a,b]=pairs[i], tieId=stageRef.id+"_TIE_"+(i+1);
-    await addDoc(collection(db,"matches"),{stage:"knockout",round:roundName,tieId,leg:1,homePlayer:a,awayPlayer:b,group:roundName,matchNumber:n++,played:false,createdAt:serverTimestamp()});
-    await addDoc(collection(db,"matches"),{stage:"knockout",round:roundName,tieId,leg:2,homePlayer:b,awayPlayer:a,group:roundName,matchNumber:n++,played:false,createdAt:serverTimestamp()});
+  const last = currentKnockoutStage();
+  let teams = [];
+
+  if (!last) {
+    const groups = getGroups();
+    if (!groups.length || groups.some(g => g.players.length < 2)) return alert("⚠️ Groups bado hazijakamilika.");
+    const groupMatches = matches.filter(m => m.stage !== "knockout");
+    if (groupMatches.length && !groupMatches.every(m => m.played)) return alert("⚠️ Maliza group stage kwanza.");
+    groups.forEach(g => {
+      const st = buildGroupStats(g.players, g.shortName);
+      if (st[0]) teams.push(st[0].name);
+      if (st[1]) teams.push(st[1].name);
+    });
+  } else {
+    if (!stageIsComplete(last.name)) return alert("⚠️ Maliza matokeo yote ya " + last.name + " kwanza.");
+    const ties = {};
+    getKnockoutMatches(last.name).forEach(m => (ties[m.tieId] ||= []).push(m));
+    const unresolvedDraw = Object.values(ties).find(t => !knockoutTieWinner(t));
+    if (unresolvedDraw) return alert("⚠️ Kuna tie iliyo draw kwa aggregate. Chagua mshindi wa tie kwanza.");
+    Object.values(ties).forEach(t => {
+      const w = knockoutTieWinner(t);
+      if (!w) {
+        throw new Error("DRAW_TIE_NEEDS_WINNER");
+      }
+      teams.push(w);
+    });
+    if (Array.isArray(last.byeTeams)) teams.push(...last.byeTeams);
   }
-  alert("✅ "+roundName+" generated dynamically. "+byeTeams.length+" BYE(s), "+pairs.length+" two-leg ties.");
+
+  teams = [...new Set(teams)];
+  if (teams.length === 1) { await announceChampion(teams[0]); return; }
+  if (teams.length < 2) return alert("⚠️ Hakuna qualifiers wa kutosha.");
+
+  // If the field is not already a power of two, create a PLAY-IN ROUND.
+  // Only enough matches are created to reduce the field to the next lower
+  // power of two; the remaining teams receive BYEs.
+  const exactPower = (teams.length & (teams.length - 1)) === 0;
+  const targetSize = exactPower ? teams.length : Math.pow(2, Math.floor(Math.log2(teams.length)));
+  const roundName = exactPower ? knockoutRoundName(targetSize) : "PLAY-IN ROUND";
+
+  if (knockoutStages.some(st => st.name === roundName)) return alert("⚠️ " + roundName + " tayari imegenerate.");
+
+  teams = shuffle(teams);
+  const matchesNeeded = exactPower ? targetSize / 2 : teams.length - targetSize;
+  const playingTeamsCount = matchesNeeded * 2;
+  const byeCount = teams.length - playingTeamsCount;
+  const byeTeams = teams.slice(playingTeamsCount);
+  const playable = teams.slice(0, playingTeamsCount);
+  const pairs = pairKnockoutTeams(playable);
+
+  const stageRef = await addDoc(collection(db, "knockoutStages"), {
+    seasonId: activeSeasonId,
+    name: roundName,
+    order: knockoutStages.length + 1,
+    teamCount: teams.length,
+    targetSize,
+    bracketSize: targetSize,
+    byeTeams,
+    createdAt: serverTimestamp()
+  });
+
+  let n = Math.max(0, ...matches.map(m => Number(m.matchNumber || 0))) + 1;
+  for (let i = 0; i < pairs.length; i++) {
+    const [a, b] = pairs[i];
+    const tieId = stageRef.id + "_TIE_" + (i + 1);
+    await addDoc(collection(db, "matches"), {
+      seasonId: activeSeasonId, stage: "knockout", round: roundName, tieId,
+      leg: 1, homePlayer: a, awayPlayer: b, group: roundName,
+      matchNumber: n++, played: false, createdAt: serverTimestamp()
+    });
+    await addDoc(collection(db, "matches"), {
+      seasonId: activeSeasonId, stage: "knockout", round: roundName, tieId,
+      leg: 2, homePlayer: b, awayPlayer: a, group: roundName,
+      matchNumber: n++, played: false, createdAt: serverTimestamp()
+    });
+  }
+
+  alert("✅ " + roundName + " generated. " + byeTeams.length + " BYE(s), " + pairs.length + " two-leg ties.");
   await loadLeague();
 }
 
@@ -2223,19 +2380,42 @@ function loadAdminKnockoutMatches(){
   knockoutStages.forEach(stage=>{
     const ms=getKnockoutMatches(stage.name), title=document.createElement("h3"); title.className="knockout-stage-title"; title.textContent=stage.name; c.appendChild(title);
     const ties={}; ms.forEach(m=>(ties[m.tieId] ||= []).push(m));
-    Object.values(ties).forEach((tie,idx)=>{tie.sort((a,b)=>Number(a.leg)-Number(b.leg)); const card=document.createElement("div"); card.className="knockout-admin-match";
-      card.innerHTML=`<h3>Tie ${idx+1}: ${escapeHTML(tie[0].homePlayer)} VS ${escapeHTML(tie[0].awayPlayer)}</h3>`+tie.map(m=>`<div class="leg-title">LEG ${m.leg}: ${escapeHTML(m.homePlayer)} VS ${escapeHTML(m.awayPlayer)}</div><div class="score-box"><div><label>${escapeHTML(m.homePlayer)}</label><input type="number" min="0" id="ko-home-${m.id}" value="${m.played?m.homeGoals:""}"></div><strong>VS</strong><div><label>${escapeHTML(m.awayPlayer)}</label><input type="number" min="0" id="ko-away-${m.id}" value="${m.played?m.awayGoals:""}"></div></div><button type="button" class="primary-btn" data-ko-save="${m.id}">💾 SAVE LEG ${m.leg}</button>`).join("");
-      card.querySelectorAll("[data-ko-save]").forEach(btn=>btn.addEventListener("click",()=>saveKnockoutResult(btn.dataset.koSave))); c.appendChild(card);
+    Object.values(ties).forEach((tie,idx)=>{
+      tie.sort((a,b)=>Number(a.leg)-Number(b.leg));
+      const card=document.createElement("div"); card.className="knockout-admin-match";
+      const teams=[...new Set(tie.flatMap(m=>[m.homePlayer,m.awayPlayer]))];
+      const aggregate = tie.every(m=>m.played) ? tie.reduce((x,m)=>x+Number(m.homeGoals||0),0) - tie.reduce((x,m)=>x+Number(m.awayGoals||0),0) : null;
+      const needsWinner = aggregate === 0 && !tie.some(m=>m.tieWinner);
+      card.innerHTML=`<h3>Tie ${idx+1}: ${escapeHTML(tie[0].homePlayer)} VS ${escapeHTML(tie[0].awayPlayer)}</h3>`+
+        tie.map(m=>`<div class="leg-title">LEG ${m.leg}: ${escapeHTML(m.homePlayer)} VS ${escapeHTML(m.awayPlayer)}</div><div class="score-box"><div><label>${escapeHTML(m.homePlayer)}</label><input type="number" min="0" id="ko-home-${m.id}" value="${m.played?m.homeGoals:""}"></div><strong>VS</strong><div><label>${escapeHTML(m.awayPlayer)}</label><input type="number" min="0" id="ko-away-${m.id}" value="${m.played?m.awayGoals:""}"></div></div><button type="button" class="primary-btn" data-ko-save="${m.id}">💾 SAVE LEG ${m.leg}</button>`).join("")+
+        (needsWinner ? `<div class="tie-winner-box"><label>AGGREGATE DRAW — SELECT WINNER</label><select id="tie-winner-${escapeHTML(tie[0].tieId)}"><option value="">Select winner</option>${teams.map(t=>`<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join("")}</select><button type="button" class="primary-btn" data-tie-winner="${escapeHTML(tie[0].tieId)}">🏆 SAVE TIE WINNER</button></div>` : "");
+      card.querySelectorAll("[data-ko-save]").forEach(btn=>btn.addEventListener("click",()=>saveKnockoutResult(btn.dataset.koSave)));
+      card.querySelector("[data-tie-winner]")?.addEventListener("click",()=>saveKnockoutTieWinner(card.querySelector("[data-tie-winner]").dataset.tieWinner));
+      c.appendChild(card);
     });
   });
   const last = currentKnockoutStage();
   if (last && stageIsComplete(last.name)) {
-    const btn=document.createElement("button");
-    btn.type="button"; btn.className="primary-btn"; btn.textContent="➡️ GENERATE NEXT ROUND";
-    btn.addEventListener("click", generateNextKnockoutRound);
-    c.appendChild(btn);
+    const btn=document.createElement("button"); btn.type="button"; btn.className="primary-btn"; btn.textContent="➡️ GENERATE NEXT ROUND";
+    btn.addEventListener("click", generateNextKnockoutRound); c.appendChild(btn);
   }
 }
+
+async function saveKnockoutTieWinner(tieId){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  const select=document.getElementById("tie-winner-"+tieId); const winner=select?.value;
+  if(!winner)return alert("⚠️ Chagua mshindi wa tie.");
+  const tie=getKnockoutMatches(currentKnockoutStage()?.name).filter(m=>m.tieId===tieId);
+  if(!tie.length || tie.some(m=>!m.played)) return alert("⚠️ Weka results za legs zote kwanza.");
+  await Promise.all(tie.map(m=>updateDoc(doc(db,"matches",m.id),{tieWinner:winner,updatedAt:serverTimestamp()})));
+  await loadLeague();
+  if (currentKnockoutStage()?.name === "FINAL") {
+    await announceChampion(winner);
+  } else {
+    alert("🏆 Tie winner saved: "+winner);
+  }
+}
+
 async function saveKnockoutResult(id){
   if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
   const h=document.getElementById("ko-home-"+id)?.value,a=document.getElementById("ko-away-"+id)?.value;
@@ -2258,9 +2438,61 @@ function setupKnockoutAdmin(){document.getElementById("generateKnockoutBtn")?.ad
 async function loadHallOfFame(){try{const snap=await getDocs(collection(db,"hallOfFame"));hallOfFame=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>Number(b.year||0)-Number(a.year||0));}catch(e){console.error("Hall of Fame load error",e);hallOfFame=[];}}
 function renderHallOfFame(){const c=document.getElementById("hallOfFameContainer");if(!c)return;c.innerHTML=hallOfFame.length?hallOfFame.map(w=>`<div class="hall-card"><div class="hall-trophy">🏆</div><div><strong>${escapeHTML(w.winner||"CHAMPION")}</strong><span>${escapeHTML(w.edition||"Don Bosco eFootball League")}</span><small>${escapeHTML(w.year||"")}</small></div></div>`).join(""):'<div class="loading">No champions recorded yet.</div>';}
 function setupHallOfFameAdmin(){document.getElementById("addHallWinnerBtn")?.addEventListener("click",addHallWinner);}
-async function addHallWinner(){if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");const edition=document.getElementById("hallEdition")?.value.trim(),winner=document.getElementById("hallWinner")?.value.trim(),year=document.getElementById("hallYear")?.value.trim();if(!edition||!winner||!year)return alert("⚠️ Jaza edition, champion na year.");await addDoc(collection(db,"hallOfFame"),{edition,winner,year:Number(year),createdAt:serverTimestamp()});document.getElementById("hallEdition").value="";document.getElementById("hallWinner").value="";document.getElementById("hallYear").value="";await loadHallOfFame();renderHallOfFame();renderAdminHallOfFame();alert("🏆 Champion added to Hall of Fame.");}
+async function addHallWinner(){if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");const edition=document.getElementById("hallEdition")?.value.trim(),winner=document.getElementById("hallWinner")?.value.trim(),year=document.getElementById("hallYear")?.value.trim();if(!edition||!winner||!year)return alert("⚠️ Jaza edition, champion na year.");await addDoc(collection(db,"hallOfFame"),{edition,winner,year:Number(year),seasonId:activeSeasonId,seasonName:activeSeason?.name || "Season 1",createdAt:serverTimestamp()});document.getElementById("hallEdition").value="";document.getElementById("hallWinner").value="";document.getElementById("hallYear").value="";await loadHallOfFame();renderHallOfFame();renderAdminHallOfFame();alert("🏆 Champion added to Hall of Fame.");}
 function renderAdminHallOfFame(){const c=document.getElementById("adminHallOfFame");if(!c)return;c.innerHTML=hallOfFame.map(w=>`<div class="admin-hall-row"><strong>${escapeHTML(w.edition)}</strong><span>🏆 ${escapeHTML(w.winner)} (${escapeHTML(w.year)})</span></div>`).join("")||'<div class="loading">No champions yet.</div>';}
-async function announceChampion(winner){alert("🏆 TOURNAMENT CHAMPION: "+winner+"\nAdd them to Hall of Fame from the Admin Panel.");}
+async function announceChampion(winner){
+  if (!adminLoggedIn || !activeSeason) return;
+  try {
+    const current = seasons.find(s => s.id === activeSeasonId);
+    if (current?.status !== "COMPLETED") {
+      await updateDoc(doc(db, "seasons", activeSeasonId), {
+        status: "COMPLETED",
+        champion: winner,
+        completedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      current.status = "COMPLETED";
+      current.champion = winner;
+    }
+
+    const tournamentSnap = await getDocs(collection(db, "tournament"));
+    for (const item of tournamentSnap.docs.filter(d => seasonMatches(d.data()))) {
+      await updateDoc(doc(db, "tournament", item.id), { status: "completed", completedAt: serverTimestamp(), champion: winner });
+    }
+
+    // Automatically preserve the champion in the historical Hall of Fame.
+    if (!hallOfFame.some(w => w.seasonId === activeSeasonId)) {
+      await addDoc(collection(db, "hallOfFame"), {
+        edition: activeSeason.name || ("Season " + activeSeason.number),
+        winner,
+        year: new Date().getFullYear(),
+        seasonId: activeSeasonId,
+        seasonName: activeSeason.name || ("Season " + activeSeason.number),
+        createdAt: serverTimestamp()
+      });
+    }
+
+    // Prepare the next season as UPCOMING so the league can continue immediately.
+    const nextNumber = seasons.reduce((max, s) => Math.max(max, Number(s.number || 0)), 0) + 1;
+    if (!seasons.some(s => Number(s.number) === nextNumber)) {
+      const ref = await addDoc(collection(db, "seasons"), {
+        number: nextNumber,
+        name: "Season " + nextNumber,
+        status: "UPCOMING",
+        createdAt: serverTimestamp()
+      });
+      seasons.push({ id: ref.id, number: nextNumber, name: "Season " + nextNumber, status: "UPCOMING" });
+    }
+
+    await loadHallOfFame();
+    renderHallOfFame();
+    renderSeasonManager();
+    alert("🏆 TOURNAMENT CHAMPION: " + winner + "\nSeason " + activeSeason.number + " is now COMPLETED. Season " + nextNumber + " is ready as UPCOMING.");
+  } catch (error) {
+    console.error("Complete season error:", error);
+    alert("🏆 Champion: " + winner + "\n⚠️ Champion was decided, but season archiving failed. Check Firebase.");
+  }
+}
 
 // =====================================================
 // START TOURNAMENT
@@ -2319,6 +2551,8 @@ await addDoc(
   {
 
     status: "started",
+    seasonId: activeSeasonId,
+    seasonName: activeSeason?.name || "Season 1",
 
     playerCount:
       players.length,
@@ -2377,9 +2611,8 @@ const snapshot =
 
 
 tournamentStarted =
-  snapshot.docs.some(
-    (item) =>
-      item.data().status === "started"
+  snapshot.docs.filter(item => seasonMatches(item.data())).some(
+    (item) => item.data().status === "started"
   );
 
 } catch (error) {
