@@ -1,636 +1,707 @@
-<!DOCTYPE html>
-<html lang="en">
-
+<!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>Don Bosco eFootball League</title>
-
-  <link
-    rel="stylesheet"
-    href="style.css"
-  >
-</head>
-
-<body>
-
-<!-- =========================================
-     NAVBAR
-========================================= -->
-
-<header class="navbar">
-
-  <div class="logo">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Don Bosco eFootball League</title>  <link rel="stylesheet" href="style.css">
+</head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
     <span>DON BOSCO</span>
     <strong>eFOOTBALL</strong>
     <small>LEAGUE</small>
-  </div>
-
-  <nav>
-
+  </div>  <nav>
     <a href="#home">Home</a>
+    <a href="#register">Register</a>
     <a href="#groups">Groups</a>
     <a href="#fixtures">Fixtures</a>
     <a href="#standings">Standings</a>
     <a href="#knockout">Knockout</a>
+    <a href="#contact">Contact Admin</a>
+    <a href="#admin">Admin</a><button id="registerBtn" class="nav-register" type="button">
+  REGISTER NOW
+</button>
 
-    <button
-      id="registerBtn"
-      class="nav-register"
-      type="button"
-    >
-      REGISTER NOW
-    </button>
+  </nav></header><!-- ================= HERO ================= --><section id="home" class="hero">  <div class="hero-content"><div class="hero-badge">
+  🏆 OFFICIAL TOURNAMENT
+</div>
 
-  </nav>
+<h1>
+  DON BOSCO
+  <span>eFOOTBALL</span>
+  LEAGUE
+</h1>
 
-</header>
+<p id="heroDescription">
+  32 Players • Groups • One Champion
+</p>
+
+<div class="hero-buttons">
+
+  <button
+    id="heroRegisterBtn"
+    class="primary-btn"
+    type="button"
+  >
+    REGISTER NOW
+  </button>
+
+  <a href="#fixtures" class="secondary-btn">
+    VIEW FIXTURES
+  </a>
+
+</div>
+
+  </div></section><!-- ================= REGISTRATION ================= --><section id="register" class="section register-section">  <div class="section-heading"><span>JOIN THE TOURNAMENT</span>
+
+<h2>
+  PLAYER
+  <strong>REGISTRATION</strong>
+</h2>
+
+<p>
+  Choose your team number and register for the tournament.
+</p>
+
+  </div>  <form id="registerForm" class="register-form"><div class="input-group">
+
+  <label for="teamNumber">
+    Team Number
+  </label>
+
+  <select id="teamNumber" name="teamNumber" required>
+
+    <option value="">
+      Select Team Number
+    </option>
+
+    <option value="1">TEAM 01</option>
+    <option value="2">TEAM 02</option>
+    <option value="3">TEAM 03</option>
+    <option value="4">TEAM 04</option>
+    <option value="5">TEAM 05</option>
+    <option value="6">TEAM 06</option>
+    <option value="7">TEAM 07</option>
+    <option value="8">TEAM 08</option>
+    <option value="9">TEAM 09</option>
+    <option value="10">TEAM 10</option>
+    <option value="11">TEAM 11</option>
+    <option value="12">TEAM 12</option>
+    <option value="13">TEAM 13</option>
+    <option value="14">TEAM 14</option>
+    <option value="15">TEAM 15</option>
+    <option value="16">TEAM 16</option>
+    <option value="17">TEAM 17</option>
+    <option value="18">TEAM 18</option>
+    <option value="19">TEAM 19</option>
+    <option value="20">TEAM 20</option>
+    <option value="21">TEAM 21</option>
+    <option value="22">TEAM 22</option>
+    <option value="23">TEAM 23</option>
+    <option value="24">TEAM 24</option>
+    <option value="25">TEAM 25</option>
+    <option value="26">TEAM 26</option>
+    <option value="27">TEAM 27</option>
+    <option value="28">TEAM 28</option>
+    <option value="29">TEAM 29</option>
+    <option value="30">TEAM 30</option>
+    <option value="31">TEAM 31</option>
+    <option value="32">TEAM 32</option>
+
+  </select>
+
+</div>
 
 
-<!-- =========================================
-     HERO
-========================================= -->
+<div class="input-group">
 
-<section id="home" class="hero">
+  <label for="name">
+    Full Name
+  </label>
 
-  <div class="hero-content">
-
-    <div class="hero-badge">
-      🏆 OFFICIAL TOURNAMENT
-    </div>
-
-    <h1>
-      DON BOSCO
-      <span>eFOOTBALL</span>
-      LEAGUE
-    </h1>
-
-    <p>
-      32 Players • 8 Groups • One Champion
-    </p>
-
-    <div class="hero-buttons">
-
-      <button
-        id="heroRegisterBtn"
-        class="primary-btn"
-        type="button"
-      >
-        REGISTER NOW
-      </button>
-
-      <a
-        href="#fixtures"
-        class="secondary-btn"
-      >
-        VIEW FIXTURES
-      </a>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<!-- =========================================
-     REGISTRATION
-========================================= -->
-
-<section
-  id="register"
-  class="section register-section"
-  style="display:none;"
->
-
-  <div class="section-heading">
-
-    <span>JOIN THE LEAGUE</span>
-
-    <h2>
-      PLAYER
-      <strong>REGISTRATION</strong>
-    </h2>
-
-    <p>
-      Register now and secure your place
-      in the Don Bosco eFootball League.
-    </p>
-
-  </div>
-
-
-  <form
-    id="registerForm"
-    class="register-form"
+  <input
+    type="text"
+    id="name"
+    name="name"
+    placeholder="Enter your full name"
+    autocomplete="name"
+    required
   >
 
-    <div class="input-group">
-
-      <label>Full Name</label>
-
-      <input
-        type="text"
-        id="name"
-        placeholder="Enter your full name"
-        required
-      >
-
-    </div>
+</div>
 
 
-    <div class="input-group">
+<div class="input-group">
 
-      <label>Phone Number</label>
+  <label for="phone">
+    Phone / WhatsApp Number
+  </label>
 
-      <input
-        type="tel"
-        id="phone"
-        placeholder="+255..."
-        required
-      >
-
-    </div>
-
-
-    <div class="input-group">
-
-      <label>eFootball Username</label>
-
-      <input
-        type="text"
-        id="username"
-        placeholder="Your eFootball username"
-        required
-      >
-
-    </div>
-
-
-    <button
-      type="submit"
-      id="submitBtn"
-      class="submit-btn"
-    >
-      <span>REGISTER PLAYER</span>
-      <span>→</span>
-    </button>
-
-
-    <div
-      id="message"
-      class="message"
-    ></div>
-
-  </form>
-
-</section>
-
-
-<!-- =========================================
-     GROUPS
-========================================= -->
-
-<section
-  id="groups"
-  class="section"
->
-
-  <div class="section-heading">
-
-    <span>GROUP STAGE</span>
-
-    <h2>
-      THE
-      <strong>GROUPS</strong>
-    </h2>
-
-    <p>
-      32 players divided into 8 groups.
-    </p>
-
-  </div>
-
-
-  <div
-    id="groupsGrid"
-    class="groups-grid"
+  <input
+    type="tel"
+    id="phone"
+    name="phone"
+    placeholder="+255..."
+    autocomplete="tel"
+    required
   >
 
-    <div class="loading">
-      Loading groups...
-    </div>
-
-  </div>
-
-</section>
+</div>
 
 
-<!-- =========================================
-     FIXTURES
-========================================= -->
+<div class="input-group">
 
-<section
-  id="fixtures"
-  class="section"
+  <label for="username">
+    eFootball Username
+  </label>
+
+  <input
+    type="text"
+    id="username"
+    name="username"
+    placeholder="Your eFootball username"
+    required
+  >
+
+</div>
+
+
+<button
+  type="submit"
+  id="submitBtn"
+  class="submit-btn"
 >
+  <span>REGISTER PLAYER</span>
+  <span>→</span>
+</button>
 
-  <div class="section-heading">
 
-    <span>MATCH SCHEDULE</span>
+<div id="message" class="message"></div>
 
-    <h2>
-      UPCOMING
-      <strong>FIXTURES</strong>
-    </h2>
+  </form></section><!-- ================= FORMAT ================= --><section id="format" class="section">  <div class="section-heading"><span>TOURNAMENT FORMAT</span>
 
-    <p>
-      Check every group's opponents, date and time.
-    </p>
+<h2>
+  COMPETITION
+  <strong>SETUP</strong>
+</h2>
 
-  </div>
+<p id="formatDescription">
+  Loading tournament setup...
+</p>
 
+  </div>  <div id="formatDisplay" class="groups-grid"><div class="loading">
+  Loading tournament format...
+</div>
 
-  <div id="fixturesGrid">
+  </div></section><!-- ================= GROUPS ================= --><section id="groups" class="section">  <div class="section-heading"><span>GROUP STAGE</span>
 
-    Loading fixtures...
+<h2>
+  THE
+  <strong>GROUPS</strong>
+</h2>
 
-  </div>
+<p id="groupsDescription">
+  Loading groups...
+</p>
 
-</section>
+  </div>  <!-- JS WILL CREATE GROUP A, B, C, D, E... -->  <div id="groupsGrid" class="groups-grid"><div class="loading">
+  Loading groups...
+</div>
 
+  </div></section><!-- ================= FIXTURES ================= --><section id="fixtures" class="section">  <div class="section-heading"><span>MATCH SCHEDULE</span>
 
-<!-- =========================================
-     STANDINGS
-========================================= -->
+<h2>
+  UPCOMING
+  <strong>FIXTURES</strong>
+</h2>
 
-<section
-  id="standings"
-  class="section"
->
+<p>
+  Check your opponent, date and match time.
+</p>
 
-  <div class="section-heading">
+  </div>  <div id="fixturesContainer" class="fixtures-container"><div class="loading">
+  Loading fixtures...
+</div>
 
-    <span>GROUP STAGE</span>
+  </div></section><!-- ================= STANDINGS ================= --><section id="standings" class="section">  <div class="section-heading"><span>LIVE TABLE</span>
 
-    <h2>
-      LEAGUE
-      <strong>STANDINGS</strong>
-    </h2>
+<h2>
+  LEAGUE
+  <strong>STANDINGS</strong>
+</h2>
 
-    <p>
-      Current standings for all groups.
-    </p>
+<p>
+  Automatically updated after every result.
+</p>
 
-  </div>
+  </div>  <div id="standingsContainer" class="standings-container"><div class="loading">
+  Loading standings...
+</div>
 
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
 
-  <div id="standingsGrid">
+<h2>
+  <strong>KNOCKOUT</strong>
+  STAGE
+</h2>
 
-    Loading standings...
+<p>
+  Qualification and knockout stage.
+</p>
 
-  </div>
+  </div>  <div class="knockout-grid"><div class="round">
 
-</section>
+  <h3>ROUND OF 16</h3>
 
+  <div id="round16">
 
-<!-- =========================================
-     KNOCKOUT
-========================================= -->
-
-<section
-  id="knockout"
-  class="section knockout-section"
->
-
-  <div class="section-heading">
-
-    <span>ROAD TO THE FINAL</span>
-
-    <h2>
-      <strong>KNOCKOUT</strong>
-      STAGE
-    </h2>
-
-    <p>
-      From Round of 16 to the Championship Final.
-    </p>
-
-  </div>
-
-
-  <div class="knockout-grid">
-
-    <div class="round">
-
-      <h3>ROUND OF 16</h3>
-
-      <div id="round16">
-
-        <div class="knockout-match">
-          <span>Qualifier A1</span>
-          <strong>VS</strong>
-          <span>Qualifier B2</span>
-        </div>
-
-        <div class="knockout-match">
-          <span>Qualifier B1</span>
-          <strong>VS</strong>
-          <span>Qualifier A2</span>
-        </div>
-
-        <div class="knockout-match">
-          <span>Qualifier C1</span>
-          <strong>VS</strong>
-          <span>Qualifier D2</span>
-        </div>
-
-        <div class="knockout-match">
-          <span>Qualifier D1</span>
-          <strong>VS</strong>
-          <span>Qualifier C2</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="round">
-
-      <h3>QUARTERFINALS</h3>
-
-      <div id="quarterfinals">
-
-        <div class="knockout-match">
-          <span>Winner R16</span>
-          <strong>VS</strong>
-          <span>Winner R16</span>
-        </div>
-
-        <div class="knockout-match">
-          <span>Winner R16</span>
-          <strong>VS</strong>
-          <span>Winner R16</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="round">
-
-      <h3>SEMIFINALS</h3>
-
-      <div id="semifinals">
-
-        <div class="knockout-match">
-          <span>Winner QF</span>
-          <strong>VS</strong>
-          <span>Winner QF</span>
-        </div>
-
-        <div class="knockout-match">
-          <span>Winner QF</span>
-          <strong>VS</strong>
-          <span>Winner QF</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="round final-round">
-
-      <h3>🏆 FINAL</h3>
-
-      <div id="final">
-
-        <div class="knockout-match final-match">
-
-          <span>FINALIST 1</span>
-
-          <strong>VS</strong>
-
-          <span>FINALIST 2</span>
-
-        </div>
-
-      </div>
-
+    <div class="knockout-match">
+      <span>QUALIFIER</span>
+      <strong>VS</strong>
+      <span>QUALIFIER</span>
     </div>
 
   </div>
 
-</section>
+</div>
 
 
-<!-- =========================================
-     ADMIN
-========================================= -->
+<div class="round">
 
-<section
-  id="admin"
-  class="section admin-section"
->
+  <h3>QUARTERFINALS</h3>
 
-  <div class="section-heading">
+  <div id="quarterfinals">
 
-    <span>CONTROL CENTER</span>
-
-    <h2>
-      ADMIN
-      <strong>PANEL</strong>
-    </h2>
-
-    <p>
-      Tournament management.
-    </p>
-
-  </div>
-
-
-  <div class="admin-panel">
-
-    <!-- ADMIN LOGIN -->
-
-    <div class="admin-login">
-
-      <h3>ADMIN CONTROL</h3>
-
-      <input
-        type="password"
-        id="adminPassword"
-        placeholder="Admin password"
-      >
-
-      <button
-        type="button"
-        id="adminLoginBtn"
-        class="primary-btn"
-      >
-        LOGIN
-      </button>
-
-    </div>
-
-
-    <!-- ADMIN PANEL -->
-
-    <div
-      id="adminPanel"
-      style="display:none;"
-    >
-
-      <!-- TOURNAMENT STATUS -->
-
-      <div class="tournament-control">
-
-        <h3>TOURNAMENT STATUS</h3>
-
-        <p id="tournamentStatus">
-          ⏳ Checking tournament status...
-        </p>
-
-        <p id="playerCounter">
-          Players: 0 / 32
-        </p>
-
-
-        <!-- FIXTURE GENERATOR -->
-
-        <div id="fixtureGenerator">
-
-          <label>
-            Tournament Start Date
-          </label>
-
-          <input
-            type="date"
-            id="fixtureStartDate"
-          >
-
-
-          <label>
-            First Match Time
-          </label>
-
-          <input
-            type="time"
-            id="fixtureStartTime"
-            value="15:00"
-          >
-
-
-          <label>
-            Match Interval
-          </label>
-
-          <select id="fixtureInterval">
-
-            <option value="120">
-              Every 2 Hours
-            </option>
-
-            <option value="180">
-              Every 3 Hours
-            </option>
-
-            <option value="240">
-              Every 4 Hours
-            </option>
-
-          </select>
-
-
-          <button
-            type="button"
-            id="generateFixturesBtn"
-            class="primary-btn"
-          >
-            GENERATE FULL FIXTURES
-          </button>
-
-        </div>
-
-
-        <!-- START -->
-
-        <div id="startTournamentBox">
-
-          <button
-            type="button"
-            id="startTournamentBtn"
-            class="primary-btn"
-            disabled
-          >
-            START TOURNAMENT
-          </button>
-
-        </div>
-
-      </div>
-
-
-      <!-- MATCH MANAGEMENT -->
-
-      <div class="match-management">
-
-        <h3>
-          MATCH MANAGEMENT
-        </h3>
-
-        <p id="matchManagementNotice">
-          🔒 Match Management itafunguka baada ya
-          players kufika 32.
-        </p>
-
-        <div id="adminMatches">
-
-          Waiting for 32 players...
-
-        </div>
-
-      </div>
-
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
     </div>
 
   </div>
 
-</section>
+</div>
 
 
-<!-- =========================================
-     FOOTER
-========================================= -->
+<div class="round">
 
-<footer class="footer">
+  <h3>SEMIFINALS</h3>
+
+  <div id="semifinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round final-round">
+
+  <h3>🏆 FINAL</h3>
+
+  <div id="final">
+
+    <div class="knockout-match final-match">
+      <span>FINALIST 1</span>
+      <strong>VS</strong>
+      <span>FINALIST 2</span>
+    </div>
+
+  </div>
+
+</div>
+
+  </div></section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+
+<h2>
+  CONTACT
+  <strong>ADMIN</strong>
+</h2>
+
+<p>
+  Contact the tournament administrator for registration,
+  fixtures, results or any tournament questions.
+</p>
+
+  </div>  <div class="contact-admin-card"><div class="contact-icon">
+  💬
+</div>
+
+<h3>
+  DON BOSCO eFOOTBALL ADMIN
+</h3>
+
+<p>
+  Available for tournament assistance.
+</p>
+
+
+<div class="contact-buttons">
+
+  <a
+    href="tel:0613409321"
+    class="primary-btn"
+  >
+    📞 CALL ADMIN
+  </a>
+
+
+  <a
+    href="https://wa.me/255613409321"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="secondary-btn"
+  >
+    💬 WHATSAPP ADMIN
+  </a>
+
+</div>
+
+
+<p class="admin-phone">
+  📱 0613409321
+</p>
+
+  </div></section><!-- ================= ADMIN ================= --><section id="admin" class="section admin-section">  <div class="section-heading"><span>CONTROL CENTER</span>
+
+<h2>
+  ADMIN
+  <strong>PANEL</strong>
+</h2>
+
+<p>
+  Tournament management.
+</p>
+
+  </div>  <div class="admin-panel"><!-- ADMIN LOGIN -->
+
+<div class="admin-login">
+
+  <h3>
+    🔐 ADMIN LOGIN
+  </h3>
 
   <p>
-    Powered by
-    <strong>
-      Gosper Nestory Kifaru
-    </strong>
+    Enter administrator password to access tournament controls.
   </p>
 
-</footer>
+  <input
+    type="password"
+    id="adminPassword"
+    placeholder="Enter admin password"
+    autocomplete="current-password"
+  >
+
+  <button
+    type="button"
+    id="adminLoginBtn"
+    class="primary-btn"
+  >
+    LOGIN
+  </button>
+
+  <p id="adminMessage" class="message"></p>
+
+</div>
 
 
-<!-- =========================================
-     JAVASCRIPT
-========================================= -->
+<!-- ADMIN PANEL CONTENT -->
 
-<script
+<div id="adminPanel" style="display:none;">
+
+
+  <!-- TOURNAMENT SETTINGS -->
+
+  <div class="tournament-settings">
+
+    <div class="settings-card">
+
+      <label for="tournamentFormat">
+        TOURNAMENT FORMAT
+      </label>
+
+      <select id="tournamentFormat">
+
+        <option value="groups">
+          GROUPS
+        </option>
+
+        <option value="league">
+          TABLE LEAGUE
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div
+      class="settings-card"
+      id="groupCountBox"
+    >
+
+      <label for="groupCount">
+        NUMBER OF GROUPS
+      </label>
+
+      <select id="groupCount">
+
+        <option value="2">
+          2 GROUPS
+        </option>
+
+        <option value="4">
+          4 GROUPS
+        </option>
+
+        <option value="6">
+          6 GROUPS
+        </option>
+
+        <option value="8" selected>
+          8 GROUPS
+        </option>
+
+        <option value="10">
+          10 GROUPS
+        </option>
+
+        <option value="12">
+          12 GROUPS
+        </option>
+
+        <option value="16">
+          16 GROUPS
+        </option>
+
+      </select>
+
+
+      <div class="settings-info">
+
+        Players per group:
+
+        <strong id="playersPerGroup">
+          -
+        </strong>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <button
+    type="button"
+    id="saveTournamentSettings"
+    class="primary-btn"
+  >
+    SAVE TOURNAMENT SETTINGS
+  </button>
+
+
+  <p id="settingsMessage" class="message"></p>
+
+
+  <!-- TOURNAMENT STATUS -->
+
+  <div class="tournament-control">
+
+    <h3>
+      🏆 TOURNAMENT STATUS
+    </h3>
+
+    <p id="tournamentStatus">
+      Checking...
+    </p>
+
+    <p id="playerCounter">
+      Players: 0
+    </p>
+
+
+    <div
+      class="progress-bar"
+      style="
+        width:100%;
+        height:8px;
+        background:rgba(255,255,255,.08);
+        border-radius:20px;
+        overflow:hidden;
+      "
+    >
+
+      <div
+        id="playerProgress"
+        style="
+          width:0%;
+          height:100%;
+        "
+      ></div>
+
+    </div>
+
+
+    <!-- FIXTURE GENERATOR -->
+
+    <div id="fixtureGenerator">
+
+      <h3>
+        📅 FIXTURE GENERATOR
+      </h3>
+
+
+      <label for="fixtureStartDate">
+        Tournament Start Date
+      </label>
+
+      <input
+        type="date"
+        id="fixtureStartDate"
+      >
+
+
+      <label for="fixtureStartTime">
+        First Match Time
+      </label>
+
+      <input
+        type="time"
+        id="fixtureStartTime"
+        value="15:00"
+      >
+
+
+      <label for="fixtureInterval">
+        Match Interval
+      </label>
+
+      <select id="fixtureInterval">
+
+        <option value="120">
+          Every 2 Hours
+        </option>
+
+        <option value="180">
+          Every 3 Hours
+        </option>
+
+        <option value="240">
+          Every 4 Hours
+        </option>
+
+      </select>
+
+
+      <button
+        type="button"
+        id="generateFixturesBtn"
+        class="primary-btn"
+      >
+        GENERATE FULL FIXTURES
+      </button>
+
+    </div>
+
+
+    <!-- START TOURNAMENT -->
+
+    <button
+      type="button"
+      id="startTournamentBtn"
+      class="primary-btn"
+      disabled
+    >
+      🏆 START TOURNAMENT
+    </button>
+
+  </div>
+
+
+  <!-- MATCH MANAGEMENT -->
+
+  <div class="match-management">
+
+    <div class="section-heading">
+
+      <span>ADMIN</span>
+
+      <h2>
+        MATCH
+        <strong>MANAGEMENT</strong>
+      </h2>
+
+      <p>
+        Enter results and update fixtures.
+      </p>
+
+    </div>
+
+
+    <div id="adminMatches">
+
+      <div class="loading">
+        Match management will appear here.
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+  </div></section><!-- ================= FOOTER ================= --><footer class="footer">  <div class="footer-content"><div class="logo">
+
+  <span>DON BOSCO</span>
+
+  <strong>eFOOTBALL</strong>
+
+  <small>LEAGUE</small>
+
+</div>
+
+
+<p>
+  Official Don Bosco eFootball League
+</p>
+
+
+<p>
+  Need help?
+  <a href="tel:0613409321">
+    📞 0613409321
+  </a>
+</p>
+
+
+<p>
+  <a
+    href="https://wa.me/255613409321"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    💬 Contact Admin on WhatsApp
+  </a>
+</p>
+
+
+<p>
+  Powered by
+  <strong>
+    Gosper Nestory Kifaru
+  </strong>
+</p>
+
+
+<p>
+  © 2026 Don Bosco eFootball League.
+  All Rights Reserved.
+</p>
+
+  </div></footer><!-- ================= JAVASCRIPT ================= --><script
   type="module"
   src="script.js"
-></script>
-
-</body>
-</html>
+></script></body>
+        </html>
