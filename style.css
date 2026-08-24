@@ -1,65 +1,80 @@
-/* =====================================================
+/* =========================================================
    DON BOSCO eFOOTBALL LEAGUE
-   MODERN TOURNAMENT DESIGN
-===================================================== */
+   PRO BLACK + GREEN DESIGN
+   Works with the existing HTML structure
+========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+:root {
+  --bg: #050705;
+  --bg-soft: #0a0f0a;
+  --card: #0d130e;
+  --card-2: #111a12;
 
+  --green: #39ff14;
+  --green-dark: #159c0b;
+  --green-soft: rgba(57, 255, 20, 0.12);
 
-/* =====================================================
-   RESET
-===================================================== */
+  --white: #f5f7f5;
+  --muted: #8d998e;
+  --border: rgba(57, 255, 20, 0.18);
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  --danger: #ff4545;
+  --gold: #ffd84a;
+
+  --shadow: 0 15px 50px rgba(0, 0, 0, 0.45);
 }
 
+/* =========================================================
+   RESET
+========================================================= */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 html {
   scroll-behavior: smooth;
 }
 
-
 body {
-  font-family: "Inter", Arial, sans-serif;
+  font-family:
+    Inter,
+    Arial,
+    Helvetica,
+    sans-serif;
+
   background:
     radial-gradient(
-      circle at top right,
-      rgba(0, 255, 136, 0.08),
-      transparent 30%
+      circle at 50% -10%,
+      rgba(57, 255, 20, 0.08),
+      transparent 35%
     ),
-    #050505;
+    var(--bg);
 
-  color: #ffffff;
-
-  min-height: 100vh;
-
+  color: var(--white);
   line-height: 1.6;
 }
 
-
 button,
-input {
-  font-family: inherit;
+input,
+select {
+  font: inherit;
 }
-
 
 button {
   cursor: pointer;
 }
-
 
 a {
   color: inherit;
   text-decoration: none;
 }
 
-
-/* =====================================================
+/* =========================================================
    NAVBAR
-===================================================== */
+========================================================= */
 
 .navbar {
   position: sticky;
@@ -70,795 +85,606 @@ a {
   align-items: center;
   justify-content: space-between;
 
-  padding: 18px 6%;
+  min-height: 76px;
+  padding: 12px 5%;
 
-  background: rgba(5, 5, 5, 0.88);
-
-  border-bottom: 1px solid
-    rgba(255, 255, 255, 0.08);
+  background: rgba(5, 7, 5, 0.92);
+  border-bottom: 1px solid var(--border);
 
   backdrop-filter: blur(15px);
 }
 
-
 .logo {
   display: flex;
   flex-direction: column;
-
   line-height: 1;
 }
 
-
 .logo span {
+  color: #fff;
   font-size: 11px;
-
-  letter-spacing: 3px;
-
-  color: #a0a0a0;
+  font-weight: 800;
+  letter-spacing: 4px;
 }
-
 
 .logo strong {
+  color: var(--green);
   font-size: 20px;
-
-  font-weight: 900;
-
-  color: #00ff88;
-
-  letter-spacing: -1px;
+  font-weight: 950;
+  letter-spacing: 1px;
+  text-shadow: 0 0 14px rgba(57, 255, 20, 0.35);
 }
-
 
 .logo small {
+  margin-top: 3px;
+  color: var(--muted);
   font-size: 8px;
-
-  letter-spacing: 4px;
-
-  color: #ffffff;
+  letter-spacing: 5px;
 }
-
 
 .navbar nav {
   display: flex;
-
   align-items: center;
-
   gap: 25px;
 }
 
-
 .navbar nav a {
-  color: #cfcfcf;
+  position: relative;
 
+  color: #aeb8ae;
   font-size: 13px;
+  font-weight: 700;
 
-  font-weight: 600;
-
-  transition: 0.3s;
+  transition: 0.25s ease;
 }
-
 
 .navbar nav a:hover {
-  color: #00ff88;
+  color: var(--green);
 }
 
+.navbar nav a::after {
+  content: "";
 
-.nav-register {
-  border: none;
+  position: absolute;
+  left: 0;
+  bottom: -8px;
 
-  padding: 11px 18px;
+  width: 0;
+  height: 2px;
 
-  border-radius: 8px;
+  background: var(--green);
 
-  background: #00ff88;
+  transition: 0.25s ease;
+}
 
-  color: #050505;
+.navbar nav a:hover::after {
+  width: 100%;
+}
 
-  font-size: 12px;
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.primary-btn,
+.nav-register,
+.submit-btn {
+  border: 1px solid var(--green);
+
+  background: var(--green);
+  color: #031003;
 
   font-weight: 900;
-
-  transition: 0.3s;
-}
-
-
-.nav-register:hover {
-  transform: translateY(-2px);
+  letter-spacing: 0.5px;
 
   box-shadow:
-    0 10px 30px
-    rgba(0, 255, 136, 0.25);
+    0 0 18px rgba(57, 255, 20, 0.15);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
+.primary-btn,
+.nav-register {
+  padding: 12px 20px;
+  border-radius: 8px;
+}
 
-/* =====================================================
+.nav-register {
+  font-size: 11px;
+}
+
+.primary-btn:hover,
+.nav-register:hover,
+.submit-btn:hover {
+  transform: translateY(-2px);
+
+  background: #55ff35;
+
+  box-shadow:
+    0 0 30px rgba(57, 255, 20, 0.3);
+}
+
+.primary-btn:disabled,
+.submit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 12px 22px;
+
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+
+  background: rgba(255, 255, 255, 0.03);
+
+  color: #fff;
+
+  font-weight: 800;
+
+  transition: 0.25s ease;
+}
+
+.secondary-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+/* =========================================================
    HERO
-===================================================== */
+========================================================= */
 
 .hero {
   position: relative;
 
-  min-height: 720px;
+  min-height: 650px;
 
   display: flex;
-
   align-items: center;
-
   justify-content: center;
 
-  text-align: center;
+  padding: 80px 20px;
 
   overflow: hidden;
 
   background:
     linear-gradient(
-      rgba(5, 5, 5, 0.5),
-      rgba(5, 5, 5, 0.96)
+      rgba(5, 7, 5, 0.65),
+      rgba(5, 7, 5, 0.94)
     ),
     radial-gradient(
       circle at center,
-      rgba(0, 255, 136, 0.12),
-      transparent 45%
+      rgba(57, 255, 20, 0.08),
+      transparent 50%
     );
 }
-
 
 .hero::before {
   content: "";
 
   position: absolute;
+  inset: 0;
 
-  width: 500px;
+  background-image:
+    linear-gradient(
+      rgba(57, 255, 20, 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(57, 255, 20, 0.035) 1px,
+      transparent 1px
+    );
 
-  height: 500px;
+  background-size: 50px 50px;
 
-  border-radius: 50%;
-
-  background: #00ff88;
-
-  opacity: 0.04;
-
-  filter: blur(100px);
+  mask-image:
+    linear-gradient(
+      to bottom,
+      black,
+      transparent
+    );
 }
-
 
 .hero-content {
   position: relative;
+  z-index: 2;
 
+  width: 100%;
   max-width: 900px;
 
-  padding: 30px;
+  text-align: center;
 }
-
 
 .hero-badge {
   display: inline-block;
 
-  padding: 8px 15px;
+  margin-bottom: 22px;
+  padding: 8px 14px;
 
-  margin-bottom: 25px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
 
-  border: 1px solid
-    rgba(0, 255, 136, 0.3);
+  background: var(--green-soft);
 
-  border-radius: 50px;
-
-  color: #00ff88;
+  color: var(--green);
 
   font-size: 11px;
-
-  font-weight: 800;
-
-  letter-spacing: 2px;
-
-  background: rgba(0, 255, 136, 0.05);
+  font-weight: 900;
+  letter-spacing: 1.5px;
 }
-
 
 .hero h1 {
-  font-size: clamp(48px, 9vw, 105px);
-
-  line-height: 0.9;
-
-  font-weight: 900;
-
-  letter-spacing: -5px;
+  font-size: clamp(45px, 8vw, 100px);
+  line-height: 0.92;
+  font-weight: 1000;
+  letter-spacing: -3px;
 }
-
 
 .hero h1 span {
   display: block;
-
-  color: #00ff88;
+  color: var(--green);
 
   text-shadow:
-    0 0 40px
-    rgba(0, 255, 136, 0.2);
+    0 0 20px rgba(57, 255, 20, 0.25);
 }
 
+.hero-content > p {
+  margin: 28px 0;
 
-.hero p {
-  margin-top: 30px;
-
-  color: #a8a8a8;
-
-  font-size: 16px;
-
-  font-weight: 500;
+  color: var(--muted);
+  font-size: 17px;
 }
-
 
 .hero-buttons {
   display: flex;
-
   justify-content: center;
-
-  gap: 15px;
-
-  margin-top: 35px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-
-.primary-btn,
-.secondary-btn {
-  padding: 15px 25px;
-
-  border-radius: 9px;
-
-  font-size: 13px;
-
-  font-weight: 900;
-
-  transition: 0.3s;
-}
-
-
-.primary-btn {
-  border: none;
-
-  background: #00ff88;
-
-  color: #050505;
-}
-
-
-.primary-btn:hover {
-  transform: translateY(-3px);
-
-  box-shadow:
-    0 15px 40px
-    rgba(0, 255, 136, 0.22);
-}
-
-
-.secondary-btn {
-  border: 1px solid
-    rgba(255, 255, 255, 0.15);
-
-  background: rgba(255, 255, 255, 0.03);
-
-  color: #ffffff;
-}
-
-
-.secondary-btn:hover {
-  border-color: #00ff88;
-
-  color: #00ff88;
-}
-
-
-/* =====================================================
+/* =========================================================
    SECTIONS
-===================================================== */
+========================================================= */
 
 .section {
-  padding: 100px 6%;
-
-  max-width: 1400px;
-
+  width: min(1200px, 92%);
   margin: auto;
+  padding: 90px 0;
 }
-
 
 .section-heading {
+  margin-bottom: 45px;
   text-align: center;
-
-  margin-bottom: 55px;
 }
 
-
 .section-heading > span {
-  color: #00ff88;
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: var(--green);
 
   font-size: 11px;
-
   font-weight: 900;
-
   letter-spacing: 3px;
 }
 
-
 .section-heading h2 {
-  margin-top: 10px;
-
-  font-size: clamp(32px, 5vw, 55px);
-
-  line-height: 1;
-
-  font-weight: 900;
-
-  letter-spacing: -2px;
+  font-size: clamp(30px, 5vw, 50px);
+  line-height: 1.1;
+  font-weight: 950;
 }
-
 
 .section-heading h2 strong {
-  color: #00ff88;
+  color: var(--green);
 }
-
 
 .section-heading p {
-  margin-top: 15px;
+  max-width: 650px;
+  margin: 14px auto 0;
 
-  color: #888;
-
-  font-size: 14px;
+  color: var(--muted);
 }
 
-
-/* =====================================================
+/* =========================================================
    REGISTRATION
-===================================================== */
+========================================================= */
 
 .register-section {
-  max-width: 900px;
+  max-width: 720px;
 }
 
-
 .register-form {
-  max-width: 720px;
+  padding: 30px;
 
-  margin: auto;
-
-  padding: 40px;
-
-  border-radius: 20px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
 
   background:
     linear-gradient(
       145deg,
-      rgba(255,255,255,0.07),
-      rgba(255,255,255,0.025)
+      rgba(57, 255, 20, 0.04),
+      rgba(255, 255, 255, 0.015)
     );
 
-  border: 1px solid
-    rgba(255,255,255,0.1);
-
-  box-shadow:
-    0 30px 80px
-    rgba(0,0,0,0.35);
+  box-shadow: var(--shadow);
 }
-
-
-.input-row {
-  display: grid;
-
-  grid-template-columns: 1fr 1fr;
-
-  gap: 18px;
-}
-
 
 .input-group {
   margin-bottom: 20px;
 }
 
-
-.input-group label {
+.input-group label,
+.admin-login label,
+.settings-card label,
+.tournament-control label,
+.admin-match label {
   display: block;
 
   margin-bottom: 8px;
 
-  color: #aaa;
+  color: #cbd2cc;
 
   font-size: 12px;
-
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.5px;
 }
 
-
-.input-group input {
+.input-group input,
+.input-group select,
+.admin-login input,
+.settings-card select,
+.tournament-control input,
+.tournament-control select,
+.admin-match input {
   width: 100%;
 
-  padding: 15px 16px;
+  padding: 14px 15px;
 
-  border: 1px solid
-    rgba(255,255,255,0.1);
-
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 9px;
 
   outline: none;
 
-  background: rgba(0,0,0,0.35);
+  background: #080c08;
+  color: #fff;
 
-  color: white;
-
-  transition: 0.3s;
+  transition: 0.2s ease;
 }
 
-
-.input-group input:focus {
-  border-color: #00ff88;
+.input-group input:focus,
+.input-group select:focus,
+.admin-login input:focus,
+.settings-card select:focus,
+.tournament-control input:focus,
+.tournament-control select:focus,
+.admin-match input:focus {
+  border-color: var(--green);
 
   box-shadow:
-    0 0 0 3px
-    rgba(0,255,136,0.08);
+    0 0 0 3px rgba(57, 255, 20, 0.08);
 }
-
-
-.input-group input::placeholder {
-  color: #555;
-}
-
 
 .submit-btn {
   width: 100%;
 
   display: flex;
-
   align-items: center;
-
   justify-content: space-between;
 
-  padding: 16px 20px;
-
-  margin-top: 5px;
-
-  border: none;
+  padding: 15px 18px;
 
   border-radius: 9px;
-
-  background: #00ff88;
-
-  color: #050505;
-
-  font-size: 13px;
-
-  font-weight: 900;
-
-  transition: 0.3s;
 }
 
-
-.submit-btn:hover {
-  transform: translateY(-2px);
-
-  box-shadow:
-    0 15px 35px
-    rgba(0,255,136,0.2);
-}
-
-
-.message {
-  margin-top: 18px;
-
-  text-align: center;
-
-  font-size: 13px;
-
-  font-weight: 700;
-}
-
-
-.message.success {
-  color: #00ff88;
-}
-
-
-.message.error {
-  color: #ff5757;
-}
-
-
-/* =====================================================
-   GROUPS
-===================================================== */
+/* =========================================================
+   CARDS / GROUPS
+========================================================= */
 
 .groups-grid {
   display: grid;
 
   grid-template-columns:
-    repeat(4, 1fr);
+    repeat(auto-fit, minmax(230px, 1fr));
 
   gap: 18px;
 }
 
-
-.group-card {
-  padding: 22px;
-
+.group-card,
+.settings-card,
+.admin-login,
+.tournament-control,
+.admin-match {
+  border: 1px solid var(--border);
   border-radius: 15px;
 
-  background: #0d0d0d;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(57, 255, 20, 0.045),
+      rgba(255, 255, 255, 0.015)
+    );
 
-  border: 1px solid
-    rgba(255,255,255,0.08);
+  box-shadow:
+    0 12px 35px rgba(0, 0, 0, 0.25);
 
-  transition: 0.3s;
+  transition: 0.25s ease;
 }
 
+.group-card:hover,
+.settings-card:hover,
+.admin-match:hover {
+  border-color: rgba(57, 255, 20, 0.45);
 
-.group-card:hover {
-  transform: translateY(-5px);
-
-  border-color:
-    rgba(0,255,136,0.35);
+  transform: translateY(-3px);
 }
 
+.group-card {
+  overflow: hidden;
+}
 
 .group-title {
   display: flex;
-
   align-items: center;
-
   justify-content: space-between;
 
-  margin-bottom: 20px;
+  padding: 17px;
 
-  padding-bottom: 15px;
+  background: rgba(57, 255, 20, 0.07);
 
-  border-bottom: 1px solid
-    rgba(255,255,255,0.08);
+  border-bottom: 1px solid var(--border);
 }
-
 
 .group-title span {
-  color: #777;
+  color: var(--muted);
 
   font-size: 10px;
-
-  letter-spacing: 2px;
+  font-weight: 800;
 }
-
 
 .group-title strong {
-  color: #00ff88;
+  color: var(--green);
 
-  font-size: 28px;
-
-  font-weight: 900;
+  font-size: 20px;
 }
-
 
 .group-player {
   display: flex;
-
   align-items: center;
+  justify-content: space-between;
 
-  gap: 12px;
+  padding: 13px 17px;
 
-  padding: 11px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 
-  border-bottom: 1px solid
-    rgba(255,255,255,0.05);
+  color: #dce3dd;
 }
-
 
 .group-player:last-child {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
-
-.group-player span {
-  width: 25px;
-
-  color: #555;
-
-  font-size: 10px;
-}
-
-
-.group-player strong {
-  font-size: 12px;
-}
-
-
-/* =====================================================
+/* =========================================================
    FIXTURES
-===================================================== */
+========================================================= */
 
 .fixtures-container {
-  max-width: 900px;
-
-  margin: auto;
+  display: grid;
+  gap: 14px;
 }
-
 
 .fixture {
   display: grid;
 
-  grid-template-columns:
-    1fr auto 1fr;
-
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-
   gap: 20px;
 
   padding: 20px;
 
-  margin-bottom: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
 
-  border-radius: 15px;
+  background: var(--card);
 
-  background: #0d0d0d;
-
-  border: 1px solid
-    rgba(255,255,255,0.08);
-
-  transition: 0.3s;
+  transition: 0.2s ease;
 }
-
 
 .fixture:hover {
-  border-color:
-    rgba(0,255,136,0.3);
-
-  transform: translateX(3px);
+  border-color: var(--green);
 }
-
 
 .fixture-players {
-  display: contents;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
 }
 
-
-.fixture strong {
-  font-size: 13px;
+.fixture-players span {
+  color: var(--green);
+  font-weight: 900;
 }
 
+.match-schedule {
+  color: var(--muted);
+  font-size: 12px;
+}
 
-.fixture strong:last-child {
+.match-status {
   text-align: right;
-}
 
-
-.fixture > span {
-  color: #00ff88;
+  color: var(--green);
 
   font-size: 11px;
-
   font-weight: 900;
 }
 
-
-.score-inputs {
-  grid-column: 1 / -1;
-
-  display: flex;
-
-  justify-content: center;
-
-  align-items: center;
-
-  gap: 10px;
-}
-
-
-.score-inputs input {
-  width: 65px;
-
-  padding: 11px;
-
-  border-radius: 8px;
-
-  border: 1px solid
-    rgba(255,255,255,0.1);
-
-  background: #050505;
-
-  color: white;
-
-  text-align: center;
-
-  outline: none;
-}
-
-
-.score-inputs input:focus {
-  border-color: #00ff88;
-}
-
-
-.fixture button {
-  grid-column: 1 / -1;
-
-  justify-self: center;
-
-  padding: 10px 18px;
-
-  border: none;
-
-  border-radius: 7px;
-
-  background: #00ff88;
-
-  color: #050505;
-
-  font-size: 10px;
-
-  font-weight: 900;
-}
-
-
-/* =====================================================
+/* =========================================================
    STANDINGS
-===================================================== */
+========================================================= */
+
+.standings-container {
+  display: grid;
+  gap: 40px;
+}
 
 .table-wrapper {
   overflow-x: auto;
 
-  border-radius: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
 
-  border: 1px solid
-    rgba(255,255,255,0.08);
+  background: var(--card);
 }
-
 
 .standings-table {
   width: 100%;
-
-  min-width: 750px;
-
   border-collapse: collapse;
 
-  background: #0d0d0d;
+  min-width: 700px;
 }
-
 
 .standings-table th {
-  padding: 16px 12px;
+  padding: 14px;
 
-  background: #151515;
+  background: rgba(57, 255, 20, 0.08);
 
-  color: #00ff88;
+  color: var(--green);
 
-  font-size: 10px;
-
-  letter-spacing: 1px;
+  font-size: 11px;
+  text-align: left;
 }
-
 
 .standings-table td {
-  padding: 16px 12px;
+  padding: 14px;
 
-  border-bottom: 1px solid
-    rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 
-  color: #ddd;
-
-  font-size: 12px;
-
-  text-align: center;
+  color: #cfd7d0;
 }
 
-
-.standings-table td:nth-child(2) {
-  text-align: left;
-
-  font-weight: 800;
+.standings-table tr:hover td {
+  background: rgba(57, 255, 20, 0.035);
 }
 
-
-.standings-table td:last-child {
-  color: #00ff88;
-
-  font-weight: 900;
+.standings-table td strong {
+  color: var(--green);
 }
 
-
-/* =====================================================
+/* =========================================================
    KNOCKOUT
-===================================================== */
+========================================================= */
 
 .knockout-grid {
   display: grid;
@@ -866,17 +692,322 @@ a {
   grid-template-columns:
     repeat(4, 1fr);
 
-  gap: 15px;
-
-  overflow-x: auto;
+  gap: 18px;
 }
 
-
 .round {
-  min-width: 230px;
+  min-width: 0;
+}
 
-  padding: 20px;
+.round h3 {
+  margin-bottom: 14px;
 
-  border-radius: 15px;
+  color: var(--green);
 
-  background:
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.knockout-match {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 17px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  background: var(--card);
+
+  text-align: center;
+}
+
+.knockout-match strong {
+  color: var(--green);
+}
+
+.final-match {
+  border-color: rgba(255, 216, 74, 0.35);
+}
+
+.final-round h3 {
+  color: var(--gold);
+}
+
+/* =========================================================
+   ADMIN
+========================================================= */
+
+.admin-section {
+  max-width: 1200px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 25px;
+}
+
+.admin-login,
+.tournament-control,
+.admin-match,
+.settings-card {
+  padding: 25px;
+}
+
+.admin-login h3,
+.tournament-control h3 {
+  margin-bottom: 10px;
+
+  color: var(--green);
+}
+
+.admin-login p {
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+.admin-login .primary-btn {
+  margin-top: 12px;
+}
+
+.tournament-settings {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap: 18px;
+
+  margin-bottom: 20px;
+}
+
+.settings-info {
+  margin-top: 12px;
+
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-info strong {
+  color: var(--green);
+}
+
+.tournament-control > * {
+  margin-bottom: 15px;
+}
+
+.progress-bar {
+  margin: 18px 0 !important;
+}
+
+#playerProgress {
+  background: var(--green) !important;
+
+  box-shadow:
+    0 0 15px rgba(57, 255, 20, 0.4);
+}
+
+.match-management {
+  margin-top: 50px;
+}
+
+#adminMatches {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-match h3 {
+  margin-bottom: 10px;
+
+  color: #fff;
+}
+
+.admin-match h3 span {
+  margin: 0 8px;
+  color: var(--green);
+}
+
+.admin-match p {
+  margin-bottom: 18px;
+  color: var(--muted);
+}
+
+.score-box {
+  display: grid;
+
+  grid-template-columns: 1fr auto 1fr;
+
+  align-items: end;
+  gap: 15px;
+
+  margin: 18px 0;
+}
+
+.score-box > strong {
+  padding-bottom: 12px;
+
+  color: var(--green);
+}
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+
+.message {
+  margin-top: 12px;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.message.success {
+  color: var(--green);
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+.loading {
+  padding: 35px;
+
+  border: 1px dashed rgba(57, 255, 20, 0.2);
+  border-radius: 12px;
+
+  color: var(--muted);
+
+  text-align: center;
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.footer {
+  margin-top: 50px;
+  padding: 55px 20px;
+
+  border-top: 1px solid var(--border);
+
+  background: #030503;
+
+  text-align: center;
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer .logo {
+  align-items: center;
+}
+
+.footer p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.footer p strong {
+  color: var(--green);
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .navbar {
+    flex-direction: column;
+    gap: 14px;
+    padding: 15px;
+  }
+
+  .navbar nav {
+    width: 100%;
+
+    justify-content: center;
+
+    flex-wrap: wrap;
+
+    gap: 12px 18px;
+  }
+
+  .knockout-grid {
+    grid-template-columns:
+      repeat(2, 1fr);
+  }
+
+  .fixture {
+    grid-template-columns: 1fr;
+  }
+
+  .fixture-players {
+    justify-content: center;
+  }
+
+  .match-schedule,
+  .match-status {
+    text-align: center;
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  .section {
+    width: 94%;
+    padding: 65px 0;
+  }
+
+  .hero {
+    min-height: 580px;
+  }
+
+  .hero h1 {
+    letter-spacing: -2px;
+  }
+
+  .register-form,
+  .admin-login,
+  .tournament-control,
+  .admin-match,
+  .settings-card {
+    padding: 20px;
+  }
+
+  .tournament-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .knockout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-box {
+    grid-template-columns: 1fr;
+  }
+
+  .score-box > strong {
+    text-align: center;
+    padding: 0;
+  }
+
+  .navbar nav a {
+    font-size: 11px;
+  }
+
+  .nav-register {
+    width: 100%;
+  }
+
+           }
