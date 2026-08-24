@@ -39,6 +39,8 @@ let tournamentStarted = false;
 let adminLoggedIn = false;
 let settingsDocId = null;
 let potState = { pot1Locked: false, pot2Locked: false, pot3Locked: false, groupingLocked: false };
+let knockoutStages = [];
+let hallOfFame = [];
 
 let tournamentSettings = {
 format: "groups",
@@ -210,6 +212,18 @@ try {
     return;
   }
 
+  const normalizedPhone = normalizePhone(phone);
+
+  const samePhone = players.some(
+    (player) => normalizePhone(player.phone || "") === normalizedPhone
+  );
+
+  if (samePhone) {
+    showMessage(message, "❌ Namba ya simu hii tayari imesajiliwa.", "error");
+    resetSubmit(submit);
+    return;
+  }
+
   const sameUsername = players.some(
     (player) =>
       normalizeKey(player.username || "") === normalizedUsername
@@ -230,6 +244,8 @@ try {
   // at almost exactly the same time.
   const teamKey = "team_" + String(Number(teamNumber)).padStart(2, "0");
   const usernameKey = "username_" + normalizedUsername;
+  const phoneKey = "phone_" + normalizedPhone;
+  const phoneUniqueRef = doc(db, "registration_uniques", phoneKey);
   const teamUniqueRef = doc(db, "registration_uniques", teamKey);
   const usernameUniqueRef = doc(db, "registration_uniques", usernameKey);
   const playerNumber = players.length + 1;
@@ -238,6 +254,7 @@ try {
   await runTransaction(db, async (transaction) => {
     const teamUnique = await transaction.get(teamUniqueRef);
     const usernameUnique = await transaction.get(usernameUniqueRef);
+    const phoneUnique = await transaction.get(phoneUniqueRef);
 
     if (teamUnique.exists()) {
       throw new Error("TEAM_ALREADY_REGISTERED");
@@ -246,6 +263,9 @@ try {
     if (usernameUnique.exists()) {
       throw new Error("USERNAME_ALREADY_REGISTERED");
     }
+    if (phoneUnique.exists()) {
+      throw new Error("PHONE_ALREADY_REGISTERED");
+    }
 
     const registrationData = {
       teamNumber: Number(teamNumber),
@@ -253,6 +273,7 @@ try {
       phone: phone,
       username: username,
       usernameKey: normalizedUsername,
+      phoneKey: normalizedPhone,
       playerNumber: playerNumber,
       createdAt: serverTimestamp()
     };
@@ -267,6 +288,12 @@ try {
     transaction.set(usernameUniqueRef, {
       type: "username",
       value: normalizedUsername,
+      registrationId: registrationRef.id,
+      createdAt: serverTimestamp()
+    });
+    transaction.set(phoneUniqueRef, {
+      type: "phone",
+      value: normalizedPhone,
       registrationId: registrationRef.id,
       createdAt: serverTimestamp()
     });
@@ -296,7 +323,9 @@ try {
       ? "❌ Team number hiyo tayari imetumika."
       : error?.message === "USERNAME_ALREADY_REGISTERED"
         ? "❌ eFootball username hiyo tayari imesajiliwa."
-        : "❌ Registration failed. Check Firebase.";
+        : error?.message === "PHONE_ALREADY_REGISTERED"
+          ? "❌ Namba ya simu hii tayari imesajiliwa."
+          : "❌ Registration failed. Check Firebase.";
 
   showMessage(
     message,
@@ -843,49 +872,16 @@ return result;
 // =====================================================
 
 function getGroups() {
-
-const count =
-Math.max(
-1,
-Number(tournamentSettings.groupCount || 2)
-);
-
-if (tournamentSettings.format === "league") {
-  return [{ name: "LEAGUE", shortName: "LEAGUE", players: [...players] }];
-}
-
-const assignedPlayers = players.filter((p) => p.group);
-
-if (potState.groupingLocked && assignedPlayers.length) {
-  const groups = Array.from({ length: count }, (_, i) => ({
+  if (tournamentSettings.format === "league") {
+    return [{ name: "LEAGUE", shortName: "LEAGUE", players: [...players] }];
+  }
+  if (!potState.groupingLocked) return [];
+  const count = Math.max(1, Number(tournamentSettings.groupCount || 2));
+  return Array.from({length: count}, (_, i) => ({
     name: "GROUP " + groupLetter(i),
     shortName: groupLetter(i),
-    players: []
+    players: players.filter(p => String(p.group || "") === groupLetter(i))
   }));
-
-  assignedPlayers.forEach((player) => {
-    const idx = groups.findIndex((g) => g.shortName === player.group);
-    if (idx >= 0) groups[idx].players.push(player);
-  });
-
-  return groups;
-}
-
-const sizes = calculateGroupSizes(players.length, count);
-let position = 0;
-const groups = [];
-
-for (let i = 0; i < count; i++) {
-  const size = sizes[i] || 0;
-  groups.push({
-    name: "GROUP " + groupLetter(i),
-    shortName: groupLetter(i),
-    players: players.slice(position, position + size)
-  });
-  position += size;
-}
-
-return groups;
 }
 
 // =====================================================
@@ -1028,16 +1024,13 @@ return;
 }
 
 // GROUPS
-const groups =
-getGroups();
-
-if (description) {
-
-description.textContent =
-  groups.length +
-  " groups • Players distributed automatically";
-
+const groups = getGroups();
+if (!groups.length) {
+  if (description) description.textContent = "Groups zitatengenezwa baada ya admin kufanya draw kutoka kwenye pots.";
+  grid.innerHTML = "<div class='loading'>⏳ Groups hazijageneratiwa bado.</div>";
+  return;
 }
+if (description) description.textContent = groups.length + " groups • Draw completed";
 
 groups.forEach((group) => {
 
@@ -1227,6 +1220,8 @@ container.appendChild(card);
 // GROUP STANDINGS + MATHEMATICAL QUALIFICATION
 // =====================================================
 
+function normalizePhone(value) { return String(value || "").replace(/[^0-9]/g, ""); }
+
 function normalizeKey(value) {
   return String(value ?? "")
     .trim()
@@ -1386,8 +1381,11 @@ return;
 
 }
 
-const groups =
-getGroups();
+const groups = getGroups();
+if (!groups.length) {
+  container.innerHTML = "<div class='loading'>⏳ Standings zitaonekana baada ya groups kugeneratiwa.</div>";
+  return;
+}
 
 groups.forEach((group) => {
 
@@ -1496,7 +1494,6 @@ document
 startTournament
 );
 
-document.getElementById("generateKnockoutBtn")?.addEventListener("click", generateNextKnockoutRound);
 
 }
 
@@ -2222,7 +2219,7 @@ async function generateNextKnockoutRound() {
 
 function loadAdminKnockoutMatches(){
   const c=document.getElementById("adminKnockoutMatches"); if(!c)return; c.innerHTML="";
-  if(!knockoutStages.length){c.innerHTML='<div class="loading">⚔️ No knockout round generated yet.</div>';return;}
+  if(!knockoutStages.length){c.innerHTML='<div class="loading">⏳ Waiting for teams to qualify. Knockout results will appear here immediately after qualification.</div>';return;}
   knockoutStages.forEach(stage=>{
     const ms=getKnockoutMatches(stage.name), title=document.createElement("h3"); title.className="knockout-stage-title"; title.textContent=stage.name; c.appendChild(title);
     const ties={}; ms.forEach(m=>(ties[m.tieId] ||= []).push(m));
@@ -2231,8 +2228,28 @@ function loadAdminKnockoutMatches(){
       card.querySelectorAll("[data-ko-save]").forEach(btn=>btn.addEventListener("click",()=>saveKnockoutResult(btn.dataset.koSave))); c.appendChild(card);
     });
   });
+  const last = currentKnockoutStage();
+  if (last && stageIsComplete(last.name)) {
+    const btn=document.createElement("button");
+    btn.type="button"; btn.className="primary-btn"; btn.textContent="➡️ GENERATE NEXT ROUND";
+    btn.addEventListener("click", generateNextKnockoutRound);
+    c.appendChild(btn);
+  }
 }
-async function saveKnockoutResult(id){ if(!adminLoggedIn)return alert("🔐 Admin login kwanza."); const h=document.getElementById("ko-home-"+id)?.value,a=document.getElementById("ko-away-"+id)?.value; if(h===""||a==="")return alert("⚠️ Weka goals zote mbili."); await updateDoc(doc(db,"matches",id),{homeGoals:Number(h),awayGoals:Number(a),played:true,updatedAt:serverTimestamp()}); await loadLeague(); alert("✅ Knockout result saved!"); }
+async function saveKnockoutResult(id){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  const h=document.getElementById("ko-home-"+id)?.value,a=document.getElementById("ko-away-"+id)?.value;
+  if(h===""||a==="")return alert("⚠️ Weka goals zote mbili.");
+  await updateDoc(doc(db,"matches",id),{homeGoals:Number(h),awayGoals:Number(a),played:true,updatedAt:serverTimestamp()});
+  await loadLeague();
+  const last=currentKnockoutStage();
+  if(last && stageIsComplete(last.name) && last.name === "FINAL"){
+    const ties={}; getKnockoutMatches("FINAL").forEach(m=>(ties[m.tieId] ||= []).push(m));
+    const winner=Object.values(ties).map(t=>knockoutTieWinner(t))[0];
+    if(winner){ await announceChampion(winner); }
+  }
+  alert("✅ Knockout result saved!");
+}
 function setupKnockoutAdmin(){document.getElementById("generateKnockoutBtn")?.addEventListener("click",generateNextKnockoutRound);}
 
 // =====================================================
