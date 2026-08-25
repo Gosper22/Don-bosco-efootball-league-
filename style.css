@@ -1501,3 +1501,41 @@ a {
 
 /* PLAYER DASHBOARD + POWER RANKING */
 .dashboard-toolbar{display:flex;justify-content:center;margin:0 auto 24px;max-width:760px}.dashboard-toolbar input{width:100%;padding:14px 18px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(0,0,0,.2);color:inherit;font-size:16px}.player-dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px}.player-dashboard-card{padding:20px;border-radius:18px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035);box-shadow:0 10px 30px rgba(0,0,0,.08)}.player-card-top{display:flex;justify-content:space-between;opacity:.8}.player-dashboard-card h3{margin:10px 0 16px;font-size:22px}.player-mini-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.player-mini-stats span{text-align:center;padding:8px 3px;border-radius:10px;background:rgba(255,255,255,.04)}.player-mini-stats b,.player-mini-stats small{display:block}.player-mini-stats b{font-size:19px}.player-mini-stats small{font-size:10px;opacity:.7;margin-top:3px}.player-form{display:flex;gap:5px;margin:16px 0}.player-form i{font-style:normal;width:27px;height:27px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:rgba(255,255,255,.08)}.form-W{outline:1px solid rgba(50,200,100,.6)}.form-L{outline:1px solid rgba(220,70,70,.6)}.form-D{outline:1px solid rgba(220,180,60,.6)}.player-extra{font-size:12px;opacity:.65}.power-ranking-container{max-width:1050px;margin:auto}.power-ranking-note,.power-empty{padding:18px;border-radius:14px;background:rgba(255,255,255,.04);margin-bottom:14px}.power-empty{display:flex;flex-direction:column;gap:7px;text-align:center}.power-rank-row{display:grid;grid-template-columns:70px 1.2fr 2fr 100px;align-items:center;gap:18px;padding:18px;margin:10px 0;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035)}.power-rank-first{border-width:2px}.power-rank-position{font-size:24px;font-weight:800;text-align:center}.power-rank-player strong,.power-rank-player small,.power-rank-points b,.power-rank-points small{display:block}.power-rank-player small,.power-rank-points small{font-size:10px;opacity:.65}.power-rank-seasons{display:flex;flex-wrap:wrap;gap:6px}.power-rank-seasons span{padding:5px 8px;border-radius:8px;background:rgba(255,255,255,.06);font-size:11px}.power-rank-points{text-align:right}.power-rank-points b{font-size:28px}.power-rank-points small{letter-spacing:1px}@media(max-width:700px){.power-rank-row{grid-template-columns:48px 1fr 75px}.power-rank-seasons{grid-column:2 / -1}.power-rank-points{grid-column:3}.player-mini-stats{grid-template-columns:repeat(2,1fr)}}
+
+
+/* FINAL INTEGRATION: keep the original visual language while making results and history clearer. */
+.fixture .fixture-players strong { font-size: clamp(16px, 2.2vw, 22px); }
+.fixture .fixture-players span { font-size: 12px; font-weight: 900; letter-spacing: .08em; }
+.fixture .match-status { min-height: 52px; display:flex; align-items:center; justify-content:center; }
+.public-score { display:inline-flex; align-items:center; justify-content:center; min-width: 108px; padding: 8px 18px; border-radius: 14px; font-size: clamp(28px, 5vw, 42px); line-height:1; font-weight: 950; letter-spacing: .04em; color: var(--green); background: rgba(57,255,20,.08); border: 1px solid rgba(57,255,20,.22); text-shadow: 0 0 16px rgba(57,255,20,.25); }
+.upcoming-score { font-size: 12px; font-weight: 900; letter-spacing: .14em; opacity: .7; }
+.season-archive-full { display:grid; gap:20px; }
+.season-detail-hero { display:flex; align-items:end; gap:12px; padding:18px; border-radius:16px; background:rgba(57,255,20,.06); border:1px solid rgba(57,255,20,.14); }
+.season-detail-hero span { font-size:11px; font-weight:900; opacity:.7; letter-spacing:.12em; }
+.season-detail-hero strong { font-size:34px; color:var(--green); }
+.season-detail-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.season-detail-stats > div { padding:14px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(255,255,255,.02); }
+.season-detail-stats span { display:block; font-size:10px; opacity:.65; font-weight:900; margin-bottom:6px; }
+.season-detail-stats strong { display:block; font-size:15px; }
+.archive-block { margin-top:4px; }
+.archive-block h4 { margin:0 0 12px; }
+.archive-table-wrap { overflow:auto; }
+.archive-table { width:100%; border-collapse:collapse; min-width:700px; }
+.archive-table th,.archive-table td { padding:9px 8px; border-bottom:1px solid rgba(255,255,255,.07); text-align:left; font-size:12px; }
+.archive-table th { font-size:10px; opacity:.65; letter-spacing:.08em; }
+.archive-results-list { display:grid; gap:8px; }
+.archive-result-row { display:grid; grid-template-columns:110px 1fr 130px; gap:10px; align-items:center; padding:11px 12px; border:1px solid rgba(255,255,255,.07); border-radius:10px; background:rgba(255,255,255,.02); }
+.archive-result-row span,.archive-result-row small { opacity:.65; font-size:10px; }
+.archive-result-row strong { text-align:center; font-size:13px; }
+.archive-result-row strong b { color:var(--green); font-size:17px; margin:0 8px; }
+.archive-awards-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+.archive-award-item { display:grid; grid-template-columns:30px 1fr; gap:4px 10px; padding:12px; border:1px solid rgba(255,255,255,.07); border-radius:10px; background:rgba(255,255,255,.02); }
+.archive-award-item span { grid-row:span 2; font-size:22px; }
+.archive-award-item strong { font-size:11px; opacity:.65; }
+.archive-award-item b { font-size:13px; }
+@media (max-width: 700px) {
+  .season-detail-stats { grid-template-columns:repeat(2,1fr); }
+  .archive-result-row { grid-template-columns:1fr; text-align:center; }
+  .archive-result-row strong { text-align:center; }
+  .archive-awards-grid { grid-template-columns:1fr; }
+}

@@ -1095,13 +1095,9 @@ card.innerHTML =
 
   "<div class='match-status'>" +
 
-  (
-    match.played
-      ? "🏆 " +
-        match.homeGoals +
-        " - " +
-        match.awayGoals
-      : "UPCOMING"
+  (match.played
+      ? "<span class='public-score'>" + match.homeGoals + " - " + match.awayGoals + "</span>"
+      : "<span class='upcoming-score'>UPCOMING</span>"
   ) +
 
   "</div>";
@@ -2298,30 +2294,111 @@ async function viewArchivedSeason(seasonId) {
     const history = document.getElementById("seasonArchiveDetails");
     if (!history) return;
 
-    const [playersSnap, matchesSnap, tournamentSnap, settingsSnap] = await Promise.all([
+    const [playersSnap, matchesSnap, tournamentSnap, settingsSnap, nominationsSnap] = await Promise.all([
       getDocs(collection(db, "seasonArchives", seasonId, "registrations")),
       getDocs(collection(db, "seasonArchives", seasonId, "matches")),
       getDocs(collection(db, "seasonArchives", seasonId, "tournament")),
-      getDocs(collection(db, "seasonArchives", seasonId, "settings"))
+      getDocs(collection(db, "seasonArchives", seasonId, "settings")),
+      getDocs(collection(db, "seasonArchives", seasonId, "awardNominations"))
     ]);
 
-    const archivedPlayers = playersSnap.docs.map(d => d.data());
-    const archivedMatches = matchesSnap.docs.map(d => d.data());
+    const archivedPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const archivedMatches = matchesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const played = archivedMatches.filter(m => m.played);
     const goals = played.reduce((sum,m) => sum + Number(m.homeGoals || 0) + Number(m.awayGoals || 0), 0);
     const final = played.filter(m => String(m.group || "").toLowerCase() === "final").slice(-1)[0];
 
-    history.innerHTML = `<div class="season-detail-card">
-      <div><span>SEASON</span><strong>${escapeHTML(season.seasonNumber || "?")}</strong></div>
-      <div><span>PLAYERS</span><strong>${archivedPlayers.length}</strong></div>
-      <div><span>FIXTURES</span><strong>${archivedMatches.length}</strong></div>
-      <div><span>PLAYED</span><strong>${played.length}</strong></div>
-      <div><span>GOALS</span><strong>${goals}</strong></div>
-      <div><span>FINAL</span><strong>${escapeHTML(final ? `${final.homePlayer || "TBD"} ${final.homeGoals ?? "-"} - ${final.awayGoals ?? "-"} ${final.awayPlayer || "TBD"}` : "Not recorded")}</strong></div>
-      <small>All original Season ${escapeHTML(season.seasonNumber || "?")} registrations, fixtures, results, tournament records, settings, nominations and votes are preserved in this archive.</small>
-    </div>`;
+    const table = {};
+    archivedPlayers.forEach(p => {
+      const name = p.username || p.name || "PLAYER";
+      table[name] = { name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, PTS: 0, GD: 0 };
+    });
+    played.forEach(m => {
+      const h = table[m.homePlayer], a = table[m.awayPlayer];
+      if (!h || !a) return;
+      const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
+      h.P++; a.P++; h.GF += hg; h.GA += ag; a.GF += ag; a.GA += hg;
+      if (hg > ag) { h.W++; a.L++; h.PTS += 3; }
+      else if (hg < ag) { a.W++; h.L++; a.PTS += 3; }
+      else { h.D++; a.D++; h.PTS++; a.PTS++; }
+      h.GD = h.GF - h.GA; a.GD = a.GF - a.GA;
+    });
+    const tableRows = Object.values(table).sort((a,b) => b.PTS-a.PTS || b.GD-a.GD || b.GF-a.GF || a.name.localeCompare(b.name));
+
+    const scorerMap = {};
+    archivedPlayers.forEach(p => scorerMap[p.username || p.name || "PLAYER"] = 0);
+    played.forEach(m => {
+      if (scorerMap[m.homePlayer] != null) scorerMap[m.homePlayer] += Number(m.homeGoals || 0);
+      if (scorerMap[m.awayPlayer] != null) scorerMap[m.awayPlayer] += Number(m.awayGoals || 0);
+    });
+    const topScorer = Object.entries(scorerMap).sort((a,b)=>b[1]-a[1])[0];
+
+    history.innerHTML = `
+      <div class="season-detail-card season-archive-full">
+        <div class="season-detail-hero"><span>SEASON</span><strong>${escapeHTML(season.seasonNumber || "?")}</strong></div>
+        <div class="season-detail-stats">
+          <div><span>PLAYERS</span><strong>${archivedPlayers.length}</strong></div>
+          <div><span>FIXTURES</span><strong>${archivedMatches.length}</strong></div>
+          <div><span>PLAYED</span><strong>${played.length}</strong></div>
+          <div><span>GOALS</span><strong>${goals}</strong></div>
+          <div><span>TOP SCORER</span><strong>${escapeHTML(topScorer ? `${topScorer[0]} (${topScorer[1]})` : "Not recorded")}</strong></div>
+          <div><span>FINAL</span><strong>${escapeHTML(final ? `${final.homePlayer || "TBD"} ${final.homeGoals ?? "-"} - ${final.awayGoals ?? "-"} ${final.awayPlayer || "TBD"}` : "Not recorded")}</strong></div>
+        </div>
+
+        <div class="archive-block">
+          <h4>📊 FINAL STANDINGS</h4>
+          <div class="archive-table-wrap"><table class="archive-table"><thead><tr><th>#</th><th>PLAYER</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>PTS</th></tr></thead><tbody>
+            ${tableRows.map((r,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(r.name)}</td><td>${r.P}</td><td>${r.W}</td><td>${r.D}</td><td>${r.L}</td><td>${r.GF}</td><td>${r.GA}</td><td>${r.GD}</td><td><strong>${r.PTS}</strong></td></tr>`).join("")}
+          </tbody></table></div>
+        </div>
+
+        <div class="archive-block">
+          <h4>⚽ SEASON RESULTS</h4>
+          <div class="archive-results-list">
+            ${archivedMatches.map(m=>`<div class="archive-result-row"><span>#${escapeHTML(m.matchNumber ?? "-")} • ${escapeHTML(m.group || "LEAGUE")}</span><strong>${escapeHTML(m.homePlayer || "TBD")} <b>${m.played ? `${m.homeGoals} - ${m.awayGoals}` : "VS"}</b> ${escapeHTML(m.awayPlayer || "TBD")}</strong><small>${escapeHTML(m.date || "TBD")} ${escapeHTML(m.time || "")}</small></div>`).join("") || '<div class="loading">No fixtures archived.</div>'}
+          </div>
+        </div>
+
+        <div class="archive-block">
+          <h4>🏆 SEASON AWARDS</h4>
+          <div class="archive-awards-grid">
+            ${(() => {
+              const archivedStats = {};
+              archivedPlayers.forEach(p => archivedStats[p.id] = { id:p.id, name:p.username || p.name || "PLAYER", GF:0, GA:0, W:0, cleanSheets:0, P:0 });
+              const nameMap = new Map(archivedPlayers.map(p => [String(p.username || p.name || "").toLowerCase(), p.id]));
+              played.forEach(m => {
+                const hi = nameMap.get(String(m.homePlayer || "").toLowerCase()), ai = nameMap.get(String(m.awayPlayer || "").toLowerCase());
+                if (!hi || !ai) return;
+                const hg=Number(m.homeGoals||0), ag=Number(m.awayGoals||0), h=archivedStats[hi], a=archivedStats[ai];
+                h.P++; a.P++; h.GF+=hg; h.GA+=ag; a.GF+=ag; a.GA+=hg;
+                if (ag===0) h.cleanSheets++;
+                if (hg===0) a.cleanSheets++;
+                if(hg>ag) h.W++; else if(ag>hg) a.W++;
+              });
+              const rows = Object.values(archivedStats);
+              const top = rows.slice().sort((a,b)=>b.GF-a.GF||b.W-a.W)[0];
+              const defender = rows.slice().sort((a,b)=>b.cleanSheets-a.cleanSheets||a.GA-b.GA||b.W-a.W)[0];
+              const wins = rows.slice().sort((a,b)=>b.W-a.W||b.GF-a.GF)[0];
+              const winnerMap = season.awardVoting?.winners || {};
+              const votedCards = VOTED_AWARD_KEYS.map(category => {
+                const id = winnerMap[category]; const p = archivedPlayers.find(x=>x.id===id);
+                return `<div class="archive-award-item"><span>${AWARD_CATEGORIES[category].icon}</span><strong>${escapeHTML(AWARD_CATEGORIES[category].title)}</strong><b>${escapeHTML(p ? (p.username||p.name) : "Not declared")}</b></div>`;
+              }).join("");
+              return `<div class="archive-award-item"><span>🏆</span><strong>Champion</strong><b>${escapeHTML(season.champion?.name || (final ? (Number(final.homeGoals)>Number(final.awayGoals)?final.homePlayer:final.awayPlayer) : "Not recorded"))}</b></div>
+                <div class="archive-award-item"><span>⚽</span><strong>Top Scorer</strong><b>${escapeHTML(top?.name || "Not recorded")}</b></div>
+                <div class="archive-award-item"><span>🛡️</span><strong>Best Defender</strong><b>${escapeHTML(defender?.name || "Not recorded")}</b></div>
+                <div class="archive-award-item"><span>🏅</span><strong>Most Wins</strong><b>${escapeHTML(wins?.name || "Not recorded")}</b></div>${votedCards}`;
+            })()}
+          </div>
+          <div class="archive-award-note">${escapeHTML(season.awardVoting?.ended ? "Fan voting was closed and winners were declared." : "Voting state preserved with this season.")}</div>
+        </div>
+
+        <small>Complete Season ${escapeHTML(season.seasonNumber || "?")} history is preserved. Starting another season does not overwrite these players, fixtures, results or standings.</small>
+      </div>`;
   } catch (error) {
     console.error("Archived season view error:", error);
+    const history = document.getElementById("seasonArchiveDetails");
+    if (history) history.innerHTML = `<div class="loading">Could not load this archived season.</div>`;
   }
 }
 
@@ -2471,15 +2548,17 @@ async function loadAwardNominations(stats) {
   try {
     const snap = await getDoc(doc(db, "awardNominations", "current"));
     const saved = snap.exists() ? (snap.data().nominations || {}) : {};
-    const defaults = getDefaultNominations(stats);
     awardNominations = {};
     VOTED_AWARD_KEYS.forEach((category) => {
-      const valid = Array.isArray(saved[category]) ? saved[category].filter((id) => stats.some((item) => item.id === id)) : [];
-      awardNominations[category] = valid.length === 3 ? valid : defaults[category];
+      const valid = Array.isArray(saved[category])
+        ? saved[category].filter((id) => stats.some((item) => item.id === id))
+        : [];
+      awardNominations[category] = valid.length === 3 ? valid : [];
     });
   } catch (error) {
-    console.warn("Award nominations unavailable; using automatic top-three suggestions.", error);
-    awardNominations = getDefaultNominations(stats);
+    console.warn("Award nominations unavailable; no finalists published.", error);
+    awardNominations = {};
+    VOTED_AWARD_KEYS.forEach((category) => { awardNominations[category] = []; });
   }
 }
 
@@ -2743,6 +2822,11 @@ async function endAwardVotes() {
   for (const category of VOTED_AWARD_KEYS) {
     const ids = awardNominations[category];
     const counts = awardVoteCounts[category] || {};
+    const totalVotes = ids.reduce((sum, id) => sum + Number(counts[id] || 0), 0);
+    if (totalVotes < 1) {
+      showMessage(message, `⚠️ ${AWARD_CATEGORIES[category].title} has no votes yet. Fans must vote before you can declare winners.`, "error");
+      return;
+    }
     const winnerId = ids.slice().sort((a, b) => {
       const diff = (counts[b] || 0) - (counts[a] || 0);
       if (diff) return diff;
@@ -2911,21 +2995,22 @@ function renderPlayerDashboard(search = "") {
 // POWER RANKING
 // =====================================================
 
-function getSeasonStandingsForPowerRanking() {
+function getSeasonStandingsForPowerRanking(playerList = players, matchList = matches) {
   const stats = {};
-  players.forEach(p => {
+  playerList.forEach(p => {
     stats[p.id] = { id: p.id, name: getPlayerName(p), pts: 0, gd: 0, gf: 0 };
   });
-  matches.filter(m => m.played).forEach(m => {
-    const hp = players.find(p => getPlayerName(p) === m.homePlayer);
-    const ap = players.find(p => getPlayerName(p) === m.awayPlayer);
+  const byName = new Map(playerList.map(p => [getPlayerName(p).toLowerCase(), p]));
+  matchList.filter(m => m.played).forEach(m => {
+    const hp = byName.get(String(m.homePlayer || "").toLowerCase());
+    const ap = byName.get(String(m.awayPlayer || "").toLowerCase());
     if (!hp || !ap) return;
     const h = stats[hp.id], a = stats[ap.id];
     const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
     h.gf += hg; a.gf += ag; h.gd += hg-ag; a.gd += ag-hg;
     if (hg > ag) h.pts += 3; else if (hg < ag) a.pts += 3; else { h.pts++; a.pts++; }
   });
-  return Object.values(stats).sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
+  return Object.values(stats).sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || a.name.localeCompare(b.name));
 }
 
 function seasonPlacementPoints(rank, total, format) {
@@ -2933,25 +3018,27 @@ function seasonPlacementPoints(rank, total, format) {
     const mapped = [5, 4, 2, 1];
     return mapped[rank - 1] || 0;
   }
-  // League: an 8-to-1 placement ladder, scaled to any league size.
+  // League: 8 points for 1st, then 7, 6 ... down to 1, scaled to any league size.
   if (total <= 1) return 8;
   return Math.max(1, 8 - Math.floor(((rank - 1) * 7) / total));
 }
 
 async function updatePowerRankingsFromCurrentSeason() {
-  if (currentSeasonNumber < 1 || players.length === 0) return;
+  if (players.length === 0) return;
   const seasonKey = `season${currentSeasonNumber}`;
-  const standings = getSeasonStandingsForPowerRanking();
-  const groupData = tournamentSettings.format === "groups" ? getGroups() : null;
   const placementMap = {};
 
-  if (tournamentSettings.format === "groups" && groupData?.length) {
+  if (tournamentSettings.format === "groups") {
+    const groupData = getGroups();
     groupData.forEach(group => {
-      const names = new Set(group.players.map(p => getPlayerName(p)));
-      const rows = standings.filter(s => names.has(s.name));
+      const groupPlayers = group.players || [];
+      const groupNames = new Set(groupPlayers.map(p => getPlayerName(p).toLowerCase()));
+      const groupMatches = matches.filter(m => m.played && groupNames.has(String(m.homePlayer || "").toLowerCase()) && groupNames.has(String(m.awayPlayer || "").toLowerCase()) && String(m.group || "").toUpperCase() === String(group.shortName || "").toUpperCase());
+      const rows = getSeasonStandingsForPowerRanking(groupPlayers, groupMatches);
       rows.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups"); });
     });
   } else {
+    const standings = getSeasonStandingsForPowerRanking(players, matches);
     standings.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, standings.length, "league"); });
   }
 
@@ -2961,8 +3048,8 @@ async function updatePowerRankingsFromCurrentSeason() {
 
   for (const p of players) {
     const old = existing[p.id] || { totalPoints: 0, seasons: {} };
-    if (old.seasons?.[seasonKey]) continue;
-    const earned = placementMap[p.id] || 0;
+    if (Object.prototype.hasOwnProperty.call(old.seasons || {}, seasonKey)) continue;
+    const earned = Number(placementMap[p.id] || 0);
     const seasons = { ...(old.seasons || {}) };
     seasons[seasonKey] = earned;
     await setDoc(doc(db, "powerRankings", p.id), {
