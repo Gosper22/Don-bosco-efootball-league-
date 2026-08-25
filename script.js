@@ -68,7 +68,6 @@ setupAwardsAndVoting();
 setupHallOfFameAdmin();
 setupSeasonControls();
 setupPlayerDashboardControls();
-setupDeleteAllFixtures();
 
 loadLeague();
 });
@@ -2088,88 +2087,6 @@ alert(
 
 }
 
-}
-
-// =====================================================
-// DELETE ALL CURRENT-SEASON FIXTURES
-// =====================================================
-
-function setupDeleteAllFixtures() {
-  const button = document.getElementById("deleteAllFixturesBtn");
-  if (!button) return;
-
-  button.addEventListener("click", deleteAllCurrentSeasonFixtures);
-}
-
-async function deleteAllCurrentSeasonFixtures() {
-  if (!adminLoggedIn) {
-    alert("🔐 Admin login kwanza.");
-    return;
-  }
-
-  if (!matches.length) {
-    alert("ℹ️ Hakuna fixtures za kufuta kwenye current season.");
-    return;
-  }
-
-  const hasPlayedMatches = matches.some(match => match.played);
-
-  const firstMessage =
-    `🗑️ DELETE ALL FIXTURES\\n\\n` +
-    `Hii itafuta fixtures ZOTE ${currentSeasonNumber ? `za Season ${currentSeasonNumber}` : "za current season"} ` +
-    `kutoka kwenye MATCHES collection.\\n\\n` +
-    (hasPlayedMatches
-      ? "⚠️ Kuna fixtures ambazo tayari zina results. Results hizo pia zitaondoka na standings/statistics zitabadilika.\\n\\n"
-      : "") +
-    "Season History iliyokwisha-archive HAITAFUTWA.\\n\\n" +
-    "Una uhakika?`;
-
-  if (!confirm(firstMessage)) return;
-
-  const secondConfirm = confirm(
-    "⚠️ CONFIRM DELETE ALL\\n\\n" +
-    "HII NI ACTION YA KUFUTA FIXTURES ZOTE ZA CURRENT SEASON.\\n" +
-    "Bonyeza OK kuendelea, au Cancel kuacha."
-  );
-
-  if (!secondConfirm) return;
-
-  const button = document.getElementById("deleteAllFixturesBtn");
-  if (button) {
-    button.disabled = true;
-    button.textContent = "⏳ DELETING FIXTURES...";
-  }
-
-  try {
-    // `matches` is the current-season collection in this app.
-    // Archived seasons live under seasonArchives and are never touched here.
-    const snapshot = await getDocs(collection(db, "matches"));
-
-    await Promise.all(
-      snapshot.docs.map(matchDoc =>
-        deleteDoc(doc(db, "matches", matchDoc.id))
-      )
-    );
-
-    matches = [];
-
-    // Refresh all derived public/admin views without touching registrations,
-    // tournament settings, awards, or archived season history.
-    await loadLeague();
-
-    alert("✅ Fixtures zote za current season zimefutwa.");
-
-  } catch (error) {
-    console.error("Delete all fixtures error:", error);
-    alert("❌ Imeshindikana kufuta fixtures zote. Angalia Firebase permissions.");
-
-  } finally {
-    const btn = document.getElementById("deleteAllFixturesBtn");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "🗑️ DELETE ALL FIXTURES";
-    }
-  }
 }
 
 // =====================================================
