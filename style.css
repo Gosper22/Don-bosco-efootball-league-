@@ -1538,3 +1538,8 @@ a {
 .draw-team-row{display:flex;gap:9px;align-items:center;padding:9px 12px;border-top:1px solid rgba(255,255,255,.055);font-size:.86rem}
 .draw-team-row span{opacity:.55;font-size:.72rem}
 @media(max-width:760px){.pot-manager{grid-template-columns:1fr}.pot-unassigned{grid-column:auto}.pot-draw-actions{grid-template-columns:1fr}.pot-team{align-items:flex-start;flex-direction:column}.pot-actions{width:100%}.pot-move-btn{flex:1}}
+
+/* Fixture management additions — keeps the original visual language. */
+.fixture-delete-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.fixture-delete-hint{opacity:.72;font-size:.82rem}
+.admin-match-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
