@@ -1,8 +1,8 @@
 <!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Don Bosco eFootball League</title>  <link rel="stylesheet" href="style.css?v=20260825matchcard2">
-<link rel="stylesheet" href="match-card.css?v=3"></head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Don Bosco eFootball League</title>  <link rel="stylesheet" href="style.css">
+</head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
     <span>DON BOSCO</span>
     <strong>eFOOTBALL</strong>
     <small>LEAGUE</small>
@@ -12,10 +12,7 @@
     <a href="#groups">Groups</a>
     <a href="#fixtures">Fixtures</a>
     <a href="#standings">Standings</a>
-    <a href="#playerDashboard">Players</a>
-    <a href="#powerRanking">Power Ranking</a>
     <a href="#knockout">Knockout</a>
-    <a href="#halloffame">Hall of Fame</a>
     <a href="#contact">Contact Admin</a>
     <a href="#admin">Admin</a><button id="registerBtn" class="nav-register" type="button">
   REGISTER NOW
@@ -132,25 +129,6 @@
 
 <div class="input-group">
 
-  <label for="age">
-    Player Age
-  </label>
-
-  <input
-    type="number"
-    id="age"
-    name="age"
-    min="13"
-    max="60"
-    placeholder="Age"
-    required
-  >
-
-</div>
-
-
-<div class="input-group">
-
   <label for="phone">
     Phone / WhatsApp Number
   </label>
@@ -256,33 +234,7 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= PLAYER DASHBOARD & POWER RANKING ================= -->
-<section id="playerDashboard" class="section player-dashboard-section">
-  <div class="section-heading">
-    <span>PLAYER ANALYTICS</span>
-    <h2>PLAYER <strong>DASHBOARD</strong></h2>
-    <p>Automatic season statistics for every registered player.</p>
-  </div>
-  <div class="dashboard-toolbar">
-    <input id="playerSearch" type="search" placeholder="Search player..." autocomplete="off">
-  </div>
-  <div id="playerDashboardGrid" class="player-dashboard-grid">
-    <div class="loading">Loading player dashboard...</div>
-  </div>
-</section>
-
-<section id="powerRanking" class="section power-ranking-section">
-  <div class="section-heading">
-    <span>CONTINENTAL STYLE RANKING</span>
-    <h2>POWER <strong>RANKING</strong></h2>
-    <p>Season 1 creates the first ranking points. From Season 2 onward, points carry forward season after season.</p>
-  </div>
-  <div id="powerRankingContainer" class="power-ranking-container">
-    <div class="loading">Power Ranking starts after Season 1.</div>
-  </div>
-</section>
-
-<!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
 
 <h2>
   <strong>KNOCKOUT</strong>
@@ -360,63 +312,7 @@
 
 </div>
 
-  </div></section><!-- ================= HALL OF FAME ================= -->
-<section id="halloffame" class="section hall-of-fame-section">
-  <div class="section-heading">
-    <span>LEGENDS &amp; AWARDS</span>
-    <h2>HALL OF <strong>FAME</strong></h2>
-    <p>Automatic tournament awards, decorated player profiles and fan voting for the three community awards.</p>
-  </div>
-
-  <div id="currentChampion" class="champion-banner">
-    <div class="champion-crown">👑</div>
-    <div>
-      <span>TOURNAMENT CHAMPION</span>
-      <strong>TO BE DECIDED</strong>
-      <small>Champion is determined from the played FINAL.</small>
-    </div>
-  </div>
-
-  <div class="awards-grid" id="awardsGrid">
-    <div class="loading">Calculating tournament awards...</div>
-  </div>
-
-  <div class="potm-voting-card hall-voting-card">
-    <div class="vote-heading">
-      <span>FAN VOTING</span>
-      <h3>🗳️ VOTE FOR THE AWARDS</h3>
-      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin selects exactly three finalists for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
-    </div>
-    <div id="awardVotingCategories" class="award-voting-categories">
-      <div class="loading">Loading award finalists...</div>
-    </div>
-    <div id="voteMessage" class="message"></div>
-  </div>
-
-  <div class="hof-history-card">
-    <div class="section-heading compact-heading">
-      <span>TOURNAMENT HISTORY</span>
-      <h3>DON BOSCO <strong>LEGENDS</strong></h3>
-    </div>
-    <div id="hallOfFameHistory" class="hof-history-grid">
-      <div class="loading">No archived champions yet.</div>
-    </div>
-  </div>
-
-  <div class="hof-history-card">
-    <div class="section-heading compact-heading">
-      <span>FULL SEASON ARCHIVE</span>
-      <h3>SEASON <strong>HISTORY</strong></h3>
-      <p>Every season keeps its players, fixtures, results, standings data, votes, awards and settings.</p>
-    </div>
-    <div id="seasonHistoryList" class="season-history-list">
-      <div class="loading">No previous seasons yet.</div>
-    </div>
-    <div id="seasonArchiveDetails"></div>
-  </div>
-</section>
-
-<!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+  </div></section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
 
 <h2>
   CONTACT
@@ -608,35 +504,6 @@
 
   <p id="settingsMessage" class="message"></p>
 
-  <!-- POT + BLIND GROUP DRAW -->
-  <div class="tournament-control pot-draw-control">
-    <h3>🎲 GROUP DRAW — POTS &amp; BLIND REVEAL</h3>
-    <p>Assign every team to Pot 1, 2 or 3. Team names stay hidden during the blind draw until you tap a Pot. The revealed team is placed automatically in the next open Group.</p>
-
-    <div id="potManager" class="pot-manager">
-      <div class="loading">Loading Pots...</div>
-    </div>
-
-    <div class="pot-draw-actions">
-      <button type="button" class="pot-reveal-btn" data-draw-pot="1">🎲 REVEAL POT 1</button>
-      <button type="button" class="pot-reveal-btn" data-draw-pot="2">🎲 REVEAL POT 2</button>
-      <button type="button" class="pot-reveal-btn" data-draw-pot="3">🎲 REVEAL POT 3</button>
-    </div>
-
-    <div id="blindDrawStatus" class="blind-draw-status">Waiting for teams.</div>
-    <div id="blindReveal" class="blind-reveal"><span>🎲 BLIND DRAW</span><strong>Tap a Pot to reveal</strong><small>The next team will be assigned automatically.</small></div>
-
-    <div class="pot-draw-secondary-actions">
-      <button type="button" id="autoGenerateGroupsBtn" class="primary-btn">⚡ GENERATE GROUPS FROM POTS</button>
-      <button type="button" id="confirmGroupsBtn" class="secondary-btn">✅ CONFIRM &amp; PUBLISH GROUPS</button>
-    </div>
-    <p id="groupDrawMessage" class="message"></p>
-
-    <div id="drawGroupsPreview" class="draw-groups-preview">
-      <div class="draw-preview-empty">Groups will appear here after the draw is generated.</div>
-    </div>
-  </div>
-
 
   <!-- TOURNAMENT STATUS -->
 
@@ -753,35 +620,6 @@
   </div>
 
 
-  <!-- HALL OF FAME MANAGEMENT -->
-  <div class="tournament-control award-admin-control">
-    <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
-    <p>Statistics are calculated automatically. Admin is free to choose <strong>any 3 active players</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
-    <div id="awardNominationManager" class="award-nomination-manager">
-      <div class="loading">Loading award nomination controls...</div>
-    </div>
-    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYERS PER FAN AWARD</button>
-    <p id="nominationMessage" class="message"></p>
-    <button type="button" id="endAwardVotesBtn" class="primary-btn danger-btn">🔒 END VOTES &amp; DECLARE WINNERS</button>
-    <p id="voteEndMessage" class="message"></p>
-
-    <label for="championOverride">Champion (only use if there is no recorded FINAL)</label>
-    <select id="championOverride">
-      <option value="">Auto-detect from FINAL</option>
-    </select>
-    <button type="button" id="archiveTournamentBtn" class="primary-btn">🏛️ ARCHIVE TO HALL OF FAME</button>
-    <p id="archiveMessage" class="message"></p>
-
-    <div class="season-management-card">
-      <span class="season-management-label">CURRENT SEASON</span>
-      <strong id="currentSeasonAdmin">SEASON 1</strong>
-      <p>End this season and start the next one. The complete current season is archived first; nothing from the old season is mixed with the new season.</p>
-      <button type="button" id="startNewSeasonBtn" class="secondary-btn">🔄 END SEASON &amp; START NEXT SEASON</button>
-      <p id="seasonMessage" class="message"></p>
-    </div>
-  </div>
-
-
   <!-- MATCH MANAGEMENT -->
 
   <div class="match-management">
@@ -802,14 +640,8 @@
     </div>
 
 
-    <div class="fixture-admin-actions">
-      <div class="fixture-delete-actions">
-      <button type="button" id="deleteAllFixturesBtn" class="danger-btn">
-        🗑️ DELETE ALL FIXTURES
-      </button>
-      <span class="fixture-delete-hint">Delete one fixture below, or clear the whole current season.</span>
-    </div>
-      <p id="deleteAllFixturesMessage" class="message"></p>
+    <div class="match-management-actions" style="display:flex;justify-content:flex-end;margin:0 0 16px;">
+      <button type="button" id="deleteAllFixturesBtn" class="secondary-btn">🗑️ DELETE ALL FIXTURES</button>
     </div>
 
     <div id="adminMatches">
