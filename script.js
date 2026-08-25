@@ -2435,11 +2435,32 @@ function setupKnockoutAdmin(){document.getElementById("generateKnockoutBtn")?.ad
 // =====================================================
 // HALL OF FAME
 // =====================================================
-async function loadHallOfFame(){try{const snap=await getDocs(collection(db,"hallOfFame"));hallOfFame=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>Number(b.year||0)-Number(a.year||0));}catch(e){console.error("Hall of Fame load error",e);hallOfFame=[];}}
-function renderHallOfFame(){const c=document.getElementById("hallOfFameContainer");if(!c)return;c.innerHTML=hallOfFame.length?hallOfFame.map(w=>`<div class="hall-card"><div class="hall-trophy">🏆</div><div><strong>${escapeHTML(w.winner||"CHAMPION")}</strong><span>${escapeHTML(w.edition||"Don Bosco eFootball League")}</span><small>${escapeHTML(w.year||"")}</small></div></div>`).join(""):'<div class="loading">No champions recorded yet.</div>';}
+async function loadHallOfFame(){try{const snap=await getDocs(collection(db,"hallOfFame"));hallOfFame=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||b.year||"").localeCompare(String(a.date||a.year||"")));}catch(e){console.error("Hall of Fame load error",e);hallOfFame=[];}}
+function renderHallOfFame(){
+  const c=document.getElementById("hallOfFameContainer");
+  if(!c)return;
+  if(!hallOfFame.length){
+    c.innerHTML=`<div class="hall-empty"><div class="hall-empty-crown">♛</div><h3>THE HALL AWAITS ITS FIRST LEGEND</h3><p>Season champions will be immortalized here.</p></div>`;
+    return;
+  }
+  const total=hallOfFame.length;
+  c.innerHTML=hallOfFame.map((w,i)=>{
+    const rank=i+1;
+    const winner=escapeHTML(w.winner||"CHAMPION");
+    const edition=escapeHTML(w.edition||"Don Bosco eFootball League");
+    const date=escapeHTML(w.date||((w.year)?String(w.year):""));
+    const season=escapeHTML(w.seasonName||w.edition||"Season");
+    return `<article class="hall-card ${rank===1?'hall-card-featured':''}">
+      <div class="hall-card-top"><span class="hall-rank">#${String(rank).padStart(2,'0')}</span><span class="hall-season">${season}</span></div>
+      <div class="hall-medal"><div class="hall-medal-ring"><span>🏆</span></div><i></i></div>
+      <div class="hall-card-body"><span class="hall-label">CHAMPION</span><h3>${winner}</h3><p>${edition}</p><div class="hall-card-footer"><span>DATE <b>${date}</b></span><span>LEGEND <b>${rank===1?'#1':'#'+rank}</b></span></div></div>
+      ${rank===1?'<div class="hall-featured-badge">CURRENT ERA</div>':''}
+    </article>`;
+  }).join("");
+}
 function setupHallOfFameAdmin(){document.getElementById("addHallWinnerBtn")?.addEventListener("click",addHallWinner);}
-async function addHallWinner(){if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");const edition=document.getElementById("hallEdition")?.value.trim(),winner=document.getElementById("hallWinner")?.value.trim(),year=document.getElementById("hallYear")?.value.trim();if(!edition||!winner||!year)return alert("⚠️ Jaza edition, champion na year.");await addDoc(collection(db,"hallOfFame"),{edition,winner,year:Number(year),seasonId:activeSeasonId,seasonName:activeSeason?.name || "Season 1",createdAt:serverTimestamp()});document.getElementById("hallEdition").value="";document.getElementById("hallWinner").value="";document.getElementById("hallYear").value="";await loadHallOfFame();renderHallOfFame();renderAdminHallOfFame();alert("🏆 Champion added to Hall of Fame.");}
-function renderAdminHallOfFame(){const c=document.getElementById("adminHallOfFame");if(!c)return;c.innerHTML=hallOfFame.map(w=>`<div class="admin-hall-row"><strong>${escapeHTML(w.edition)}</strong><span>🏆 ${escapeHTML(w.winner)} (${escapeHTML(w.year)})</span></div>`).join("")||'<div class="loading">No champions yet.</div>';}
+async function addHallWinner(){if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");const edition=document.getElementById("hallEdition")?.value.trim(),winner=document.getElementById("hallWinner")?.value.trim(),date=document.getElementById("hallDate")?.value.trim();if(!edition||!winner||!date)return alert("⚠️ Jaza edition, champion na date.");await addDoc(collection(db,"hallOfFame"),{edition,winner,date,seasonId:activeSeasonId,seasonName:activeSeason?.name || "Season 1",createdAt:serverTimestamp()});document.getElementById("hallEdition").value="";document.getElementById("hallWinner").value="";document.getElementById("hallDate").value="";await loadHallOfFame();renderHallOfFame();renderAdminHallOfFame();alert("🏆 Champion added to Hall of Fame.");}
+function renderAdminHallOfFame(){const c=document.getElementById("adminHallOfFame");if(!c)return;c.innerHTML=hallOfFame.map(w=>`<div class="admin-hall-row"><strong>${escapeHTML(w.edition)}</strong><span>🏆 ${escapeHTML(w.winner)} — ${escapeHTML(w.date||w.year||"")}</span></div>`).join("")||'<div class="loading">No champions yet.</div>';}
 async function announceChampion(winner){
   if (!adminLoggedIn || !activeSeason) return;
   try {
@@ -2465,7 +2486,7 @@ async function announceChampion(winner){
       await addDoc(collection(db, "hallOfFame"), {
         edition: activeSeason.name || ("Season " + activeSeason.number),
         winner,
-        year: new Date().getFullYear(),
+        date: new Date().toISOString().slice(0,10),
         seasonId: activeSeasonId,
         seasonName: activeSeason.name || ("Season " + activeSeason.number),
         createdAt: serverTimestamp()
