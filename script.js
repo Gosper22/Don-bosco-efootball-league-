@@ -58,6 +58,7 @@ setupTournamentControls();
 setupAwardsAndVoting();
 setupHallOfFameAdmin();
 setupSeasonControls();
+setupPlayerDashboardControls();
 
 loadLeague();
 });
@@ -367,6 +368,8 @@ renderFormat();
 renderGroups();
 renderFixtures();
 renderStandings();
+renderPlayerDashboard();
+await renderPowerRanking();
 await renderAwardsAndVoting();
 await renderHallOfFameHistory();
 await renderSeasonHistory();
@@ -2237,6 +2240,7 @@ async function startNewSeason() {
   const message = document.getElementById("seasonMessage");
   try {
     await archiveFullSeason(currentSeasonNumber);
+    await updatePowerRankingsFromCurrentSeason();
     await clearCurrentSeasonData();
 
     currentSeasonNumber = nextSeason;
@@ -2652,22 +2656,40 @@ function renderAwardNominationManager(stats) {
   const container = document.getElementById("awardNominationManager");
   if (!container) return;
   if (!adminLoggedIn) {
-    container.innerHTML = `<div class="loading">Log in as Admin to choose the three finalists for the fan-voted awards.</div>`;
+    container.innerHTML = `<div class="loading">Log in as Admin to choose any three players for the fan-voted awards.</div>`;
     return;
   }
-  const auto = getAutomaticCandidates(stats);
+
+  // Admin is intentionally free to nominate ANY active player.
+  // Automatic award rankings are not used to restrict or pre-select nominees.
+  const allPlayers = [...players]
+    .filter((player) => player?.id)
+    .sort((a, b) => getPlayerName(a).localeCompare(getPlayerName(b)));
+  const options = allPlayers
+    .map((item) => `<option value="${escapeHTML(item.id)}">${escapeHTML(getPlayerName(item))}</option>`)
+    .join("");
+
   container.innerHTML = VOTED_AWARD_KEYS.map((category) => {
     const config = AWARD_CATEGORIES[category];
-    const selected = new Set(awardNominations[category] || []);
-    const options = (auto[category] || []).map((item) => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.name)} — ${escapeHTML(metricForAward(category, item))}</option>`).join("");
-    return `<div class="nomination-category"><div><strong>${config.icon} ${escapeHTML(config.title)}</strong><small>Choose exactly 3. Automatic rankings are only suggestions.</small></div>
-      <div class="nomination-selects">${[0,1,2].map((index) => `<select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} finalist ${index + 1}"><option value="">Select finalist ${index + 1}</option>${options}</select>`).join("")}</div>
+    return `<div class="nomination-category">
+      <div>
+        <strong>${config.icon} ${escapeHTML(config.title)}</strong>
+        <small>Admin can freely choose any 3 active players for this award.</small>
+      </div>
+      <div class="nomination-selects">${[0,1,2].map((index) => `
+        <select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} nominee ${index + 1}">
+          <option value="">Choose player ${index + 1}</option>
+          ${options}
+        </select>`).join("")}
+      </div>
     </div>`;
   }).join("");
 
   VOTED_AWARD_KEYS.forEach((category) => {
     const selects = [...container.querySelectorAll(`[data-nomination-category="${category}"]`)];
-    (awardNominations[category] || []).slice(0,3).forEach((id, index) => { if (selects[index]) selects[index].value = id; });
+    (awardNominations[category] || []).slice(0, 3).forEach((id, index) => {
+      if (selects[index]) selects[index].value = id;
+    });
   });
 }
 
@@ -2680,11 +2702,11 @@ async function saveAwardNominations() {
     const selects = [...document.querySelectorAll(`[data-nomination-category="${category}"]`)];
     const ids = selects.map((select) => select.value).filter(Boolean);
     if (ids.length !== 3 || new Set(ids).size !== 3) {
-      showMessage(message, `⚠️ Choose exactly three different finalists for ${AWARD_CATEGORIES[category].title}.`, "error");
+      showMessage(message, `⚠️ Choose exactly three different players for ${AWARD_CATEGORIES[category].title}.`, "error");
       return;
     }
     if (ids.some((id) => !stats.some((item) => item.id === id))) {
-      showMessage(message, "⚠️ One of the selected finalists is no longer an active player.", "error");
+      showMessage(message, "⚠️ One of the selected players is no longer an active player.", "error");
       return;
     }
     nominations[category] = ids;
@@ -2692,7 +2714,7 @@ async function saveAwardNominations() {
   try {
     await setDoc(doc(db, "awardNominations", "current"), { nominations, updatedAt: serverTimestamp() });
     awardNominations = nominations;
-    showMessage(message, "✅ Three finalists have been published for each fan-voted award. Voting is now live.", "success");
+    showMessage(message, "✅ Your 3 selected players are now published for each fan-voted award. Voting is now live.", "success");
     await renderAwardsAndVoting();
   } catch (error) {
     console.error("Award nominations save error:", error);
@@ -2712,7 +2734,7 @@ async function endAwardVotes() {
   await loadAwardNominations(stats);
   const missing = VOTED_AWARD_KEYS.filter((category) => (awardNominations[category] || []).length !== 3);
   if (missing.length) {
-    showMessage(message, `⚠️ Publish exactly 3 finalists for: ${missing.map((c) => AWARD_CATEGORIES[c].title).join(", ")}.`, "error");
+    showMessage(message, `⚠️ Choose exactly 3 players for: ${missing.map((c) => AWARD_CATEGORIES[c].title).join(", ")}.`, "error");
     return;
   }
   const confirmed = confirm("END ALL FAN VOTING NOW?\n\nThis will permanently lock the current Season's three fan-voted awards, calculate the winners, and prevent any more votes. Continue?");
@@ -2814,6 +2836,199 @@ async function renderHallOfFameHistory() {
   } catch (error) {
     console.error("Hall of Fame history error:", error);
     container.innerHTML = `<div class="loading">Hall of Fame history is unavailable until Firebase permissions allow it.</div>`;
+  }
+}
+
+// =====================================================
+// PLAYER DASHBOARD
+// =====================================================
+
+function getPlayerName(player) {
+  return player?.username || player?.name || "PLAYER";
+}
+
+function calculatePlayerStats() {
+  const stats = {};
+  players.forEach((player) => {
+    stats[player.id] = {
+      id: player.id,
+      name: getPlayerName(player),
+      teamNumber: player.teamNumber || "-",
+      age: player.age || "-",
+      P: 0, W: 0, D: 0, L: 0,
+      GF: 0, GA: 0, GD: 0,
+      cleanSheets: 0,
+      points: 0,
+      form: []
+    };
+  });
+
+  matches.filter(m => m.played).forEach((m) => {
+    const home = players.find(p => getPlayerName(p) === m.homePlayer);
+    const away = players.find(p => getPlayerName(p) === m.awayPlayer);
+    if (!home || !away) return;
+    const h = stats[home.id], a = stats[away.id];
+    const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
+    h.P++; a.P++; h.GF += hg; h.GA += ag; a.GF += ag; a.GA += hg;
+    if (ag === 0) h.cleanSheets++;
+    if (hg === 0) a.cleanSheets++;
+    if (hg > ag) { h.W++; h.points += 3; a.L++; h.form.push("W"); a.form.push("L"); }
+    else if (hg < ag) { a.W++; a.points += 3; h.L++; h.form.push("L"); a.form.push("W"); }
+    else { h.D++; a.D++; h.points++; a.points++; h.form.push("D"); a.form.push("D"); }
+  });
+  Object.values(stats).forEach(s => s.GD = s.GF - s.GA);
+  return stats;
+}
+
+function setupPlayerDashboardControls() {
+  const input = document.getElementById("playerSearch");
+  input?.addEventListener("input", () => renderPlayerDashboard(input.value));
+}
+
+function renderPlayerDashboard(search = "") {
+  const container = document.getElementById("playerDashboardGrid");
+  if (!container) return;
+  const stats = Object.values(calculatePlayerStats());
+  const q = String(search).trim().toLowerCase();
+  const filtered = stats.filter(s => !q || s.name.toLowerCase().includes(q));
+  if (!filtered.length) { container.innerHTML = `<div class="loading">No players found.</div>`; return; }
+  container.innerHTML = filtered.map((s, i) => `
+    <article class="player-dashboard-card">
+      <div class="player-card-top"><span class="player-number">#${escapeHTML(s.teamNumber)}</span><span class="player-rank-mini">${i + 1}</span></div>
+      <h3>${escapeHTML(s.name)}</h3>
+      <div class="player-mini-stats">
+        <span><b>${s.P}</b><small>Matches</small></span>
+        <span><b>${s.W}</b><small>Wins</small></span>
+        <span><b>${s.GF}</b><small>Goals</small></span>
+        <span><b>${s.cleanSheets}</b><small>Clean Sheets</small></span>
+      </div>
+      <div class="player-form">${s.form.slice(-5).map(x => `<i class="form-${x}">${x}</i>`).join("") || "<small>No results yet</small>"}</div>
+      <div class="player-extra">GD ${s.GD >= 0 ? "+" : ""}${s.GD} • ${s.points} league points</div>
+    </article>`).join("");
+}
+
+// =====================================================
+// POWER RANKING
+// =====================================================
+
+function getSeasonStandingsForPowerRanking() {
+  const stats = {};
+  players.forEach(p => {
+    stats[p.id] = { id: p.id, name: getPlayerName(p), pts: 0, gd: 0, gf: 0 };
+  });
+  matches.filter(m => m.played).forEach(m => {
+    const hp = players.find(p => getPlayerName(p) === m.homePlayer);
+    const ap = players.find(p => getPlayerName(p) === m.awayPlayer);
+    if (!hp || !ap) return;
+    const h = stats[hp.id], a = stats[ap.id];
+    const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
+    h.gf += hg; a.gf += ag; h.gd += hg-ag; a.gd += ag-hg;
+    if (hg > ag) h.pts += 3; else if (hg < ag) a.pts += 3; else { h.pts++; a.pts++; }
+  });
+  return Object.values(stats).sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
+}
+
+function seasonPlacementPoints(rank, total, format) {
+  if (format === "groups") {
+    const mapped = [5, 4, 2, 1];
+    return mapped[rank - 1] || 0;
+  }
+  // League: an 8-to-1 placement ladder, scaled to any league size.
+  if (total <= 1) return 8;
+  return Math.max(1, 8 - Math.floor(((rank - 1) * 7) / total));
+}
+
+async function updatePowerRankingsFromCurrentSeason() {
+  if (currentSeasonNumber < 1 || players.length === 0) return;
+  const seasonKey = `season${currentSeasonNumber}`;
+  const standings = getSeasonStandingsForPowerRanking();
+  const groupData = tournamentSettings.format === "groups" ? getGroups() : null;
+  const placementMap = {};
+
+  if (tournamentSettings.format === "groups" && groupData?.length) {
+    groupData.forEach(group => {
+      const names = new Set(group.players.map(p => getPlayerName(p)));
+      const rows = standings.filter(s => names.has(s.name));
+      rows.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups"); });
+    });
+  } else {
+    standings.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, standings.length, "league"); });
+  }
+
+  const snapshot = await getDocs(collection(db, "powerRankings"));
+  const existing = {};
+  snapshot.docs.forEach(d => existing[d.id] = d.data());
+
+  for (const p of players) {
+    const old = existing[p.id] || { totalPoints: 0, seasons: {} };
+    if (old.seasons?.[seasonKey]) continue;
+    const earned = placementMap[p.id] || 0;
+    const seasons = { ...(old.seasons || {}) };
+    seasons[seasonKey] = earned;
+    await setDoc(doc(db, "powerRankings", p.id), {
+      playerId: p.id,
+      name: getPlayerName(p),
+      totalPoints: Number(old.totalPoints || 0) + earned,
+      seasons,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+}
+
+async function renderPowerRanking() {
+  const container = document.getElementById("powerRankingContainer");
+  if (!container) return;
+  if (currentSeasonNumber <= 1) {
+    container.innerHTML = `<div class="power-empty"><strong>POWER RANKING STARTS AFTER SEASON 1</strong><span>Season 1 is the foundation season. When it ends, every player's first ranking points will be recorded and carried forward.</span></div>`;
+    return;
+  }
+  try {
+    const snap = await getDocs(collection(db, "powerRankings"));
+    const stored = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const byId = new Map(stored.map(row => [row.id, row]));
+
+    // IMPORTANT: show EVERY player. Historical players remain in the ranking,
+    // while a player who is new to the current season is added at 0 points.
+    players.forEach((player) => {
+      if (!byId.has(player.id)) {
+        byId.set(player.id, {
+          id: player.id,
+          playerId: player.id,
+          name: getPlayerName(player),
+          totalPoints: 0,
+          seasons: {}
+        });
+      }
+    });
+
+    const rows = [...byId.values()].map(row => ({
+      ...row,
+      name: row.name || row.playerName || "PLAYER",
+      totalPoints: Number(row.totalPoints || 0),
+      seasons: row.seasons || {}
+    })).sort((a, b) => {
+      const pointsDiff = b.totalPoints - a.totalPoints;
+      if (pointsDiff) return pointsDiff;
+      return String(a.name).localeCompare(String(b.name));
+    });
+
+    if (!rows.length) {
+      container.innerHTML = `<div class="power-empty">No players have been registered yet.</div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: every player is included. Players with 0 points stay in the table at the bottom, while points earned in completed seasons carry forward.</div>` + rows.map((r, i) => {
+      const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
+      return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
+        <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
+        <div class="power-rank-player"><strong>${escapeHTML(r.name)}</strong><small>${seasonEntries.length ? `${seasonEntries.length} completed season(s)` : 'New / 0 points'}</small></div>
+        <div class="power-rank-seasons">${seasonEntries.length ? seasonEntries.map(([k,v]) => `<span>S${escapeHTML(k.replace('season',''))}: ${Number(v || 0)}</span>`).join('') : '<span>S1: 0</span>'}</div>
+        <div class="power-rank-points"><b>${r.totalPoints}</b><small>POINTS</small></div>
+      </article>`;
+    }).join("");
+  } catch (error) {
+    console.error("Power ranking error:", error);
+    container.innerHTML = `<div class="power-empty">Power Ranking is unavailable until Firebase permissions allow it.</div>`;
   }
 }
 

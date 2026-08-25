@@ -12,6 +12,8 @@
     <a href="#groups">Groups</a>
     <a href="#fixtures">Fixtures</a>
     <a href="#standings">Standings</a>
+    <a href="#playerDashboard">Players</a>
+    <a href="#powerRanking">Power Ranking</a>
     <a href="#knockout">Knockout</a>
     <a href="#halloffame">Hall of Fame</a>
     <a href="#contact">Contact Admin</a>
@@ -254,7 +256,33 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
+  </div></section><!-- ================= PLAYER DASHBOARD & POWER RANKING ================= -->
+<section id="playerDashboard" class="section player-dashboard-section">
+  <div class="section-heading">
+    <span>PLAYER ANALYTICS</span>
+    <h2>PLAYER <strong>DASHBOARD</strong></h2>
+    <p>Automatic season statistics for every registered player.</p>
+  </div>
+  <div class="dashboard-toolbar">
+    <input id="playerSearch" type="search" placeholder="Search player..." autocomplete="off">
+  </div>
+  <div id="playerDashboardGrid" class="player-dashboard-grid">
+    <div class="loading">Loading player dashboard...</div>
+  </div>
+</section>
+
+<section id="powerRanking" class="section power-ranking-section">
+  <div class="section-heading">
+    <span>CONTINENTAL STYLE RANKING</span>
+    <h2>POWER <strong>RANKING</strong></h2>
+    <p>Season 1 creates the first ranking points. From Season 2 onward, points carry forward season after season.</p>
+  </div>
+  <div id="powerRankingContainer" class="power-ranking-container">
+    <div class="loading">Power Ranking starts after Season 1.</div>
+  </div>
+</section>
+
+<!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
 
 <h2>
   <strong>KNOCKOUT</strong>
@@ -699,11 +727,11 @@
   <!-- HALL OF FAME MANAGEMENT -->
   <div class="tournament-control award-admin-control">
     <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
-    <p>Statistics are calculated automatically. Choose exactly <strong>3 finalists</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
+    <p>Statistics are calculated automatically. Admin is free to choose <strong>any 3 active players</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
     <div id="awardNominationManager" class="award-nomination-manager">
       <div class="loading">Loading award nomination controls...</div>
     </div>
-    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 FINALISTS PER FAN AWARD</button>
+    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYERS PER FAN AWARD</button>
     <p id="nominationMessage" class="message"></p>
     <button type="button" id="endAwardVotesBtn" class="primary-btn danger-btn">🔒 END VOTES &amp; DECLARE WINNERS</button>
     <p id="voteEndMessage" class="message"></p>
