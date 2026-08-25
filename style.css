@@ -1208,3 +1208,38 @@ a {
 .season-row > div:first-child span { color:var(--muted); font-size:11px; font-weight:800; }
 .season-actions { display:flex; gap:8px; flex-wrap:wrap; }
 @media(max-width:700px){ .season-active-banner,.season-row{flex-direction:column;align-items:flex-start}.season-actions{width:100%}.season-actions button{flex:1} }
+
+
+/* =========================================================
+   PRIZE MONEY BANNER
+========================================================= */
+.prize-banner-section { width:min(1180px,92%); margin:0 auto; padding:8px 0 85px; }
+.prize-banner { position:relative; overflow:hidden; text-align:center; padding:52px 28px 38px; border:1px solid rgba(57,255,20,.35); border-radius:28px; background:radial-gradient(circle at 50% 0%,rgba(57,255,20,.13),transparent 48%),linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018)); box-shadow:0 0 45px rgba(57,255,20,.08),inset 0 1px 0 rgba(255,255,255,.08); }
+.prize-banner-glow { position:absolute; width:280px; height:280px; left:50%; top:-190px; transform:translateX(-50%); background:rgba(57,255,20,.13); filter:blur(65px); pointer-events:none; }
+.prize-banner-top { position:relative; color:var(--green); font-size:12px; font-weight:1000; letter-spacing:2px; margin-bottom:14px; }
+.prize-banner h2 { position:relative; margin:0; font-size:clamp(28px,5vw,58px); line-height:.98; letter-spacing:-1.5px; font-weight:1000; }
+.prize-banner h2 strong { color:var(--green); }
+.prize-banner-subtitle { position:relative; margin:18px auto 30px; color:var(--muted); font-size:14px; }
+.prize-cards { position:relative; width:min(850px,100%); margin:0 auto 26px; display:grid; grid-template-columns:1.15fr 1fr; gap:18px; }
+.prize-card { position:relative; padding:25px 18px 23px; border-radius:22px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.28); box-shadow:inset 0 1px 0 rgba(255,255,255,.05); }
+.first-prize { border-color:rgba(57,255,20,.38); transform:scale(1.02); }
+.second-prize { border-color:rgba(192,192,192,.28); }
+.prize-medal { font-size:42px; line-height:1; margin-bottom:10px; }
+.prize-place { font-size:11px; font-weight:1000; letter-spacing:2px; color:var(--muted); }
+.prize-amount { margin-top:8px; font-size:clamp(34px,6vw,58px); line-height:1; font-weight:1000; letter-spacing:-1px; }
+.first-prize .prize-amount { color:var(--green); text-shadow:0 0 22px rgba(57,255,20,.18); }
+.prize-amount span { font-size:.38em; letter-spacing:1px; }
+.prize-label { margin-top:10px; font-size:10px; font-weight:900; letter-spacing:1.5px; opacity:.7; }
+.prize-banner-footer { position:relative; font-size:10px; font-weight:900; letter-spacing:1.4px; color:var(--muted); }
+
+/* =========================================================
+   OFFICIAL WHATSAPP GROUP CARD
+========================================================= */
+.whatsapp-group-card { width:min(900px,100%); display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:18px; margin:0 auto 22px; padding:20px 22px; text-align:left; border:1px solid rgba(37,211,102,.32); border-radius:20px; background:linear-gradient(135deg,rgba(37,211,102,.08),rgba(255,255,255,.025)); box-shadow:0 0 28px rgba(37,211,102,.06); }
+.whatsapp-group-icon { width:58px; height:58px; display:grid; place-items:center; border-radius:50%; font-size:28px; background:rgba(37,211,102,.14); border:1px solid rgba(37,211,102,.3); }
+.whatsapp-group-copy span { color:#25d366; font-size:9px; font-weight:1000; letter-spacing:1.5px; }
+.whatsapp-group-copy h3 { margin:5px 0 4px; font-size:16px; font-weight:1000; }
+.whatsapp-group-copy p { margin:0; color:var(--muted); font-size:11px; line-height:1.5; }
+.whatsapp-group-btn { display:inline-flex; align-items:center; gap:9px; padding:13px 17px; border-radius:12px; background:#25d366; color:#041006 !important; font-size:10px; font-weight:1000; letter-spacing:.8px; text-decoration:none !important; white-space:nowrap; transition:transform .2s ease,box-shadow .2s ease; }
+.whatsapp-group-btn:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(37,211,102,.2); }
+@media(max-width:700px){ .prize-banner-section{padding-bottom:60px}.prize-banner{padding:38px 15px 30px;border-radius:22px}.prize-cards{grid-template-columns:1fr;gap:12px}.first-prize{transform:none}.prize-card{padding:22px 14px}.whatsapp-group-card{grid-template-columns:auto 1fr;padding:17px}.whatsapp-group-btn{grid-column:1/-1;justify-content:center;width:100%;box-sizing:border-box} }
