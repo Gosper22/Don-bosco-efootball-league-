@@ -1411,3 +1411,90 @@ a {
   .vote-candidate { grid-template-columns: auto 1fr; }
   .vote-btn { grid-column: 1 / -1; width: 100%; }
 }
+
+/* Season history additions — keeps the original visual system intact */
+.season-history-list {
+  display: grid;
+  gap: 12px;
+}
+.season-history-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 16px 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  background: rgba(255,255,255,.035);
+  color: inherit;
+  cursor: pointer;
+}
+.season-history-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255,255,255,.22);
+}
+.season-history-icon { font-size: 26px; }
+.season-history-card span:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+.season-history-card small { opacity: .68; }
+.season-history-card > span:last-child {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.season-detail-card,
+.season-management-card {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  background: rgba(255,255,255,.035);
+}
+.season-detail-card {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.season-detail-card > div {
+  display: grid;
+  gap: 4px;
+}
+.season-detail-card span,
+.season-management-label {
+  font-size: 10px;
+  letter-spacing: .12em;
+  opacity: .6;
+  font-weight: 800;
+}
+.season-detail-card strong {
+  font-size: 15px;
+}
+.season-detail-card small {
+  grid-column: 1 / -1;
+  opacity: .7;
+  line-height: 1.5;
+}
+.season-management-card {
+  display: grid;
+  gap: 8px;
+}
+.season-management-card strong {
+  font-size: 22px;
+}
+.season-management-card p {
+  margin: 0 0 6px;
+  opacity: .72;
+  line-height: 1.5;
+}
+@media (max-width: 700px) {
+  .season-detail-card { grid-template-columns: repeat(2, 1fr); }
+  .season-history-card { grid-template-columns: auto 1fr; }
+  .season-history-card > span:last-child { grid-column: 2; }
+}
+
+/* Admin vote closing action */
+.danger-btn { border: 1px solid rgba(220, 38, 38, .55); }

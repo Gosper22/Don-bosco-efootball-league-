@@ -374,6 +374,18 @@
       <div class="loading">No archived champions yet.</div>
     </div>
   </div>
+
+  <div class="hof-history-card">
+    <div class="section-heading compact-heading">
+      <span>FULL SEASON ARCHIVE</span>
+      <h3>SEASON <strong>HISTORY</strong></h3>
+      <p>Every season keeps its players, fixtures, results, standings data, votes, awards and settings.</p>
+    </div>
+    <div id="seasonHistoryList" class="season-history-list">
+      <div class="loading">No previous seasons yet.</div>
+    </div>
+    <div id="seasonArchiveDetails"></div>
+  </div>
 </section>
 
 <!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
@@ -693,6 +705,8 @@
     </div>
     <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 FINALISTS PER FAN AWARD</button>
     <p id="nominationMessage" class="message"></p>
+    <button type="button" id="endAwardVotesBtn" class="primary-btn danger-btn">🔒 END VOTES &amp; DECLARE WINNERS</button>
+    <p id="voteEndMessage" class="message"></p>
 
     <label for="championOverride">Champion (only use if there is no recorded FINAL)</label>
     <select id="championOverride">
@@ -700,6 +714,14 @@
     </select>
     <button type="button" id="archiveTournamentBtn" class="primary-btn">🏛️ ARCHIVE TO HALL OF FAME</button>
     <p id="archiveMessage" class="message"></p>
+
+    <div class="season-management-card">
+      <span class="season-management-label">CURRENT SEASON</span>
+      <strong id="currentSeasonAdmin">SEASON 1</strong>
+      <p>End this season and start the next one. The complete current season is archived first; nothing from the old season is mixed with the new season.</p>
+      <button type="button" id="startNewSeasonBtn" class="secondary-btn">🔄 END SEASON &amp; START NEXT SEASON</button>
+      <p id="seasonMessage" class="message"></p>
+    </div>
   </div>
 
 

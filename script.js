@@ -8,6 +8,7 @@ getDocs,
 getDoc,
 setDoc,
 updateDoc,
+deleteDoc,
 doc,
 serverTimestamp,
 onSnapshot
@@ -37,6 +38,7 @@ let players = [];
 let matches = [];
 let tournamentStarted = false;
 let adminLoggedIn = false;
+let currentSeasonNumber = 1;
 
 let tournamentSettings = {
 format: "groups",
@@ -55,6 +57,7 @@ setupTournamentSettings();
 setupTournamentControls();
 setupAwardsAndVoting();
 setupHallOfFameAdmin();
+setupSeasonControls();
 
 loadLeague();
 });
@@ -366,6 +369,7 @@ renderFixtures();
 renderStandings();
 await renderAwardsAndVoting();
 await renderHallOfFameHistory();
+await renderSeasonHistory();
 
 if (adminLoggedIn) {
   loadAdminMatches();
@@ -447,6 +451,7 @@ if (snapshot.empty) {
     format: "groups",
     groupCount: 2
   };
+  currentSeasonNumber = 1;
 
   return;
 }
@@ -473,6 +478,8 @@ tournamentSettings = {
     )
 
 };
+
+currentSeasonNumber = Math.max(1, Number(data.seasonNumber || 1));
 
 } catch (error) {
 
@@ -623,6 +630,7 @@ const data = {
 
   format: format,
   groupCount: groupCount,
+  seasonNumber: currentSeasonNumber,
   updatedAt: serverTimestamp()
 
 };
@@ -1940,6 +1948,7 @@ await addDoc(
   {
 
     status: "started",
+    seasonNumber: currentSeasonNumber,
 
     playerCount:
       players.length,
@@ -2123,6 +2132,195 @@ if (generate) {
 
 }
 
+
+// =====================================================
+// SEASON HISTORY + SEASON RESET
+// =====================================================
+
+function setupSeasonControls() {
+  document.getElementById("startNewSeasonBtn")?.addEventListener("click", startNewSeason);
+}
+
+async function getNextSeasonNumber() {
+  try {
+    const snapshot = await getDocs(collection(db, "seasonArchives"));
+    let max = 0;
+    snapshot.docs.forEach((item) => {
+      const n = Number(item.data()?.seasonNumber || String(item.id).replace(/\D/g, "") || 0);
+      if (n > max) max = n;
+    });
+    return Math.max(currentSeasonNumber + 1, max + 1, 2);
+  } catch (error) {
+    console.error("Season number error:", error);
+    return currentSeasonNumber + 1;
+  }
+}
+
+async function archiveCollectionToSeason(seasonId, collectionName) {
+  const snapshot = await getDocs(collection(db, collectionName));
+  for (const item of snapshot.docs) {
+    await setDoc(doc(db, "seasonArchives", seasonId, collectionName, item.id), item.data());
+  }
+  return snapshot.size;
+}
+
+async function archiveFullSeason(seasonNumber) {
+  const seasonId = `season-${seasonNumber}`;
+  const seasonRef = doc(db, "seasonArchives", seasonId);
+  const existing = await getDoc(seasonRef);
+  if (existing.exists()) return false;
+
+  const collectionsToArchive = [
+    "registrations",
+    "matches",
+    "tournament",
+    "settings",
+    "awardVotes",
+    "awardNominations"
+  ];
+
+  const counts = {};
+  for (const collectionName of collectionsToArchive) {
+    counts[collectionName] = await archiveCollectionToSeason(seasonId, collectionName);
+  }
+
+  await setDoc(seasonRef, {
+    seasonNumber,
+    season: `Season ${seasonNumber}`,
+    archivedAt: serverTimestamp(),
+    counts,
+    playerCount: players.length,
+    matchCount: matches.length,
+    awardVoting: { ...awardVotingState, endedAt: awardVotingState.endedAt || null }
+  }, { merge: true });
+
+  return true;
+}
+
+async function clearCurrentSeasonData() {
+  const collectionsToClear = ["registrations", "matches", "tournament", "settings", "awardVotes", "awardNominations"];
+  for (const collectionName of collectionsToClear) {
+    const snapshot = await getDocs(collection(db, collectionName));
+    for (const item of snapshot.docs) {
+      await deleteDoc(doc(db, collectionName, item.id));
+    }
+  }
+  localStorage.removeItem("donBoscoAwardVoter");
+  await setDoc(doc(db, "awardVoting", "current"), { ended: false, endedAt: null, winners: {}, seasonNumber: currentSeasonNumber }, { merge: true });
+  awardVotingState = { ended: false, endedAt: null, winners: {} };
+  awardNominations = {};
+  awardVoteCounts = {};
+  currentAwardData = null;
+  tournamentStarted = false;
+}
+
+async function startNewSeason() {
+  if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
+  if (players.length === 0 && matches.length === 0) {
+    alert("⚠️ Current season haina data ya ku-archive.");
+    return;
+  }
+
+  await loadAwardVotingState();
+  const hasPublishedFanAwards = VOTED_AWARD_KEYS.some((category) => (awardNominations[category] || []).length === 3);
+  if (hasPublishedFanAwards && !awardVotingState.ended) {
+    alert("🔒 End the fan voting and declare the winners before starting the next season.");
+    return;
+  }
+  const nextSeason = await getNextSeasonNumber();
+  const confirmed = confirm(
+    `🏆 End Season ${currentSeasonNumber} and start Season ${nextSeason}?\\n\\n` +
+    `Kila player, fixture, result, standings, votes, awards na tournament settings za Season ${currentSeasonNumber} zitawekwa kwenye Season History.`
+  );
+  if (!confirmed) return;
+
+  const message = document.getElementById("seasonMessage");
+  try {
+    await archiveFullSeason(currentSeasonNumber);
+    await clearCurrentSeasonData();
+
+    currentSeasonNumber = nextSeason;
+    await setDoc(doc(db, "settings", "current"), {
+      format: "groups",
+      groupCount: 2,
+      seasonNumber: currentSeasonNumber,
+      updatedAt: serverTimestamp()
+    });
+
+    await loadLeague();
+    showMessage(message, `✅ Season ${currentSeasonNumber} started. Season ${currentSeasonNumber - 1} imehifadhiwa kwenye history.`, "success");
+  } catch (error) {
+    console.error("Start new season error:", error);
+    showMessage(message, "❌ Season mpya haikuanza. Data ya sasa haijafutwa mpaka archive ikamilike.", "error");
+  }
+}
+
+async function renderSeasonHistory() {
+  const container = document.getElementById("seasonHistoryList");
+  if (!container) return;
+  try {
+    const snapshot = await getDocs(collection(db, "seasonArchives"));
+    if (snapshot.empty) {
+      container.innerHTML = `<div class="loading">No previous seasons yet.</div>`;
+      return;
+    }
+    const seasons = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+      .sort((a,b) => Number(b.seasonNumber || 0) - Number(a.seasonNumber || 0));
+
+    container.innerHTML = seasons.map((entry) => {
+      const counts = entry.counts || {};
+      return `<button type="button" class="season-history-card" data-season-id="${escapeHTML(entry.id)}">
+        <span class="season-history-icon">🏆</span>
+        <span><strong>SEASON ${escapeHTML(entry.seasonNumber || "?")}</strong>
+        <small>${escapeHTML(counts.registrations || 0)} players • ${escapeHTML(counts.matches || 0)} fixtures • Full archive</small></span>
+        <span>VIEW →</span>
+      </button>`;
+    }).join("");
+
+    container.querySelectorAll("[data-season-id]").forEach((button) => {
+      button.addEventListener("click", () => viewArchivedSeason(button.dataset.seasonId));
+    });
+  } catch (error) {
+    console.error("Season history error:", error);
+    container.innerHTML = `<div class="loading">Season history is unavailable until Firebase permissions allow it.</div>`;
+  }
+}
+
+async function viewArchivedSeason(seasonId) {
+  try {
+    const meta = await getDoc(doc(db, "seasonArchives", seasonId));
+    if (!meta.exists()) return;
+    const season = meta.data();
+    const history = document.getElementById("seasonArchiveDetails");
+    if (!history) return;
+
+    const [playersSnap, matchesSnap, tournamentSnap, settingsSnap] = await Promise.all([
+      getDocs(collection(db, "seasonArchives", seasonId, "registrations")),
+      getDocs(collection(db, "seasonArchives", seasonId, "matches")),
+      getDocs(collection(db, "seasonArchives", seasonId, "tournament")),
+      getDocs(collection(db, "seasonArchives", seasonId, "settings"))
+    ]);
+
+    const archivedPlayers = playersSnap.docs.map(d => d.data());
+    const archivedMatches = matchesSnap.docs.map(d => d.data());
+    const played = archivedMatches.filter(m => m.played);
+    const goals = played.reduce((sum,m) => sum + Number(m.homeGoals || 0) + Number(m.awayGoals || 0), 0);
+    const final = played.filter(m => String(m.group || "").toLowerCase() === "final").slice(-1)[0];
+
+    history.innerHTML = `<div class="season-detail-card">
+      <div><span>SEASON</span><strong>${escapeHTML(season.seasonNumber || "?")}</strong></div>
+      <div><span>PLAYERS</span><strong>${archivedPlayers.length}</strong></div>
+      <div><span>FIXTURES</span><strong>${archivedMatches.length}</strong></div>
+      <div><span>PLAYED</span><strong>${played.length}</strong></div>
+      <div><span>GOALS</span><strong>${goals}</strong></div>
+      <div><span>FINAL</span><strong>${escapeHTML(final ? `${final.homePlayer || "TBD"} ${final.homeGoals ?? "-"} - ${final.awayGoals ?? "-"} ${final.awayPlayer || "TBD"}` : "Not recorded")}</strong></div>
+      <small>All original Season ${escapeHTML(season.seasonNumber || "?")} registrations, fixtures, results, tournament records, settings, nominations and votes are preserved in this archive.</small>
+    </div>`;
+  } catch (error) {
+    console.error("Archived season view error:", error);
+  }
+}
+
 // =====================================================
 // HALL OF FAME + AUTOMATIC AWARDS + FAN VOTING
 // =====================================================
@@ -2131,6 +2329,7 @@ let currentAwardData = null;
 let awardVoteCounts = {};
 let awardNominations = {};
 let awardVotesUnsubscribe = null;
+let awardVotingState = { ended: false, endedAt: null, winners: {} };
 
 const AWARD_CATEGORIES = {
   playerOfTournament: { title: "Player of the Tournament", icon: "⭐", accent: "award-star", type: "voted", description: "Fan-voted award. Admin publishes three finalists." },
@@ -2178,6 +2377,8 @@ function setupHallOfFameAdmin() {
   if (archiveButton) archiveButton.addEventListener("click", archiveTournamentToHallOfFame);
   const saveButton = document.getElementById("saveAwardNominationsBtn");
   if (saveButton) saveButton.addEventListener("click", saveAwardNominations);
+  const endVotesButton = document.getElementById("endAwardVotesBtn");
+  if (endVotesButton) endVotesButton.addEventListener("click", endAwardVotes);
 }
 
 function getAwardStats() {
@@ -2317,6 +2518,11 @@ async function loadAwardVoteCounts() {
   }
 }
 
+function getWinnerById(stats, playerId) {
+  const item = stats.find((candidate) => candidate.id === playerId);
+  return item ? { id: item.id, name: item.name, player: item.player } : null;
+}
+
 function getVotedWinner(category, stats) {
   const ids = awardNominations[category] || [];
   const counts = awardVoteCounts[category] || {};
@@ -2332,14 +2538,29 @@ function getAutomaticWinner(category, stats) {
   return candidates[0] || null;
 }
 
+async function loadAwardVotingState() {
+  try {
+    const snap = await getDoc(doc(db, "awardVoting", "current"));
+    awardVotingState = snap.exists() ? { ended: false, endedAt: null, winners: {}, ...snap.data() } : { ended: false, endedAt: null, winners: {} };
+  } catch (error) {
+    console.warn("Award voting state unavailable:", error);
+    awardVotingState = { ended: false, endedAt: null, winners: {} };
+  }
+}
+
 async function renderAwardsAndVoting() {
+  await loadAwardVotingState();
   const stats = getAwardStats();
   await loadAwardNominations(stats);
   await loadAwardVoteCounts();
 
   const winners = {};
   AUTOMATIC_AWARD_KEYS.forEach((category) => { winners[category] = getAutomaticWinner(category, stats); });
-  VOTED_AWARD_KEYS.forEach((category) => { winners[category] = getVotedWinner(category, stats); });
+  VOTED_AWARD_KEYS.forEach((category) => {
+    winners[category] = awardVotingState.ended && awardVotingState.winners?.[category]
+      ? (stats.find((item) => item.id === awardVotingState.winners[category]) ? getWinnerById(stats, awardVotingState.winners[category]) : null)
+      : null;
+  });
   currentAwardData = { stats, ...winners };
 
   const grid = document.getElementById("awardsGrid");
@@ -2375,23 +2596,24 @@ function renderAwardVoting(stats) {
     const counts = awardVoteCounts[category] || {};
     const candidates = ids.map((id) => stats.find((item) => item.id === id)).filter(Boolean);
     const hasVoted = Boolean(voted[category]);
+    const votingEnded = Boolean(awardVotingState.ended);
+    const showResults = hasVoted || votingEnded;
     const totalVotes = candidates.reduce((sum, item) => sum + (counts[item.id] || 0), 0);
     return `<section class="award-vote-category ${config.accent}">
-      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three finalists"}</small></div>
+      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${votingEnded ? "VOTING CLOSED • FINAL RESULTS" : (hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three finalists")}</small></div>
       <div class="vote-candidates">${candidates.map((item) => {
         const initials = item.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
         const votes = counts[item.id] || 0;
         const percentage = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
-        const showResults = hasVoted;
         return `<div class="vote-candidate ${hasVoted && voted[category] === item.id ? "vote-leader" : ""}">
           <div class="vote-player-art"><span>${escapeHTML(initials || "P")}</span></div>
           <div class="vote-player-info"><strong>${escapeHTML(item.name)}</strong><small>Team ${escapeHTML(item.player.teamNumber ?? "-")} • ${escapeHTML(metricForAward(category, item))}</small>
             ${showResults ? `<div class="vote-result"><div class="vote-result-meta"><span>${votes} vote${votes === 1 ? "" : "s"}</span><strong>${percentage.toFixed(1)}%</strong></div><div class="vote-progress"><span style="width:${Math.min(100, percentage)}%"></span></div></div>` : `<span class="vote-hidden-result">Vote to reveal live percentages</span>`}
           </div>
-          <button class="primary-btn vote-btn" data-vote-category="${escapeHTML(category)}" data-vote-player="${escapeHTML(item.id)}" ${hasVoted ? "disabled" : ""}>${hasVoted ? (voted[category] === item.id ? "VOTED ✓" : "VOTE CAST") : "VOTE"}</button>
+          <button class="primary-btn vote-btn" data-vote-category="${escapeHTML(category)}" data-vote-player="${escapeHTML(item.id)}" ${(hasVoted || votingEnded) ? "disabled" : ""}>${votingEnded ? (awardVotingState.winners?.[category] === item.id ? "WINNER 🏆" : "VOTING CLOSED") : (hasVoted ? (voted[category] === item.id ? "VOTED ✓" : "VOTE CAST") : "VOTE")}</button>
         </div>`;
       }).join("")}</div>
-      ${hasVoted ? `<div class="live-vote-note">🔴 Live results • Percentages update as fans vote.</div>` : `<div class="vote-reveal-note">🔒 Percentages are hidden until you cast your vote.</div>`}
+      ${votingEnded ? `<div class="live-vote-note">🏆 Final results • Voting has ended and the winner is locked.</div>` : (hasVoted ? `<div class="live-vote-note">🔴 Live results • Percentages update as fans vote.</div>` : `<div class="vote-reveal-note">🔒 Percentages are hidden until you cast your vote.</div>`)}
     </section>`;
   }).join("");
 
@@ -2402,6 +2624,8 @@ function renderAwardVoting(stats) {
 async function castAwardVote(category, playerId) {
   const message = document.getElementById("voteMessage");
   if (!AWARD_CATEGORIES[category] || AWARD_CATEGORIES[category].type !== "voted" || !(awardNominations[category] || []).includes(playerId)) return;
+  await loadAwardVotingState();
+  if (awardVotingState.ended) { showMessage(message, "🔒 Voting has ended. Winners have already been declared.", "error"); return; }
   const voted = JSON.parse(localStorage.getItem("donBoscoAwardVoter") || "{}");
   if (voted[category]) {
     showMessage(message, `⚠️ You already voted in ${AWARD_CATEGORIES[category].title}.`, "error");
@@ -2476,6 +2700,45 @@ async function saveAwardNominations() {
   }
 }
 
+async function endAwardVotes() {
+  if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
+  const message = document.getElementById("voteEndMessage");
+  await loadAwardVotingState();
+  if (awardVotingState.ended) {
+    showMessage(message, "🔒 Voting is already closed and the winners are locked.", "error");
+    return;
+  }
+  const stats = getAwardStats();
+  await loadAwardNominations(stats);
+  const missing = VOTED_AWARD_KEYS.filter((category) => (awardNominations[category] || []).length !== 3);
+  if (missing.length) {
+    showMessage(message, `⚠️ Publish exactly 3 finalists for: ${missing.map((c) => AWARD_CATEGORIES[c].title).join(", ")}.`, "error");
+    return;
+  }
+  const confirmed = confirm("END ALL FAN VOTING NOW?\n\nThis will permanently lock the current Season's three fan-voted awards, calculate the winners, and prevent any more votes. Continue?");
+  if (!confirmed) return;
+  const winners = {};
+  for (const category of VOTED_AWARD_KEYS) {
+    const ids = awardNominations[category];
+    const counts = awardVoteCounts[category] || {};
+    const winnerId = ids.slice().sort((a, b) => {
+      const diff = (counts[b] || 0) - (counts[a] || 0);
+      if (diff) return diff;
+      return String(a).localeCompare(String(b));
+    })[0];
+    winners[category] = winnerId;
+  }
+  try {
+    await setDoc(doc(db, "awardVoting", "current"), { ended: true, endedAt: serverTimestamp(), winners, seasonNumber: currentSeasonNumber }, { merge: true });
+    awardVotingState = { ended: true, endedAt: new Date(), winners };
+    showMessage(message, "🏆 Voting ended. All three fan-voted winners are now locked and displayed in the awards area.", "success");
+    await renderAwardsAndVoting();
+  } catch (error) {
+    console.error("End award voting error:", error);
+    showMessage(message, "❌ Could not close voting. Check Firebase permissions.", "error");
+  }
+}
+
 function getChampionFromFinal() {
   const finals = matches.filter((match) => match.played && String(match.group || "").trim().toLowerCase() === "final");
   if (!finals.length) return null;
@@ -2513,7 +2776,7 @@ async function archiveTournamentToHallOfFame() {
   if (!champion) { showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error"); return; }
   if (!currentAwardData) await renderAwardsAndVoting();
   const awards = currentAwardData || {};
-  const season = String(new Date().getFullYear());
+  const season = `Season ${currentSeasonNumber}`;
   try {
     const archiveAwards = {};
     Object.keys(AWARD_CATEGORIES).forEach((category) => {
@@ -2521,8 +2784,9 @@ async function archiveTournamentToHallOfFame() {
       if (!winner) return;
       archiveAwards[category] = { playerId: winner.id, name: winner.name, votes: awardVoteCounts[category]?.[winner.id] || 0, metric: metricForAward(category, winner), type: AWARD_CATEGORIES[category].type };
     });
+    await archiveFullSeason(currentSeasonNumber);
     await addDoc(collection(db, "hallOfFame"), {
-      season, champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      season, seasonNumber: currentSeasonNumber, champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
       awards: archiveAwards, archivedAt: serverTimestamp()
     });
     showMessage(message, `🏛️ ${season} tournament archived in the Hall of Fame.`, "success");
@@ -2539,7 +2803,7 @@ async function renderHallOfFameHistory() {
   try {
     const snapshot = await getDocs(collection(db, "hallOfFame"));
     if (snapshot.empty) { container.innerHTML = `<div class="loading">No archived champions yet. Finish your first tournament to create a legend.</div>`; return; }
-    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).reverse();
+    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => Number(b.seasonNumber || 0) - Number(a.seasonNumber || 0));
     container.innerHTML = history.map((entry) => {
       const a = entry.awards || {};
       return `<article class="hof-history-item"><div class="hof-year">${escapeHTML(entry.season || "TOURNAMENT")}</div>
