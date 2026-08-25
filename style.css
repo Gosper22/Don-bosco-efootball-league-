@@ -1538,7 +1538,3 @@ a {
 .draw-team-row{display:flex;gap:9px;align-items:center;padding:9px 12px;border-top:1px solid rgba(255,255,255,.055);font-size:.86rem}
 .draw-team-row span{opacity:.55;font-size:.72rem}
 @media(max-width:760px){.pot-manager{grid-template-columns:1fr}.pot-unassigned{grid-column:auto}.pot-draw-actions{grid-template-columns:1fr}.pot-team{align-items:flex-start;flex-direction:column}.pot-actions{width:100%}.pot-move-btn{flex:1}}
-
-/* Admin fixture actions */
-.match-admin-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.match-admin-actions .primary-btn{flex:1;min-width:170px}.delete-fixture-btn{border-color:rgba(220,38,38,.65)!important;background:rgba(220,38,38,.08)}.delete-fixture-btn:hover{background:rgba(220,38,38,.16)}
-@media(max-width:600px){.match-admin-actions{flex-direction:column}.match-admin-actions .primary-btn{width:100%;min-width:0}}
