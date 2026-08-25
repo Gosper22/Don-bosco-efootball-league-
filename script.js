@@ -9,6 +9,7 @@ getDoc,
 setDoc,
 updateDoc,
 deleteDoc,
+writeBatch,
 doc,
 serverTimestamp,
 onSnapshot
@@ -1593,6 +1594,13 @@ generateFixtures
 );
 
 document
+.getElementById("deleteAllFixturesBtn")
+?.addEventListener(
+"click",
+deleteAllFixtures
+);
+
+document
 .getElementById("startTournamentBtn")
 ?.addEventListener(
 "click",
@@ -1988,6 +1996,60 @@ container.appendChild(card);
 
 });
 
+}
+
+// =====================================================
+// DELETE ALL CURRENT-SEASON FIXTURES
+// =====================================================
+
+async function deleteAllFixtures() {
+
+  if (!adminLoggedIn) {
+    alert("🔐 Admin login kwanza.");
+    return;
+  }
+
+  if (!matches.length) {
+    alert("ℹ️ Hakuna fixtures za current season za ku-delete.");
+    return;
+  }
+
+  const count = matches.length;
+  const playedCount = matches.filter((match) => match.played).length;
+  const warning = playedCount
+    ? `\n\n⚠️ ${playedCount} fixture(s) tayari zina results. Kuzifuta kutaondoa results hizo kwenye standings na player statistics.`
+    : "";
+
+  const confirmed = confirm(
+    `🗑️ DELETE ALL CURRENT FIXTURES?\n\n` +
+    `Hii itafuta fixtures zote ${count} za current season.` +
+    warning +
+    `\n\nSeason History/archived seasons hazitafutwa.` +
+    `\n\nAction hii haiwezi ku-undo.`
+  );
+
+  if (!confirmed) return;
+
+  // Second confirmation prevents accidental full fixture deletion.
+  const finalConfirmed = confirm(
+    `⚠️ CONFIRM AGAIN\n\nDelete ALL ${count} current fixtures now?`
+  );
+
+  if (!finalConfirmed) return;
+
+  try {
+    const batch = writeBatch(db);
+    matches.forEach((match) => {
+      batch.delete(doc(db, "matches", match.id));
+    });
+
+    await batch.commit();
+    alert(`✅ ${count} current fixtures zimefutwa.`);
+    await loadLeague();
+  } catch (error) {
+    console.error("Delete all fixtures error:", error);
+    alert("❌ Imeshindikana kufuta fixtures zote. Hakikisha Firebase rules zinaruhusu admin action hii.");
+  }
 }
 
 // =====================================================
