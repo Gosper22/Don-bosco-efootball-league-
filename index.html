@@ -14,7 +14,6 @@
     <a href="#standings">Standings</a>
     <a href="#playerDashboard">Players</a>
     <a href="#powerRanking">Power Ranking</a>
-    <a href="#seasonHistory">Seasons</a>
     <a href="#knockout">Knockout</a>
     <a href="#halloffame">Hall of Fame</a>
     <a href="#contact">Contact Admin</a>
@@ -386,7 +385,7 @@
     <div class="vote-heading">
       <span>FAN VOTING</span>
       <h3>🗳️ VOTE FOR THE AWARDS</h3>
-      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin freely chooses any three players for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
+      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin selects exactly three finalists for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
     </div>
     <div id="awardVotingCategories" class="award-voting-categories">
       <div class="loading">Loading award finalists...</div>
@@ -404,7 +403,7 @@
     </div>
   </div>
 
-  <div class="hof-history-card" id="seasonHistory">
+  <div class="hof-history-card">
     <div class="section-heading compact-heading">
       <span>FULL SEASON ARCHIVE</span>
       <h3>SEASON <strong>HISTORY</strong></h3>
@@ -609,6 +608,35 @@
 
   <p id="settingsMessage" class="message"></p>
 
+  <!-- POT + BLIND GROUP DRAW -->
+  <div class="tournament-control pot-draw-control">
+    <h3>🎲 GROUP DRAW — POTS &amp; BLIND REVEAL</h3>
+    <p>Assign every team to Pot 1, 2 or 3. Team names stay hidden during the blind draw until you tap a Pot. The revealed team is placed automatically in the next open Group.</p>
+
+    <div id="potManager" class="pot-manager">
+      <div class="loading">Loading Pots...</div>
+    </div>
+
+    <div class="pot-draw-actions">
+      <button type="button" class="pot-reveal-btn" data-draw-pot="1">🎲 REVEAL POT 1</button>
+      <button type="button" class="pot-reveal-btn" data-draw-pot="2">🎲 REVEAL POT 2</button>
+      <button type="button" class="pot-reveal-btn" data-draw-pot="3">🎲 REVEAL POT 3</button>
+    </div>
+
+    <div id="blindDrawStatus" class="blind-draw-status">Waiting for teams.</div>
+    <div id="blindReveal" class="blind-reveal"><span>🎲 BLIND DRAW</span><strong>Tap a Pot to reveal</strong><small>The next team will be assigned automatically.</small></div>
+
+    <div class="pot-draw-secondary-actions">
+      <button type="button" id="autoGenerateGroupsBtn" class="primary-btn">⚡ GENERATE GROUPS FROM POTS</button>
+      <button type="button" id="confirmGroupsBtn" class="secondary-btn">✅ CONFIRM &amp; PUBLISH GROUPS</button>
+    </div>
+    <p id="groupDrawMessage" class="message"></p>
+
+    <div id="drawGroupsPreview" class="draw-groups-preview">
+      <div class="draw-preview-empty">Groups will appear here after the draw is generated.</div>
+    </div>
+  </div>
+
 
   <!-- TOURNAMENT STATUS -->
 
@@ -732,7 +760,7 @@
     <div id="awardNominationManager" class="award-nomination-manager">
       <div class="loading">Loading award nomination controls...</div>
     </div>
-    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYER CHOICES PER FAN AWARD</button>
+    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYERS PER FAN AWARD</button>
     <p id="nominationMessage" class="message"></p>
     <button type="button" id="endAwardVotesBtn" class="primary-btn danger-btn">🔒 END VOTES &amp; DECLARE WINNERS</button>
     <p id="voteEndMessage" class="message"></p>

@@ -45,6 +45,14 @@ format: "groups",
 groupCount: 2
 };
 
+// Manual/automatic group draw state. This is kept separate from the
+// existing tournament settings so the original format logic remains intact.
+let groupDrawState = {
+  generated: false,
+  potAssignments: {},
+  groups: []
+};
+
 // =====================================================
 // START
 // =====================================================
@@ -54,6 +62,7 @@ setupRegisterButtons();
 setupRegistration();
 setupAdminLogin();
 setupTournamentSettings();
+setupPotAndBlindDraw();
 setupTournamentControls();
 setupAwardsAndVoting();
 setupHallOfFameAdmin();
@@ -358,6 +367,9 @@ try {
 await loadPlayers();
 await loadMatches();
 await loadTournamentSettings();
+await loadGroupDrawState();
+renderPotManager();
+updateBlindDrawUI();
 await loadTournamentStatus();
 
 updateSettingsPreview();
@@ -761,67 +773,250 @@ return result;
 }
 
 // =====================================================
+// POT / GROUP DRAW MANAGEMENT
+// =====================================================
+
+async function loadGroupDrawState() {
+  groupDrawState = { generated: false, potAssignments: {}, groups: [] };
+  if (tournamentSettings.format !== "groups") return;
+
+  try {
+    const snap = await getDoc(doc(db, "groupDraws", `season_${currentSeasonNumber}`));
+    if (snap.exists()) {
+      const data = snap.data() || {};
+      groupDrawState = {
+        generated: Boolean(data.generated),
+        potAssignments: data.potAssignments || {},
+        groups: Array.isArray(data.groups) ? data.groups : []
+      };
+    }
+  } catch (error) {
+    console.error("Group draw state error:", error);
+  }
+}
+
+function playersByPot(pot) {
+  return players.filter(p => String(groupDrawState.potAssignments?.[p.id] || "") === String(pot));
+}
+
+function buildEmptyDrawGroups() {
+  const count = Math.max(1, Number(tournamentSettings.groupCount || 2));
+  return Array.from({ length: count }, (_, i) => ({
+    shortName: groupLetter(i),
+    playerIds: []
+  }));
+}
+
+async function persistGroupDrawState(messageEl) {
+  try {
+    await setDoc(doc(db, "groupDraws", `season_${currentSeasonNumber}`), {
+      seasonNumber: currentSeasonNumber,
+      generated: Boolean(groupDrawState.generated),
+      potAssignments: groupDrawState.potAssignments || {},
+      groups: groupDrawState.groups || [],
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    if (messageEl) showMessage(messageEl, "✅ Group draw saved.", "success");
+    return true;
+  } catch (error) {
+    console.error("Save group draw error:", error);
+    if (messageEl) showMessage(messageEl, "❌ Failed to save group draw.", "error");
+    return false;
+  }
+}
+
+function renderPotManager() {
+  const root = document.getElementById("potManager");
+  if (!root) return;
+
+  if (!players.length) {
+    root.innerHTML = `<div class="loading">Register teams first.</div>`;
+    return;
+  }
+
+  const groups = [1, 2, 3].map(pot => {
+    const list = players.filter(p => String(groupDrawState.potAssignments?.[p.id] || "0") === String(pot));
+    return `<div class="pot-column">
+      <div class="pot-column-head"><strong>POT ${pot}</strong><span>${list.length} TEAMS</span></div>
+      <div class="pot-team-list">${list.length ? list.map(p => `<div class="pot-team"><span>${escapeHTML(p.username || p.name || "TEAM")}</span><button type="button" class="pot-move-btn" data-player-id="${escapeHTML(p.id)}" data-pot="0">MOVE OUT</button></div>`).join("") : `<div class="pot-empty">No teams yet</div>`}</div>
+    </div>`;
+  }).join("");
+
+  const unassigned = players.filter(p => !["1","2","3"].includes(String(groupDrawState.potAssignments?.[p.id] || "")));
+  const unassignedHtml = `<div class="pot-column pot-unassigned">
+    <div class="pot-column-head"><strong>UNASSIGNED</strong><span>${unassigned.length} TEAMS</span></div>
+    <div class="pot-team-list">${unassigned.length ? unassigned.map(p => `<div class="pot-team"><span>${escapeHTML(p.username || p.name || "TEAM")}</span><div class="pot-actions"><button type="button" class="pot-move-btn" data-player-id="${escapeHTML(p.id)}" data-pot="1">POT 1</button><button type="button" class="pot-move-btn" data-player-id="${escapeHTML(p.id)}" data-pot="2">POT 2</button><button type="button" class="pot-move-btn" data-player-id="${escapeHTML(p.id)}" data-pot="3">POT 3</button></div></div>`).join("") : `<div class="pot-empty">All teams assigned</div>`}</div>
+  </div>`;
+
+  root.innerHTML = groups + unassignedHtml;
+  root.querySelectorAll(".pot-move-btn").forEach(btn => btn.addEventListener("click", async () => {
+    if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+    groupDrawState.potAssignments[btn.dataset.playerId] = btn.dataset.pot === "0" ? "" : String(btn.dataset.pot);
+    await persistGroupDrawState();
+    renderPotManager();
+    updateBlindDrawUI();
+  }));
+}
+
+function renderDrawGroupsPreview() {
+  const root = document.getElementById("drawGroupsPreview");
+  if (!root) return;
+  const groups = groupDrawState.groups || [];
+  if (!groupDrawState.generated || !groups.length) {
+    root.innerHTML = `<div class="draw-preview-empty">Groups will appear here after the draw is generated.</div>`;
+    return;
+  }
+  root.innerHTML = groups.map(g => {
+    const names = (g.playerIds || []).map(id => players.find(p => p.id === id)).filter(Boolean);
+    return `<div class="draw-group-card"><div class="draw-group-title">GROUP ${escapeHTML(g.shortName)}</div>${names.length ? names.map((p,i)=>`<div class="draw-team-row"><span>${String(i+1).padStart(2,"0")}</span><strong>${escapeHTML(p.username || p.name || "TEAM")}</strong></div>`).join("") : `<div class="draw-team-row">Waiting for draw</div>`}</div>`;
+  }).join("");
+}
+
+function nextOpenGroupIndex() {
+  const groups = groupDrawState.groups || [];
+  const targetSize = Math.max(1, Math.ceil(players.length / Math.max(1, Number(tournamentSettings.groupCount || 2))));
+  return groups.findIndex(g => (g.playerIds || []).length < targetSize);
+}
+
+function updateBlindDrawUI() {
+  const status = document.getElementById("blindDrawStatus");
+  const buttons = document.querySelectorAll("[data-draw-pot]");
+  const complete = groupDrawState.generated && (groupDrawState.groups || []).length > 0;
+  buttons.forEach(btn => {
+    const pot = String(btn.dataset.drawPot);
+    const available = playersByPot(pot).some(p => !(groupDrawState.groups || []).some(g => (g.playerIds || []).includes(p.id)));
+    btn.disabled = !adminLoggedIn || complete || !available;
+    btn.textContent = available && !complete ? `🎲 REVEAL POT ${pot}` : `POT ${pot} ${complete ? "DONE" : "EMPTY"}`;
+  });
+  if (status) {
+    if (complete) status.textContent = "✅ Groups generated. Confirm/publish them below.";
+    else if (!players.length) status.textContent = "Waiting for teams.";
+    else status.textContent = "Teams are hidden until you tap a Pot. The next revealed team goes to the next open Group automatically.";
+  }
+  renderDrawGroupsPreview();
+}
+
+async function revealNextTeamFromPot(pot) {
+  if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+  if (groupDrawState.generated) return;
+  const available = playersByPot(pot).filter(p => !(groupDrawState.groups || []).some(g => (g.playerIds || []).includes(p.id)));
+  if (!available.length) return alert(`POT ${pot} imekwisha.`);
+
+  if (!groupDrawState.groups?.length) groupDrawState.groups = buildEmptyDrawGroups();
+  const groupIndex = nextOpenGroupIndex();
+  if (groupIndex < 0) return alert("All groups are full.");
+
+  // Do not reveal the identity before the click. Only after the draw action do we show it.
+  const chosen = available[Math.floor(Math.random() * available.length)];
+  groupDrawState.groups[groupIndex].playerIds.push(chosen.id);
+  await persistGroupDrawState();
+
+  const reveal = document.getElementById("blindReveal");
+  if (reveal) {
+    reveal.classList.remove("revealing");
+    void reveal.offsetWidth;
+    reveal.classList.add("revealing");
+    reveal.innerHTML = `<span>🎲 REVEALED</span><strong>${escapeHTML(chosen.username || chosen.name || "TEAM")}</strong><small>→ GROUP ${escapeHTML(groupDrawState.groups[groupIndex].shortName)}</small>`;
+  }
+
+  renderDrawGroupsPreview();
+  updateBlindDrawUI();
+
+  const total = groupDrawState.groups.reduce((sum,g)=>sum+(g.playerIds||[]).length,0);
+  if (total >= players.length) {
+    groupDrawState.generated = true;
+    await persistGroupDrawState();
+    updateBlindDrawUI();
+    if (reveal) reveal.innerHTML += `<em>🎉 DRAW COMPLETE — CONFIRM & PUBLISH GROUPS</em>`;
+  }
+}
+
+function autoGenerateGroupsFromPots() {
+  const potPlayers = [1,2,3].map(p => playersByPot(p));
+  if (potPlayers.some(list => !list.length)) {
+    alert("⚠️ Assign teams to Pot 1, Pot 2 and Pot 3 first.");
+    return;
+  }
+  const count = Math.max(1, Number(tournamentSettings.groupCount || 2));
+  const groups = buildEmptyDrawGroups();
+  const shuffled = potPlayers.map(list => [...list].sort(() => Math.random() - 0.5));
+  const assigned = new Set();
+
+  // First pass: one team from each pot into each group where possible.
+  shuffled.forEach(list => {
+    list.forEach((player, i) => {
+      const group = groups[i % count];
+      if (!group.playerIds.includes(player.id)) {
+        group.playerIds.push(player.id);
+        assigned.add(player.id);
+      }
+    });
+  });
+
+  // Any remaining teams fill the next available group.
+  players.filter(p => !assigned.has(p.id)).sort(() => Math.random() - 0.5).forEach(player => {
+    const idx = groups.findIndex(g => g.playerIds.length < Math.ceil(players.length / count));
+    if (idx >= 0) groups[idx].playerIds.push(player.id);
+  });
+
+  groupDrawState.groups = groups;
+  groupDrawState.generated = true;
+}
+
+function setupPotAndBlindDraw() {
+  const root = document.getElementById("potManager");
+  if (!root) return;
+  renderPotManager();
+  updateBlindDrawUI();
+
+  [1,2,3].forEach(pot => {
+    document.querySelector(`[data-draw-pot="${pot}"]`)?.addEventListener("click", () => revealNextTeamFromPot(String(pot)));
+  });
+
+  document.getElementById("autoGenerateGroupsBtn")?.addEventListener("click", async () => {
+    if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+    if (groupDrawState.generated) return alert("Groups tayari zimegenerateiwa.");
+    autoGenerateGroupsFromPots();
+    await persistGroupDrawState();
+    renderDrawGroupsPreview();
+    updateBlindDrawUI();
+  });
+
+  document.getElementById("confirmGroupsBtn")?.addEventListener("click", async () => {
+    if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+    if (!groupDrawState.generated) return alert("⚠️ Complete the draw/generation first.");
+    if (!confirm("Confirm and publish these groups? After publishing, the draw cannot be changed from this screen.")) return;
+    await persistGroupDrawState();
+    renderGroups();
+    showMessage(document.getElementById("groupDrawMessage"), "✅ Groups confirmed and published.", "success");
+  });
+}
+
+// =====================================================
 // GET GROUPS
 // =====================================================
 
 function getGroups() {
+  const count = Math.max(1, Number(tournamentSettings.groupCount || 2));
 
-const count =
-Math.max(
-1,
-Number(tournamentSettings.groupCount || 2)
-);
-
-const groups = [];
-
-if (tournamentSettings.format === "league") {
-
-return [
-  {
-    name: "LEAGUE",
-    shortName: "LEAGUE",
-    players: [...players]
+  if (tournamentSettings.format === "league") {
+    return [{ name: "LEAGUE", shortName: "LEAGUE", players: [...players] }];
   }
-];
 
-}
+  // Before an Admin draw/generation, do not silently create groups from registration order.
+  if (!groupDrawState.generated || !Array.isArray(groupDrawState.groups) || !groupDrawState.groups.length) {
+    return Array.from({ length: count }, (_, i) => ({
+      name: "GROUP " + groupLetter(i),
+      shortName: groupLetter(i),
+      players: []
+    }));
+  }
 
-const sizes =
-calculateGroupSizes(
-players.length,
-count
-);
-
-let position = 0;
-
-for (let i = 0; i < count; i++) {
-
-const size = sizes[i] || 0;
-
-
-groups.push({
-
-  name:
-    "GROUP " + groupLetter(i),
-
-  shortName:
-    groupLetter(i),
-
-  players:
-    players.slice(
-      position,
-      position + size
-    )
-
-});
-
-
-position += size;
-
-}
-
-return groups;
-
+  return groupDrawState.groups.map((group, i) => ({
+    name: "GROUP " + (group.shortName || groupLetter(i)),
+    shortName: group.shortName || groupLetter(i),
+    players: (group.playerIds || []).map(id => players.find(p => p.id === id)).filter(Boolean)
+  }));
 }
 
 // =====================================================
@@ -971,7 +1166,7 @@ if (description) {
 
 description.textContent =
   groups.length +
-  " groups • Players distributed automatically";
+  (groupDrawState.generated ? " groups • Draw published" : " groups • Waiting for Admin draw");
 
 }
 
@@ -1095,9 +1290,13 @@ card.innerHTML =
 
   "<div class='match-status'>" +
 
-  (match.played
-      ? "<span class='public-score'>" + match.homeGoals + " - " + match.awayGoals + "</span>"
-      : "<span class='upcoming-score'>UPCOMING</span>"
+  (
+    match.played
+      ? "🏆 " +
+        match.homeGoals +
+        " - " +
+        match.awayGoals
+      : "UPCOMING"
   ) +
 
   "</div>";
@@ -2294,111 +2493,30 @@ async function viewArchivedSeason(seasonId) {
     const history = document.getElementById("seasonArchiveDetails");
     if (!history) return;
 
-    const [playersSnap, matchesSnap, tournamentSnap, settingsSnap, nominationsSnap] = await Promise.all([
+    const [playersSnap, matchesSnap, tournamentSnap, settingsSnap] = await Promise.all([
       getDocs(collection(db, "seasonArchives", seasonId, "registrations")),
       getDocs(collection(db, "seasonArchives", seasonId, "matches")),
       getDocs(collection(db, "seasonArchives", seasonId, "tournament")),
-      getDocs(collection(db, "seasonArchives", seasonId, "settings")),
-      getDocs(collection(db, "seasonArchives", seasonId, "awardNominations"))
+      getDocs(collection(db, "seasonArchives", seasonId, "settings"))
     ]);
 
-    const archivedPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const archivedMatches = matchesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const archivedPlayers = playersSnap.docs.map(d => d.data());
+    const archivedMatches = matchesSnap.docs.map(d => d.data());
     const played = archivedMatches.filter(m => m.played);
     const goals = played.reduce((sum,m) => sum + Number(m.homeGoals || 0) + Number(m.awayGoals || 0), 0);
     const final = played.filter(m => String(m.group || "").toLowerCase() === "final").slice(-1)[0];
 
-    const table = {};
-    archivedPlayers.forEach(p => {
-      const name = p.username || p.name || "PLAYER";
-      table[name] = { name, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, PTS: 0, GD: 0 };
-    });
-    played.forEach(m => {
-      const h = table[m.homePlayer], a = table[m.awayPlayer];
-      if (!h || !a) return;
-      const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
-      h.P++; a.P++; h.GF += hg; h.GA += ag; a.GF += ag; a.GA += hg;
-      if (hg > ag) { h.W++; a.L++; h.PTS += 3; }
-      else if (hg < ag) { a.W++; h.L++; a.PTS += 3; }
-      else { h.D++; a.D++; h.PTS++; a.PTS++; }
-      h.GD = h.GF - h.GA; a.GD = a.GF - a.GA;
-    });
-    const tableRows = Object.values(table).sort((a,b) => b.PTS-a.PTS || b.GD-a.GD || b.GF-a.GF || a.name.localeCompare(b.name));
-
-    const scorerMap = {};
-    archivedPlayers.forEach(p => scorerMap[p.username || p.name || "PLAYER"] = 0);
-    played.forEach(m => {
-      if (scorerMap[m.homePlayer] != null) scorerMap[m.homePlayer] += Number(m.homeGoals || 0);
-      if (scorerMap[m.awayPlayer] != null) scorerMap[m.awayPlayer] += Number(m.awayGoals || 0);
-    });
-    const topScorer = Object.entries(scorerMap).sort((a,b)=>b[1]-a[1])[0];
-
-    history.innerHTML = `
-      <div class="season-detail-card season-archive-full">
-        <div class="season-detail-hero"><span>SEASON</span><strong>${escapeHTML(season.seasonNumber || "?")}</strong></div>
-        <div class="season-detail-stats">
-          <div><span>PLAYERS</span><strong>${archivedPlayers.length}</strong></div>
-          <div><span>FIXTURES</span><strong>${archivedMatches.length}</strong></div>
-          <div><span>PLAYED</span><strong>${played.length}</strong></div>
-          <div><span>GOALS</span><strong>${goals}</strong></div>
-          <div><span>TOP SCORER</span><strong>${escapeHTML(topScorer ? `${topScorer[0]} (${topScorer[1]})` : "Not recorded")}</strong></div>
-          <div><span>FINAL</span><strong>${escapeHTML(final ? `${final.homePlayer || "TBD"} ${final.homeGoals ?? "-"} - ${final.awayGoals ?? "-"} ${final.awayPlayer || "TBD"}` : "Not recorded")}</strong></div>
-        </div>
-
-        <div class="archive-block">
-          <h4>📊 FINAL STANDINGS</h4>
-          <div class="archive-table-wrap"><table class="archive-table"><thead><tr><th>#</th><th>PLAYER</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>PTS</th></tr></thead><tbody>
-            ${tableRows.map((r,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(r.name)}</td><td>${r.P}</td><td>${r.W}</td><td>${r.D}</td><td>${r.L}</td><td>${r.GF}</td><td>${r.GA}</td><td>${r.GD}</td><td><strong>${r.PTS}</strong></td></tr>`).join("")}
-          </tbody></table></div>
-        </div>
-
-        <div class="archive-block">
-          <h4>⚽ SEASON RESULTS</h4>
-          <div class="archive-results-list">
-            ${archivedMatches.map(m=>`<div class="archive-result-row"><span>#${escapeHTML(m.matchNumber ?? "-")} • ${escapeHTML(m.group || "LEAGUE")}</span><strong>${escapeHTML(m.homePlayer || "TBD")} <b>${m.played ? `${m.homeGoals} - ${m.awayGoals}` : "VS"}</b> ${escapeHTML(m.awayPlayer || "TBD")}</strong><small>${escapeHTML(m.date || "TBD")} ${escapeHTML(m.time || "")}</small></div>`).join("") || '<div class="loading">No fixtures archived.</div>'}
-          </div>
-        </div>
-
-        <div class="archive-block">
-          <h4>🏆 SEASON AWARDS</h4>
-          <div class="archive-awards-grid">
-            ${(() => {
-              const archivedStats = {};
-              archivedPlayers.forEach(p => archivedStats[p.id] = { id:p.id, name:p.username || p.name || "PLAYER", GF:0, GA:0, W:0, cleanSheets:0, P:0 });
-              const nameMap = new Map(archivedPlayers.map(p => [String(p.username || p.name || "").toLowerCase(), p.id]));
-              played.forEach(m => {
-                const hi = nameMap.get(String(m.homePlayer || "").toLowerCase()), ai = nameMap.get(String(m.awayPlayer || "").toLowerCase());
-                if (!hi || !ai) return;
-                const hg=Number(m.homeGoals||0), ag=Number(m.awayGoals||0), h=archivedStats[hi], a=archivedStats[ai];
-                h.P++; a.P++; h.GF+=hg; h.GA+=ag; a.GF+=ag; a.GA+=hg;
-                if (ag===0) h.cleanSheets++;
-                if (hg===0) a.cleanSheets++;
-                if(hg>ag) h.W++; else if(ag>hg) a.W++;
-              });
-              const rows = Object.values(archivedStats);
-              const top = rows.slice().sort((a,b)=>b.GF-a.GF||b.W-a.W)[0];
-              const defender = rows.slice().sort((a,b)=>b.cleanSheets-a.cleanSheets||a.GA-b.GA||b.W-a.W)[0];
-              const wins = rows.slice().sort((a,b)=>b.W-a.W||b.GF-a.GF)[0];
-              const winnerMap = season.awardVoting?.winners || {};
-              const votedCards = VOTED_AWARD_KEYS.map(category => {
-                const id = winnerMap[category]; const p = archivedPlayers.find(x=>x.id===id);
-                return `<div class="archive-award-item"><span>${AWARD_CATEGORIES[category].icon}</span><strong>${escapeHTML(AWARD_CATEGORIES[category].title)}</strong><b>${escapeHTML(p ? (p.username||p.name) : "Not declared")}</b></div>`;
-              }).join("");
-              return `<div class="archive-award-item"><span>🏆</span><strong>Champion</strong><b>${escapeHTML(season.champion?.name || (final ? (Number(final.homeGoals)>Number(final.awayGoals)?final.homePlayer:final.awayPlayer) : "Not recorded"))}</b></div>
-                <div class="archive-award-item"><span>⚽</span><strong>Top Scorer</strong><b>${escapeHTML(top?.name || "Not recorded")}</b></div>
-                <div class="archive-award-item"><span>🛡️</span><strong>Best Defender</strong><b>${escapeHTML(defender?.name || "Not recorded")}</b></div>
-                <div class="archive-award-item"><span>🏅</span><strong>Most Wins</strong><b>${escapeHTML(wins?.name || "Not recorded")}</b></div>${votedCards}`;
-            })()}
-          </div>
-          <div class="archive-award-note">${escapeHTML(season.awardVoting?.ended ? "Fan voting was closed and winners were declared." : "Voting state preserved with this season.")}</div>
-        </div>
-
-        <small>Complete Season ${escapeHTML(season.seasonNumber || "?")} history is preserved. Starting another season does not overwrite these players, fixtures, results or standings.</small>
-      </div>`;
+    history.innerHTML = `<div class="season-detail-card">
+      <div><span>SEASON</span><strong>${escapeHTML(season.seasonNumber || "?")}</strong></div>
+      <div><span>PLAYERS</span><strong>${archivedPlayers.length}</strong></div>
+      <div><span>FIXTURES</span><strong>${archivedMatches.length}</strong></div>
+      <div><span>PLAYED</span><strong>${played.length}</strong></div>
+      <div><span>GOALS</span><strong>${goals}</strong></div>
+      <div><span>FINAL</span><strong>${escapeHTML(final ? `${final.homePlayer || "TBD"} ${final.homeGoals ?? "-"} - ${final.awayGoals ?? "-"} ${final.awayPlayer || "TBD"}` : "Not recorded")}</strong></div>
+      <small>All original Season ${escapeHTML(season.seasonNumber || "?")} registrations, fixtures, results, tournament records, settings, nominations and votes are preserved in this archive.</small>
+    </div>`;
   } catch (error) {
     console.error("Archived season view error:", error);
-    const history = document.getElementById("seasonArchiveDetails");
-    if (history) history.innerHTML = `<div class="loading">Could not load this archived season.</div>`;
   }
 }
 
@@ -2413,9 +2531,9 @@ let awardVotesUnsubscribe = null;
 let awardVotingState = { ended: false, endedAt: null, winners: {} };
 
 const AWARD_CATEGORIES = {
-  playerOfTournament: { title: "Player of the Tournament", icon: "⭐", accent: "award-star", type: "voted", description: "Fan-voted award. Admin chooses any 3 players." },
-  upcomingPlayer: { title: "Upcoming Player", icon: "🚀", accent: "award-rising", type: "voted", description: "Fan-voted emerging talent. Admin chooses any 3 players." },
-  fanPriority: { title: "Fan's Priority Player", icon: "❤️", accent: "award-priority", type: "voted", description: "Purely decided by the fans. Admin chooses any 3 players." },
+  playerOfTournament: { title: "Player of the Tournament", icon: "⭐", accent: "award-star", type: "voted", description: "Fan-voted award. Admin publishes three finalists." },
+  upcomingPlayer: { title: "Upcoming Player", icon: "🚀", accent: "award-rising", type: "voted", description: "Fan-voted emerging talent. Admin publishes three finalists." },
+  fanPriority: { title: "Fan's Priority Player", icon: "❤️", accent: "award-priority", type: "voted", description: "Purely decided by the fans. Admin publishes three finalists." },
   goldenBoot: { title: "Golden Boot / Top Scorer", icon: "⚽", accent: "award-gold", type: "automatic", description: "Automatically awarded to the player with the most goals." },
   bestDefender: { title: "Best Defender", icon: "🛡️", accent: "award-defender", type: "automatic", description: "Automatically calculated from clean sheets and goals conceded." },
   mostWins: { title: "Most Wins", icon: "🏅", accent: "award-wins", type: "automatic", description: "Automatically awarded to the player with the most wins." }
@@ -2548,17 +2666,15 @@ async function loadAwardNominations(stats) {
   try {
     const snap = await getDoc(doc(db, "awardNominations", "current"));
     const saved = snap.exists() ? (snap.data().nominations || {}) : {};
+    const defaults = getDefaultNominations(stats);
     awardNominations = {};
     VOTED_AWARD_KEYS.forEach((category) => {
-      const valid = Array.isArray(saved[category])
-        ? saved[category].filter((id) => stats.some((item) => item.id === id))
-        : [];
-      awardNominations[category] = valid.length === 3 ? valid : [];
+      const valid = Array.isArray(saved[category]) ? saved[category].filter((id) => stats.some((item) => item.id === id)) : [];
+      awardNominations[category] = valid.length === 3 ? valid : defaults[category];
     });
   } catch (error) {
-    console.warn("Award nominations unavailable; no finalists published.", error);
-    awardNominations = {};
-    VOTED_AWARD_KEYS.forEach((category) => { awardNominations[category] = []; });
+    console.warn("Award nominations unavailable; using automatic top-three suggestions.", error);
+    awardNominations = getDefaultNominations(stats);
   }
 }
 
@@ -2670,22 +2786,20 @@ function renderAwardVoting(stats) {
   if (!container) return;
   const voted = JSON.parse(localStorage.getItem("donBoscoAwardVoter") || "{}");
   const categories = VOTED_AWARD_KEYS.map((category) => [category, AWARD_CATEGORIES[category]]);
+  if (!categories.some(([category]) => (awardNominations[category] || []).length === 3)) {
+    container.innerHTML = `<div class="loading">Admin has not published three finalists for the fan-voted awards yet.</div>`;
+    return;
+  }
   container.innerHTML = categories.map(([category, config]) => {
     const ids = awardNominations[category] || [];
     const counts = awardVoteCounts[category] || {};
     const candidates = ids.map((id) => stats.find((item) => item.id === id)).filter(Boolean);
-    if (candidates.length !== 3) {
-      return `<section class="award-vote-category ${config.accent}">
-        <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>WAITING FOR ADMIN NOMINATIONS</small></div>
-        <div class="vote-empty-state">Admin must choose exactly 3 players for this award before voting opens.</div>
-      </section>`;
-    }
     const hasVoted = Boolean(voted[category]);
     const votingEnded = Boolean(awardVotingState.ended);
     const showResults = hasVoted || votingEnded;
     const totalVotes = candidates.reduce((sum, item) => sum + (counts[item.id] || 0), 0);
     return `<section class="award-vote-category ${config.accent}">
-      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${votingEnded ? "VOTING CLOSED • FINAL RESULTS" : (hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three players")}</small></div>
+      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${votingEnded ? "VOTING CLOSED • FINAL RESULTS" : (hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three finalists")}</small></div>
       <div class="vote-candidates">${candidates.map((item) => {
         const initials = item.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
         const votes = counts[item.id] || 0;
@@ -2755,11 +2869,11 @@ function renderAwardNominationManager(stats) {
     return `<div class="nomination-category">
       <div>
         <strong>${config.icon} ${escapeHTML(config.title)}</strong>
-        <small>Choose any 3 active players you want. They can be different in every award category.</small>
+        <small>Admin can freely choose any 3 active players for this award.</small>
       </div>
       <div class="nomination-selects">${[0,1,2].map((index) => `
-        <select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} player choice ${index + 1}">
-          <option value="">Choose player</option>
+        <select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} nominee ${index + 1}">
+          <option value="">Choose player ${index + 1}</option>
           ${options}
         </select>`).join("")}
       </div>
@@ -2824,11 +2938,6 @@ async function endAwardVotes() {
   for (const category of VOTED_AWARD_KEYS) {
     const ids = awardNominations[category];
     const counts = awardVoteCounts[category] || {};
-    const totalVotes = ids.reduce((sum, id) => sum + Number(counts[id] || 0), 0);
-    if (totalVotes < 1) {
-      showMessage(message, `⚠️ ${AWARD_CATEGORIES[category].title} has no votes yet. Fans must vote before you can declare winners.`, "error");
-      return;
-    }
     const winnerId = ids.slice().sort((a, b) => {
       const diff = (counts[b] || 0) - (counts[a] || 0);
       if (diff) return diff;
@@ -2997,22 +3106,21 @@ function renderPlayerDashboard(search = "") {
 // POWER RANKING
 // =====================================================
 
-function getSeasonStandingsForPowerRanking(playerList = players, matchList = matches) {
+function getSeasonStandingsForPowerRanking() {
   const stats = {};
-  playerList.forEach(p => {
+  players.forEach(p => {
     stats[p.id] = { id: p.id, name: getPlayerName(p), pts: 0, gd: 0, gf: 0 };
   });
-  const byName = new Map(playerList.map(p => [getPlayerName(p).toLowerCase(), p]));
-  matchList.filter(m => m.played).forEach(m => {
-    const hp = byName.get(String(m.homePlayer || "").toLowerCase());
-    const ap = byName.get(String(m.awayPlayer || "").toLowerCase());
+  matches.filter(m => m.played).forEach(m => {
+    const hp = players.find(p => getPlayerName(p) === m.homePlayer);
+    const ap = players.find(p => getPlayerName(p) === m.awayPlayer);
     if (!hp || !ap) return;
     const h = stats[hp.id], a = stats[ap.id];
     const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
     h.gf += hg; a.gf += ag; h.gd += hg-ag; a.gd += ag-hg;
     if (hg > ag) h.pts += 3; else if (hg < ag) a.pts += 3; else { h.pts++; a.pts++; }
   });
-  return Object.values(stats).sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf || a.name.localeCompare(b.name));
+  return Object.values(stats).sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
 }
 
 function seasonPlacementPoints(rank, total, format) {
@@ -3020,27 +3128,25 @@ function seasonPlacementPoints(rank, total, format) {
     const mapped = [5, 4, 2, 1];
     return mapped[rank - 1] || 0;
   }
-  // League: 8 points for 1st, then 7, 6 ... down to 1, scaled to any league size.
+  // League: an 8-to-1 placement ladder, scaled to any league size.
   if (total <= 1) return 8;
   return Math.max(1, 8 - Math.floor(((rank - 1) * 7) / total));
 }
 
 async function updatePowerRankingsFromCurrentSeason() {
-  if (players.length === 0) return;
+  if (currentSeasonNumber < 1 || players.length === 0) return;
   const seasonKey = `season${currentSeasonNumber}`;
+  const standings = getSeasonStandingsForPowerRanking();
+  const groupData = tournamentSettings.format === "groups" ? getGroups() : null;
   const placementMap = {};
 
-  if (tournamentSettings.format === "groups") {
-    const groupData = getGroups();
+  if (tournamentSettings.format === "groups" && groupData?.length) {
     groupData.forEach(group => {
-      const groupPlayers = group.players || [];
-      const groupNames = new Set(groupPlayers.map(p => getPlayerName(p).toLowerCase()));
-      const groupMatches = matches.filter(m => m.played && groupNames.has(String(m.homePlayer || "").toLowerCase()) && groupNames.has(String(m.awayPlayer || "").toLowerCase()) && (!m.group || String(m.group || "").toUpperCase() === String(group.shortName || group.name || "").toUpperCase()));
-      const rows = getSeasonStandingsForPowerRanking(groupPlayers, groupMatches);
+      const names = new Set(group.players.map(p => getPlayerName(p)));
+      const rows = standings.filter(s => names.has(s.name));
       rows.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups"); });
     });
   } else {
-    const standings = getSeasonStandingsForPowerRanking(players, matches);
     standings.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, standings.length, "league"); });
   }
 
@@ -3050,8 +3156,8 @@ async function updatePowerRankingsFromCurrentSeason() {
 
   for (const p of players) {
     const old = existing[p.id] || { totalPoints: 0, seasons: {} };
-    if (Object.prototype.hasOwnProperty.call(old.seasons || {}, seasonKey)) continue;
-    const earned = Number(placementMap[p.id] || 0);
+    if (old.seasons?.[seasonKey]) continue;
+    const earned = placementMap[p.id] || 0;
     const seasons = { ...(old.seasons || {}) };
     seasons[seasonKey] = earned;
     await setDoc(doc(db, "powerRankings", p.id), {
