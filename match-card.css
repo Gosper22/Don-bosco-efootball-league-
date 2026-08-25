@@ -1,0 +1,22 @@
+/* Don Bosco Match Card — isolated override. No JS changes. */
+.fixture{
+  display:block!important;
+  position:relative!important;
+  box-sizing:border-box!important;
+  width:100%!important;
+  padding:24px 20px 20px!important;
+  margin:14px 0!important;
+  border-radius:20px!important;
+  overflow:hidden!important;
+  background:linear-gradient(145deg,#091009,#111a12)!important;
+  border:1px solid rgba(57,255,20,.24)!important;
+  box-shadow:0 12px 30px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.03)!important;
+}
+.fixture:before{content:"";position:absolute;top:0;left:5%;right:5%;height:3px;background:linear-gradient(90deg,transparent,#39ff14,transparent);}
+.fixture-players{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;align-items:center!important;gap:12px!important;width:100%!important;}
+.fixture-players strong{display:block!important;color:#fff!important;font-size:clamp(17px,4vw,25px)!important;font-weight:900!important;line-height:1.12!important;overflow-wrap:anywhere!important;}
+.fixture-players strong:first-child{text-align:right!important}.fixture-players strong:last-child{text-align:left!important}
+.fixture-players span{display:flex!important;align-items:center!important;justify-content:center!important;min-width:50px!important;height:36px!important;padding:0 10px!important;border-radius:999px!important;background:rgba(57,255,20,.09)!important;border:1px solid rgba(57,255,20,.25)!important;color:#39ff14!important;font-size:13px!important;font-weight:950!important;}
+.match-schedule{display:block!important;width:100%!important;margin:16px 0 12px!important;text-align:center!important;color:#aeb8ae!important;font-size:12px!important;font-weight:700!important;line-height:1.55!important;white-space:normal!important;}
+.match-status{display:block!important;width:100%!important;margin:0!important;text-align:center!important;color:#39ff14!important;font-size:clamp(40px,10vw,60px)!important;font-weight:1000!important;line-height:1!important;letter-spacing:-2px!important;text-shadow:0 0 18px rgba(57,255,20,.18),0 4px 18px rgba(0,0,0,.4)!important;white-space:nowrap!important;}
+@media(max-width:600px){.fixture{padding:22px 12px 18px!important;border-radius:18px!important}.fixture-players{gap:7px!important}.fixture-players strong{font-size:clamp(15px,5vw,21px)!important}.fixture-players span{min-width:44px!important;height:32px!important;font-size:11px!important}.match-schedule{margin:14px 0 10px!important;font-size:11px!important}.match-status{font-size:clamp(38px,12vw,54px)!important}}
