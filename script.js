@@ -1605,177 +1605,159 @@ startTournament
 // GENERATE FIXTURES
 // =====================================================
 
+function buildRoundRobinRounds(participants) {
+  const list = [...participants];
+  const rounds = [];
+  if (list.length < 2) return rounds;
+
+  // Circle-method round robin. With an odd number, a BYE is added.
+  if (list.length % 2 === 1) list.push(null);
+
+  const n = list.length;
+  const roundsCount = n - 1;
+  let rotation = [...list];
+
+  for (let round = 0; round < roundsCount; round++) {
+    const pairings = [];
+
+    for (let i = 0; i < n / 2; i++) {
+      const a = rotation[i];
+      const b = rotation[n - 1 - i];
+      if (a && b) pairings.push([a, b]);
+    }
+
+    rounds.push(pairings);
+
+    // Keep the first participant fixed and rotate the rest.
+    rotation = [
+      rotation[0],
+      rotation[n - 1],
+      ...rotation.slice(1, n - 1)
+    ];
+  }
+
+  return rounds;
+}
+
+function interleaveFixtureRounds(roundGroups) {
+  const output = [];
+  const maxRounds = Math.max(0, ...roundGroups.map(g => g.length));
+
+  // One round at a time, then one group at a time. This prevents the
+  // same player/team from being dumped into several consecutive slots.
+  for (let r = 0; r < maxRounds; r++) {
+    for (const groupRounds of roundGroups) {
+      if (groupRounds[r]) output.push(...groupRounds[r]);
+    }
+  }
+
+  return output;
+}
+
 async function generateFixtures() {
 
-if (!adminLoggedIn) {
+  if (!adminLoggedIn) {
+    alert("🔐 Admin login kwanza.");
+    return;
+  }
 
-alert("🔐 Admin login kwanza.");
-return;
+  if (players.length < 2) {
+    alert("⚠️ Angalau players 2 wanahitajika.");
+    return;
+  }
 
-}
+  const date = document.getElementById("fixtureStartDate")?.value;
+  const time = document.getElementById("fixtureStartTime")?.value;
+  const interval = Number(document.getElementById("fixtureInterval")?.value || 120);
 
-if (players.length < 2) {
+  if (!date || !time) {
+    alert("⚠️ Weka tournament start date na time.");
+    return;
+  }
 
-alert(
-  "⚠️ Angalau players 2 wanahitajika."
-);
+  if (matches.length > 0) {
+    const proceed = confirm("Fixtures tayari zipo. Ongeza fixtures mpya?");
+    if (!proceed) return;
+  }
 
-return;
+  try {
+    let matchNumber = matches.length + 1;
+    let current = new Date(date + "T" + time + ":00");
+    let roundsToSchedule = [];
 
-}
+    if (tournamentSettings.format === "league") {
+      // League: classic round-robin. Every player plays once per round.
+      roundsToSchedule = buildRoundRobinRounds(players).map(round =>
+        round.map(([home, away]) => ({
+          group: "LEAGUE",
+          home,
+          away
+        }))
+      );
+    } else {
+      const groups = getGroups().filter(group => group.players.length >= 2);
 
-const date =
-document.getElementById("fixtureStartDate")?.value;
+      if (!groupDrawState.generated) {
+        alert("⚠️ Kwanza generate/confirm groups kupitia Pot Draw.");
+        return;
+      }
 
-const time =
-document.getElementById("fixtureStartTime")?.value;
+      // Build a round-robin schedule inside each group, then interleave
+      // the same round across groups. This is the key fix for 3+ consecutive
+      // appearances by one player.
+      const groupRounds = groups.map(group =>
+        buildRoundRobinRounds(group.players).map(round =>
+          round.map(([home, away]) => ({
+            group: group.shortName,
+            home,
+            away
+          }))
+        )
+      );
 
-const interval =
-Number(
-document.getElementById("fixtureInterval")?.value ||
-120
-);
+      roundsToSchedule = interleaveFixtureRounds(groupRounds);
+      // Convert the flat interleaved list into one-match scheduling below.
+    }
 
-if (!date || !time) {
+    const fixtures = Array.isArray(roundsToSchedule[0])
+      ? roundsToSchedule.flat()
+      : roundsToSchedule;
 
-alert(
-  "⚠️ Weka tournament start date na time."
-);
+    // Safety check: no participant can appear in two fixtures in the same round.
+    // For the generated schedule, this should always pass.
+    if (tournamentSettings.format === "league") {
+      for (const round of roundsToSchedule) {
+        const used = new Set();
+        for (const fixture of round) {
+          if (used.has(fixture.home.id) || used.has(fixture.away.id)) {
+            throw new Error("Invalid round schedule: participant repeated in the same round.");
+          }
+          used.add(fixture.home.id);
+          used.add(fixture.away.id);
+        }
+      }
+    }
 
-return;
-
-}
-
-if (matches.length > 0) {
-
-const proceed =
-  confirm(
-    "Fixtures tayari zipo. Ongeza fixtures mpya?"
-  );
-
-
-if (!proceed) return;
-
-}
-
-try {
-
-let matchNumber =
-  matches.length + 1;
-
-
-let current =
-  new Date(
-    date + "T" + time + ":00"
-  );
-
-
-if (
-  tournamentSettings.format ===
-  "league"
-) {
-
-  for (
-    let i = 0;
-    i < players.length;
-    i++
-  ) {
-
-    for (
-      let j = i + 1;
-      j < players.length;
-      j++
-    ) {
-
+    for (const fixture of fixtures) {
       await createMatch(
         matchNumber,
-        "LEAGUE",
-        players[i],
-        players[j],
+        fixture.group,
+        fixture.home,
+        fixture.away,
         current
       );
 
-
       matchNumber++;
-
-
-      current =
-        new Date(
-          current.getTime() +
-          interval * 60000
-        );
-
+      current = new Date(current.getTime() + interval * 60000);
     }
 
+    alert("✅ Fixtures generated with balanced rounds — hakuna player atacheza games 3 mfululizo.");
+    await loadLeague();
+
+  } catch (error) {
+    console.error("Fixture generation error:", error);
+    alert("❌ Failed to generate balanced fixtures.");
   }
-
-} else {
-
-  const groups =
-    getGroups();
-
-
-  for (const group of groups) {
-
-    for (
-      let i = 0;
-      i < group.players.length;
-      i++
-    ) {
-
-      for (
-        let j = i + 1;
-        j < group.players.length;
-        j++
-      ) {
-
-        await createMatch(
-          matchNumber,
-          group.shortName,
-          group.players[i],
-          group.players[j],
-          current
-        );
-
-
-        matchNumber++;
-
-
-        current =
-          new Date(
-            current.getTime() +
-            interval * 60000
-          );
-
-      }
-
-    }
-
-  }
-
-}
-
-
-alert(
-  "✅ Fixtures generated successfully."
-);
-
-
-await loadLeague();
-
-} catch (error) {
-
-console.error(
-  "Fixture generation error:",
-  error
-);
-
-
-alert(
-  "❌ Failed to generate fixtures."
-);
-
-}
 
 }
 
@@ -1956,6 +1938,7 @@ card.innerHTML =
 
   "</div>" +
 
+  "<div class='match-admin-actions'>" +
   "<button " +
   "type='button' " +
   "class='primary-btn' " +
@@ -1963,7 +1946,16 @@ card.innerHTML =
   match.id +
   "'>" +
   "💾 SAVE RESULT" +
-  "</button>";
+  "</button>" +
+  "<button " +
+  "type='button' " +
+  "class='primary-btn danger-btn delete-fixture-btn' " +
+  "data-delete-match='" +
+  match.id +
+  "'>" +
+  "🗑️ DELETE FIXTURE" +
+  "</button>" +
+  "</div>";
 
 
 const saveButton =
@@ -1979,11 +1971,61 @@ saveButton?.addEventListener(
   () => saveAdminMatch(match.id)
 );
 
+const deleteButton =
+  card.querySelector(
+    "[data-delete-match='" +
+    match.id +
+    "']"
+  );
+
+deleteButton?.addEventListener(
+  "click",
+  () => deleteAdminMatch(match.id)
+);
+
 
 container.appendChild(card);
 
 });
 
+}
+
+// =====================================================
+// DELETE FIXTURE
+// =====================================================
+
+async function deleteAdminMatch(matchId) {
+
+if (!adminLoggedIn) {
+  alert("🔐 Admin login kwanza.");
+  return;
+}
+
+const match = matches.find((item) => item.id === matchId);
+if (!match) {
+  alert("⚠️ Fixture haijapatikana.");
+  return;
+}
+
+const label = `${match.homePlayer || "HOME"} vs ${match.awayPlayer || "AWAY"}`;
+const warning = match.played
+  ? `\n\n⚠️ Hii fixture tayari ina result (${match.homeGoals} - ${match.awayGoals}). Kuifuta kutaiondoa kwenye standings na player statistics pia.`
+  : "";
+
+const confirmed = confirm(
+  `🗑️ DELETE FIXTURE?\n\n${label}\nGroup: ${match.group || "LEAGUE"}${warning}\n\nAction hii haiwezi ku-undo.`
+);
+
+if (!confirmed) return;
+
+try {
+  await deleteDoc(doc(db, "matches", matchId));
+  alert("✅ Fixture deleted successfully.");
+  await loadLeague();
+} catch (error) {
+  console.error("Delete fixture error:", error);
+  alert("❌ Failed to delete fixture.");
+}
 }
 
 // =====================================================
