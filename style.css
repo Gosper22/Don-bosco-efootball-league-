@@ -1543,3 +1543,53 @@ a {
 .fixture-delete-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .fixture-delete-hint{opacity:.72;font-size:.82rem}
 .admin-match-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+
+/* MATCH CARD VISUAL UPGRADE — layout unchanged */
+.fixture {
+  position: relative;
+  min-height: 112px;
+  padding: 22px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 12px 28px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+.fixture::before {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+  opacity: .8;
+}
+.fixture-players strong {
+  font-size: clamp(17px, 2.2vw, 23px);
+  font-weight: 900;
+  letter-spacing: -.25px;
+  line-height: 1.15;
+}
+.fixture-players span {
+  min-width: 58px;
+  padding: 8px 10px;
+  text-align: center;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  font-size: 13px;
+  letter-spacing: .08em;
+}
+.match-status {
+  min-width: 112px;
+  font-size: clamp(22px, 3.2vw, 34px);
+  line-height: 1;
+  letter-spacing: -.8px;
+  text-shadow: 0 3px 15px rgba(0,0,0,.28);
+}
+.match-schedule {
+  font-size: 12px;
+  line-height: 1.6;
+}
+@media (max-width: 600px) {
+  .fixture { padding: 20px 14px; min-height: 108px; }
+  .fixture-players { gap: 8px; }
+  .fixture-players strong { font-size: 16px; }
+  .fixture-players span { min-width: 48px; padding: 7px 8px; }
+  .match-status { font-size: 28px; }
+}
