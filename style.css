@@ -1742,3 +1742,150 @@ a {
     letter-spacing: -1.5px !important;
   }
 }
+
+
+/* CLEAN MATCH CARD FIX */
+/* Keeps the original vertical card layout; only improves typography/decor. */
+
+.fixture{
+  display:block !important;
+  position:relative !important;
+  width:100% !important;
+  box-sizing:border-box !important;
+  min-height:0 !important;
+  padding:28px 22px 24px !important;
+  margin:14px 0 !important;
+  border-radius:22px !important;
+  background:linear-gradient(145deg,#0b110c,#0e160f) !important;
+  border:1px solid rgba(57,255,20,.22) !important;
+  box-shadow:0 12px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.025) !important;
+  overflow:hidden !important;
+}
+
+.fixture::before{
+  content:"" !important;
+  position:absolute !important;
+  top:0 !important;
+  left:7% !important;
+  right:7% !important;
+  height:3px !important;
+  border-radius:0 0 8px 8px !important;
+  background:linear-gradient(90deg,transparent,#39ff14,transparent) !important;
+}
+
+.fixture::after{
+  content:"" !important;
+  position:absolute !important;
+  left:50% !important;
+  top:45% !important;
+  width:180px !important;
+  height:100px !important;
+  transform:translate(-50%,-50%) !important;
+  background:rgba(57,255,20,.045) !important;
+  filter:blur(35px) !important;
+  pointer-events:none !important;
+}
+
+.fixture-players{
+  position:relative !important;
+  z-index:1 !important;
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) !important;
+  align-items:center !important;
+  gap:14px !important;
+  width:100% !important;
+  margin:0 !important;
+}
+
+.fixture-players strong{
+  display:block !important;
+  color:#f7faf7 !important;
+  font-size:clamp(18px,4vw,26px) !important;
+  font-weight:900 !important;
+  line-height:1.15 !important;
+  letter-spacing:-.4px !important;
+  overflow-wrap:anywhere !important;
+}
+
+.fixture-players strong:first-child{text-align:right !important}
+.fixture-players strong:last-child{text-align:left !important}
+
+.fixture-players span{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-width:52px !important;
+  height:38px !important;
+  padding:0 12px !important;
+  border-radius:999px !important;
+  background:rgba(57,255,20,.09) !important;
+  border:1px solid rgba(57,255,20,.22) !important;
+  color:#39ff14 !important;
+  font-size:14px !important;
+  font-weight:950 !important;
+}
+
+.match-schedule{
+  position:relative !important;
+  z-index:1 !important;
+  display:block !important;
+  width:100% !important;
+  margin:20px 0 14px !important;
+  padding:8px 4px !important;
+  color:#aeb8ae !important;
+  font-size:13px !important;
+  font-weight:700 !important;
+  line-height:1.55 !important;
+  text-align:center !important;
+  white-space:normal !important;
+}
+
+.match-status{
+  position:relative !important;
+  z-index:1 !important;
+  display:block !important;
+  width:100% !important;
+  min-width:0 !important;
+  margin:0 auto !important;
+  padding:8px 10px !important;
+  box-sizing:border-box !important;
+  color:#39ff14 !important;
+  font-size:clamp(42px,9vw,64px) !important;
+  font-weight:1000 !important;
+  line-height:1 !important;
+  letter-spacing:-2px !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+  text-shadow:0 0 18px rgba(57,255,20,.15),0 4px 18px rgba(0,0,0,.4) !important;
+}
+
+.fixture:hover{
+  border-color:rgba(57,255,20,.35) !important;
+  box-shadow:0 16px 36px rgba(0,0,0,.34),0 0 18px rgba(57,255,20,.05) !important;
+}
+
+@media(max-width:600px){
+  .fixture{
+    padding:24px 14px 20px !important;
+    border-radius:19px !important;
+  }
+  .fixture-players{
+    gap:8px !important;
+  }
+  .fixture-players strong{
+    font-size:clamp(16px,5vw,21px) !important;
+  }
+  .fixture-players span{
+    min-width:45px !important;
+    height:34px !important;
+    padding:0 9px !important;
+    font-size:12px !important;
+  }
+  .match-schedule{
+    margin:17px 0 11px !important;
+    font-size:11px !important;
+  }
+  .match-status{
+    font-size:clamp(38px,11vw,52px) !important;
+  }
+}
