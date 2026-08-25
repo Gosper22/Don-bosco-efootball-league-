@@ -6,11 +6,11 @@ collection,
 addDoc,
 getDocs,
 getDoc,
-updateDoc,
 setDoc,
+updateDoc,
 doc,
 serverTimestamp,
-runTransaction
+onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 // =====================================================
@@ -37,142 +37,11 @@ let players = [];
 let matches = [];
 let tournamentStarted = false;
 let adminLoggedIn = false;
-let settingsDocId = null;
-let potState = { pot1Locked: false, pot2Locked: false, pot3Locked: false, groupingLocked: false };
-let knockoutStages = [];
-let hallOfFame = [];
-let seasons = [];
-let activeSeasonId = null;
-let activeSeason = null;
 
 let tournamentSettings = {
 format: "groups",
 groupCount: 2
 };
-
-async function ensureSeasons() {
-  try {
-    const snap = await getDocs(collection(db, "seasons"));
-    seasons = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    seasons.sort((a,b) => Number(a.number || 0) - Number(b.number || 0));
-
-    if (!seasons.length) {
-      const ref = await addDoc(collection(db, "seasons"), {
-        number: 1,
-        name: "Season 1",
-        status: "ONGOING",
-        createdAt: serverTimestamp()
-      });
-      seasons = [{ id: ref.id, number: 1, name: "Season 1", status: "ONGOING" }];
-    }
-
-    const preferred = activeSeasonId && seasons.find(s => s.id === activeSeasonId);
-    activeSeason = preferred || seasons.find(s => s.status === "ONGOING") || seasons.find(s => s.status === "UPCOMING") || seasons[seasons.length - 1];
-    activeSeasonId = activeSeason.id;
-  } catch (e) {
-    console.error("Seasons load error:", e);
-  }
-}
-
-function seasonMatches(data) {
-  return !data.seasonId ? (activeSeason?.number === 1) : data.seasonId === activeSeasonId;
-}
-
-async function createSeason() {
-  if (!adminLoggedIn) return;
-  const nextNumber = seasons.reduce((max, s) => Math.max(max, Number(s.number || 0)), 0) + 1;
-  const name = (prompt("Season name:", "Season " + nextNumber) || "").trim();
-  if (!name) return;
-
-  const ref = await addDoc(collection(db, "seasons"), {
-    number: nextNumber,
-    name,
-    status: "UPCOMING",
-    createdAt: serverTimestamp()
-  });
-
-  seasons.push({ id: ref.id, number: nextNumber, name, status: "UPCOMING" });
-  await selectSeason(ref.id);
-  alert("✅ " + name + " created as UPCOMING. Set it to ONGOING when ready.");
-}
-
-async function setSeasonOngoing(id) {
-  if (!adminLoggedIn) return;
-  const target = seasons.find(s => s.id === id);
-  if (!target) return;
-  if (!confirm("Set " + target.name + " to ONGOING? The current ONGOING season will become COMPLETED.")) return;
-
-  for (const s of seasons) {
-    if (s.id === id) {
-      await updateDoc(doc(db, "seasons", s.id), { status: "ONGOING", updatedAt: serverTimestamp() });
-      s.status = "ONGOING";
-    } else if (s.status === "ONGOING") {
-      await updateDoc(doc(db, "seasons", s.id), { status: "COMPLETED", updatedAt: serverTimestamp() });
-      s.status = "COMPLETED";
-    }
-  }
-  activeSeasonId = id;
-  activeSeason = seasons.find(s => s.id === id);
-  await loadLeague();
-  renderSeasonManager();
-}
-
-async function selectSeason(id) {
-  if (!adminLoggedIn) return;
-  const found = seasons.find(s => s.id === id);
-  if (!found) return;
-  activeSeasonId = id;
-  activeSeason = found;
-  await loadLeague();
-  renderSeasonManager();
-}
-
-function renderSeasonManager() {
-  const box = document.getElementById("seasonManagerContent");
-  if (!box || !adminLoggedIn) return;
-  box.innerHTML = `
-    <div class="season-active-banner">
-      <strong>Viewing: ${escapeHTML(activeSeason?.name || "")}</strong>
-      <span class="season-status ${String(activeSeason?.status || "").toLowerCase()}">${escapeHTML(activeSeason?.status || "")}</span>
-    </div>
-    <div class="season-list">
-      ${seasons.map(s => `
-        <div class="season-row ${s.id === activeSeasonId ? "selected" : ""}">
-          <div><strong>${escapeHTML(s.name)}</strong><span>${escapeHTML(s.status)}</span></div>
-          <div class="season-actions">
-            <button type="button" class="secondary-btn" data-select-season="${s.id}">VIEW</button>
-            ${s.status !== "ONGOING" ? `<button type="button" class="primary-btn" data-ongoing-season="${s.id}">SET ONGOING</button>` : ""}
-          </div>
-        </div>`).join("")}
-    </div>
-    <button type="button" id="createSeasonBtn" class="primary-btn">➕ CREATE NEW SEASON</button>`;
-  box.querySelectorAll("[data-select-season]").forEach(b => b.addEventListener("click", () => selectSeason(b.dataset.selectSeason)));
-  box.querySelectorAll("[data-ongoing-season]").forEach(b => b.addEventListener("click", () => setSeasonOngoing(b.dataset.ongoingSeason)));
-  document.getElementById("createSeasonBtn")?.addEventListener("click", createSeason);
-}
-
-async function loadKnockoutStages() {
-  try {
-    const snapshot = await getDocs(collection(db, "knockoutStages"));
-    knockoutStages = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(seasonMatches);
-    knockoutStages.sort((a,b) => Number(a.order || 0) - Number(b.order || 0));
-  } catch (e) { console.error("Knockout stages load error", e); knockoutStages = []; }
-}
-function knockoutRoundName(n) {
-  const names={2:"FINAL",4:"SEMIFINALS",8:"QUARTERFINALS",16:"ROUND OF 16",32:"ROUND OF 32"};
-  return names[n] || ("ROUND OF " + n);
-}
-function nextPowerOfTwo(n) { let p=1; while(p<n)p*=2; return p; }
-function currentKnockoutStage() { return knockoutStages.length ? knockoutStages[knockoutStages.length-1] : null; }
-function getKnockoutMatches(stageName) { return matches.filter(m=>m.stage==="knockout" && m.round===stageName); }
-function knockoutTieWinner(tie) {
-  if(!tie.length || tie.some(m=>!m.played)) return null;
-  let a=0,b=0; const home=tie[0].homePlayer, away=tie[0].awayPlayer;
-  tie.forEach(m=>{a+=Number(m.homeGoals||0);b+=Number(m.awayGoals||0);});
-  if(a>b)return home; if(b>a)return away;
-  return tie.find(m=>m.tieWinner)?.tieWinner || null;
-}
-function stageIsComplete(name) { const ms=getKnockoutMatches(name); return ms.length>0 && ms.every(m=>m.played); }
 
 // =====================================================
 // START
@@ -184,8 +53,7 @@ setupRegistration();
 setupAdminLogin();
 setupTournamentSettings();
 setupTournamentControls();
-setupPotManagement();
-setupKnockoutAdmin();
+setupAwardsAndVoting();
 setupHallOfFameAdmin();
 
 loadLeague();
@@ -240,6 +108,9 @@ const teamNumber =
 const name =
   document.getElementById("name")?.value.trim();
 
+const age =
+  Number(document.getElementById("age")?.value || 0);
+
 const phone =
   document.getElementById("phone")?.value.trim();
 
@@ -253,7 +124,7 @@ const submit =
   document.getElementById("submitBtn");
 
 
-if (!teamNumber || !name || !phone || !username) {
+if (!teamNumber || !name || !age || !phone || !username) {
 
   showMessage(
     message,
@@ -265,7 +136,19 @@ if (!teamNumber || !name || !phone || !username) {
 }
 
 
-if (activeSeason?.status === "COMPLETED" || tournamentStarted || potState.groupingLocked) {
+if (age < 13 || age > 60) {
+
+  showMessage(
+    message,
+    "⚠️ Age must be between 13 and 60.",
+    "error"
+  );
+
+  return;
+}
+
+
+if (tournamentStarted) {
 
   showMessage(
     message,
@@ -299,112 +182,59 @@ try {
   }
 
 
-  const normalizedUsername = normalizeKey(username);
-
   const sameTeam = players.some(
     (player) =>
       String(player.teamNumber || "") === teamNumber
   );
 
+
   if (sameTeam) {
+
     showMessage(
       message,
       "❌ Team number hiyo tayari imetumika.",
       "error"
     );
+
     resetSubmit(submit);
     return;
   }
 
-  const normalizedPhone = normalizePhone(phone);
-
-  const samePhone = players.some(
-    (player) => normalizePhone(player.phone || "") === normalizedPhone
-  );
-
-  if (samePhone) {
-    showMessage(message, "❌ Namba ya simu hii tayari imesajiliwa.", "error");
-    resetSubmit(submit);
-    return;
-  }
 
   const sameUsername = players.some(
     (player) =>
-      normalizeKey(player.username || "") === normalizedUsername
+      String(player.username || "").toLowerCase() ===
+      username.toLowerCase()
   );
 
+
   if (sameUsername) {
+
     showMessage(
       message,
       "❌ eFootball username hiyo tayari imesajiliwa.",
       "error"
     );
+
     resetSubmit(submit);
     return;
   }
 
-  // Re-check uniqueness inside a Firestore transaction.
-  // This prevents two people submitting the same team/username
-  // at almost exactly the same time.
-  const seasonKey = activeSeasonId || "season1";
-  const teamKey = seasonKey + "_team_" + String(Number(teamNumber)).padStart(2, "0");
-  const usernameKey = seasonKey + "_username_" + normalizedUsername;
-  const phoneKey = seasonKey + "_phone_" + normalizedPhone;
-  const phoneUniqueRef = doc(db, "registration_uniques", phoneKey);
-  const teamUniqueRef = doc(db, "registration_uniques", teamKey);
-  const usernameUniqueRef = doc(db, "registration_uniques", usernameKey);
+
   const playerNumber = players.length + 1;
-  const registrationRef = doc(collection(db, "registrations"));
 
-  await runTransaction(db, async (transaction) => {
-    const teamUnique = await transaction.get(teamUniqueRef);
-    const usernameUnique = await transaction.get(usernameUniqueRef);
-    const phoneUnique = await transaction.get(phoneUniqueRef);
 
-    if (teamUnique.exists()) {
-      throw new Error("TEAM_ALREADY_REGISTERED");
-    }
-
-    if (usernameUnique.exists()) {
-      throw new Error("USERNAME_ALREADY_REGISTERED");
-    }
-    if (phoneUnique.exists()) {
-      throw new Error("PHONE_ALREADY_REGISTERED");
-    }
-
-    const registrationData = {
+  await addDoc(
+    collection(db, "registrations"),
+    {
       teamNumber: Number(teamNumber),
       name: name,
       phone: phone,
       username: username,
-      seasonId: activeSeasonId,
-      seasonName: activeSeason?.name || "Season 1",
-      usernameKey: normalizedUsername,
-      phoneKey: normalizedPhone,
       playerNumber: playerNumber,
       createdAt: serverTimestamp()
-    };
-
-    transaction.set(registrationRef, registrationData);
-    transaction.set(teamUniqueRef, {
-      type: "team",
-      value: Number(teamNumber),
-      registrationId: registrationRef.id,
-      createdAt: serverTimestamp()
-    });
-    transaction.set(usernameUniqueRef, {
-      type: "username",
-      value: normalizedUsername,
-      registrationId: registrationRef.id,
-      createdAt: serverTimestamp()
-    });
-    transaction.set(phoneUniqueRef, {
-      type: "phone",
-      value: normalizedPhone,
-      registrationId: registrationRef.id,
-      createdAt: serverTimestamp()
-    });
-  });
+    }
+  );
 
 
   showMessage(
@@ -425,18 +255,9 @@ try {
 
   console.error("Registration error:", error);
 
-  const registrationError =
-    error?.message === "TEAM_ALREADY_REGISTERED"
-      ? "❌ Team number hiyo tayari imetumika."
-      : error?.message === "USERNAME_ALREADY_REGISTERED"
-        ? "❌ eFootball username hiyo tayari imesajiliwa."
-        : error?.message === "PHONE_ALREADY_REGISTERED"
-          ? "❌ Namba ya simu hii tayari imesajiliwa."
-          : "❌ Registration failed. Check Firebase.";
-
   showMessage(
     message,
-    registrationError,
+    "❌ Registration failed. Check Firebase.",
     "error"
   );
 
@@ -506,9 +327,7 @@ if (entered === "Gosper2026") {
 
 
   loadAdminMatches();
-  loadAdminKnockoutMatches();
-  renderPotManagement();
-  renderAdminHallOfFame();
+  renderAwardNominationManager(getAwardStats());
 
 } else {
 
@@ -532,14 +351,10 @@ async function loadLeague() {
 
 try {
 
-await ensureSeasons();
 await loadPlayers();
 await loadMatches();
 await loadTournamentSettings();
-await loadPotState();
 await loadTournamentStatus();
-await loadKnockoutStages();
-await loadHallOfFame();
 
 updateSettingsPreview();
 
@@ -549,15 +364,11 @@ renderFormat();
 renderGroups();
 renderFixtures();
 renderStandings();
-renderKnockout();
-renderHallOfFame();
-renderSeasonManager();
+await renderAwardsAndVoting();
+await renderHallOfFameHistory();
 
 if (adminLoggedIn) {
   loadAdminMatches();
-  loadAdminKnockoutMatches();
-  renderPotManagement();
-  renderAdminHallOfFame();
 }
 
 } catch (error) {
@@ -580,7 +391,7 @@ await getDocs(collection(db, "registrations"));
 players = snapshot.docs.map((item) => ({
 id: item.id,
 ...item.data()
-})).filter(seasonMatches);
+}));
 
 players.sort((a, b) => {
 
@@ -605,7 +416,7 @@ await getDocs(collection(db, "matches"));
 matches = snapshot.docs.map((item) => ({
 id: item.id,
 ...item.data()
-})).filter(seasonMatches);
+}));
 
 matches.sort((a, b) => {
 
@@ -626,14 +437,12 @@ async function loadTournamentSettings() {
 
 try {
 
-const allSettings =
+const snapshot =
   await getDocs(collection(db, "settings"));
-const snapshot = { docs: allSettings.docs.filter(d => seasonMatches(d.data())), empty: allSettings.docs.filter(d => seasonMatches(d.data())).length === 0 };
 
 
 if (snapshot.empty) {
 
-  settingsDocId = null;
   tournamentSettings = {
     format: "groups",
     groupCount: 2
@@ -643,8 +452,9 @@ if (snapshot.empty) {
 }
 
 
-settingsDocId = snapshot.docs[0].id;
-const data = snapshot.docs[0].data();
+const data =
+  snapshot.docs[0].data();
+
 
 tournamentSettings = {
 
@@ -664,13 +474,6 @@ tournamentSettings = {
 
 };
 
-potState = {
-  pot1Locked: data.pot1Locked === true,
-  pot2Locked: data.pot2Locked === true,
-  pot3Locked: data.pot3Locked === true,
-  groupingLocked: data.groupingLocked === true
-};
-
 } catch (error) {
 
 console.error(
@@ -680,27 +483,6 @@ console.error(
 
 }
 
-}
-
-// =====================================================
-// POT / GROUP DRAW STATE
-// =====================================================
-
-async function loadPotState() {
-  try {
-    if (!settingsDocId) return;
-    const snap = await getDoc(doc(db, "settings", settingsDocId));
-    if (!snap.exists()) return;
-    const data = snap.data();
-    potState = {
-      pot1Locked: data.pot1Locked === true,
-      pot2Locked: data.pot2Locked === true,
-      pot3Locked: data.pot3Locked === true,
-      groupingLocked: data.groupingLocked === true
-    };
-  } catch (error) {
-    console.error("Pot state error:", error);
-  }
 }
 
 // =====================================================
@@ -815,11 +597,6 @@ return;
 
 }
 
-if (potState.groupingLocked) {
-  alert("🔒 Grouping tayari imefungwa. Huwezi kubadilisha group count.");
-  return;
-}
-
 const format =
 document.getElementById("tournamentFormat")?.value ||
 "groups";
@@ -830,31 +607,22 @@ document.getElementById("groupCount")?.value || 2
 );
 
 if (format === "groups" && groupCount < 1) {
-  alert("⚠️ Chagua number ya groups.");
-  return;
-}
 
-if (format === "groups" && players.length && groupCount * 3 > players.length) {
-  alert("⚠️ Group count hii haiwezekani kwa " + players.length + " players kwa sababu Pot 1, Pot 2 na Pot 3 kila moja inahitaji angalau player mmoja kwa kila group.");
-  return;
+alert("⚠️ Chagua number ya groups.");
+return;
+
 }
 
 try {
 
-const allSettings = await getDocs(collection(db, "settings"));
-const snapshot = { docs: allSettings.docs.filter(d => seasonMatches(d.data())), empty: allSettings.docs.filter(d => seasonMatches(d.data())).length === 0 };
+const snapshot =
+  await getDocs(collection(db, "settings"));
 
 
 const data = {
-  seasonId: activeSeasonId,
-  seasonName: activeSeason?.name || "Season 1",
 
   format: format,
   groupCount: groupCount,
-  pot1Locked: potState.pot1Locked,
-  pot2Locked: potState.pot2Locked,
-  pot3Locked: potState.pot3Locked,
-  groupingLocked: potState.groupingLocked,
   updatedAt: serverTimestamp()
 
 };
@@ -862,11 +630,10 @@ const data = {
 
 if (snapshot.empty) {
 
-  const ref = await addDoc(
+  await addDoc(
     collection(db, "settings"),
     data
   );
-  settingsDocId = ref.id;
 
 } else {
 
@@ -987,16 +754,63 @@ return result;
 // =====================================================
 
 function getGroups() {
-  if (tournamentSettings.format === "league") {
-    return [{ name: "LEAGUE", shortName: "LEAGUE", players: [...players] }];
+
+const count =
+Math.max(
+1,
+Number(tournamentSettings.groupCount || 2)
+);
+
+const groups = [];
+
+if (tournamentSettings.format === "league") {
+
+return [
+  {
+    name: "LEAGUE",
+    shortName: "LEAGUE",
+    players: [...players]
   }
-  if (!potState.groupingLocked) return [];
-  const count = Math.max(1, Number(tournamentSettings.groupCount || 2));
-  return Array.from({length: count}, (_, i) => ({
-    name: "GROUP " + groupLetter(i),
-    shortName: groupLetter(i),
-    players: players.filter(p => String(p.group || "") === groupLetter(i))
-  }));
+];
+
+}
+
+const sizes =
+calculateGroupSizes(
+players.length,
+count
+);
+
+let position = 0;
+
+for (let i = 0; i < count; i++) {
+
+const size = sizes[i] || 0;
+
+
+groups.push({
+
+  name:
+    "GROUP " + groupLetter(i),
+
+  shortName:
+    groupLetter(i),
+
+  players:
+    players.slice(
+      position,
+      position + size
+    )
+
+});
+
+
+position += size;
+
+}
+
+return groups;
+
 }
 
 // =====================================================
@@ -1139,13 +953,16 @@ return;
 }
 
 // GROUPS
-const groups = getGroups();
-if (!groups.length) {
-  if (description) description.textContent = "Groups zitatengenezwa baada ya admin kufanya draw kutoka kwenye pots.";
-  grid.innerHTML = "<div class='loading'>⏳ Groups hazijageneratiwa bado.</div>";
-  return;
+const groups =
+getGroups();
+
+if (description) {
+
+description.textContent =
+  groups.length +
+  " groups • Players distributed automatically";
+
 }
-if (description) description.textContent = groups.length + " groups • Draw completed";
 
 groups.forEach((group) => {
 
@@ -1174,30 +991,25 @@ if (group.players.length === 0) {
 
 } else {
 
-  const groupStats = buildGroupStats(group.players, group.shortName);
-  const statsByName = Object.fromEntries(
-    groupStats.map((item) => [item.name, item])
-  );
-
   group.players.forEach((player, index) => {
-    const playerName = player.username || player.name || "PLAYER";
-    const playerStat = statsByName[playerName];
 
     card.innerHTML +=
-      "<div class='group-player group-player-status'>" +
+      "<div class='group-player'>" +
 
-      "<div class='group-player-main'>" +
       "<span>" +
       String(index + 1).padStart(2, "0") +
       "</span>" +
-      "<strong>" +
-      escapeHTML(playerName) +
-      "</strong>" +
-      "</div>" +
 
-      statusBadge(playerStat?.status) +
+      "<strong>" +
+      escapeHTML(
+        player.username ||
+        player.name ||
+        "PLAYER"
+      ) +
+      "</strong>" +
 
       "</div>";
+
   });
 
 }
@@ -1207,47 +1019,6 @@ grid.appendChild(card);
 
 });
 
-}
-
-// =====================================================
-// KNOCKOUT BRACKET DISPLAY
-// =====================================================
-
-function renderKnockout() {
-  const container = document.getElementById("knockoutDynamic");
-  if (!container) return;
-  container.innerHTML = "";
-  if (tournamentSettings.format !== "groups") {
-    container.innerHTML = '<div class="loading">Knockout is available in GROUPS format.</div>';
-    return;
-  }
-  if (!knockoutStages.length) {
-    container.innerHTML = '<div class="loading">⏳ Knockout has not started yet. Admin will generate the correct round after the group stage.</div>';
-    return;
-  }
-  knockoutStages.forEach(stage => {
-    const stageMatches = getKnockoutMatches(stage.name);
-    const round = document.createElement("div");
-    round.className = "round" + (stage.name === "FINAL" ? " final-round" : "");
-    round.innerHTML = `<h3>${stage.name === "FINAL" ? "🏆 FINAL" : escapeHTML(stage.name)}</h3>`;
-    const body = document.createElement("div");
-    const byTie = {};
-    stageMatches.forEach(m => (byTie[m.tieId] ||= []).push(m));
-    const ties = Object.values(byTie);
-    if (!ties.length) body.innerHTML = '<div class="knockout-match"><span>WAITING FOR QUALIFIERS</span></div>';
-    ties.forEach((tie, i) => {
-      tie.sort((a,b) => Number(a.leg || 1) - Number(b.leg || 1));
-      const first = tie[0], second = tie[1];
-      const winner = knockoutTieWinner(tie);
-      const card = document.createElement("div");
-      card.className = "knockout-match";
-      card.innerHTML = `<small>TIE ${i+1}</small><span>${escapeHTML(first?.homePlayer || "TBD")}</span><strong>VS</strong><span>${escapeHTML(first?.awayPlayer || "TBD")}</span><small>LEG 1: ${first?.played ? `${first.homeGoals} - ${first.awayGoals}` : "—"}</small>` +
-        (second ? `<small>LEG 2: ${escapeHTML(second.homePlayer)} ${second.played ? `${second.homeGoals} - ${second.awayGoals}` : "—"} ${escapeHTML(second.awayPlayer)}</small>` : "<small>BYE</small>") +
-        (winner ? `<strong>🏆 ${escapeHTML(winner)}</strong>` : "");
-      body.appendChild(card);
-    });
-    round.appendChild(body); container.appendChild(round);
-  });
 }
 
 // =====================================================
@@ -1332,146 +1103,6 @@ container.appendChild(card);
 }
 
 // =====================================================
-// GROUP STANDINGS + MATHEMATICAL QUALIFICATION
-// =====================================================
-
-function normalizePhone(value) { return String(value || "").replace(/[^0-9]/g, ""); }
-
-function normalizeKey(value) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-}
-
-function buildGroupStats(groupPlayers, groupName) {
-  const stats = {};
-
-  groupPlayers.forEach((player) => {
-    const name = player.username || player.name || "PLAYER";
-
-    stats[name] = {
-      name,
-      P: 0,
-      W: 0,
-      D: 0,
-      L: 0,
-      GF: 0,
-      GA: 0,
-      GD: 0,
-      PTS: 0,
-      remaining: 0,
-      maxPTS: 0,
-      status: "pending"
-    };
-  });
-
-  matches.forEach((match) => {
-    if (match.group !== groupName) return;
-
-    const home = stats[match.homePlayer];
-    const away = stats[match.awayPlayer];
-
-    if (!home || !away) return;
-
-    if (!match.played) {
-      home.remaining++;
-      away.remaining++;
-      return;
-    }
-
-    const hg = Number(match.homeGoals || 0);
-    const ag = Number(match.awayGoals || 0);
-
-    home.P++;
-    away.P++;
-
-    home.GF += hg;
-    home.GA += ag;
-    away.GF += ag;
-    away.GA += hg;
-
-    if (hg > ag) {
-      home.W++;
-      home.PTS += 3;
-      away.L++;
-    } else if (hg < ag) {
-      away.W++;
-      away.PTS += 3;
-      home.L++;
-    } else {
-      home.D++;
-      away.D++;
-      home.PTS++;
-      away.PTS++;
-    }
-  });
-
-  Object.values(stats).forEach((player) => {
-    player.GD = player.GF - player.GA;
-    player.maxPTS = player.PTS + player.remaining * 3;
-  });
-
-  const sorted = Object.values(stats).sort(compareStandings);
-
-  // In group format, the top 2 advance to the Round of 16.
-  // A player is "QUALIFIED" early only when no other player can
-  // mathematically reach their current points.
-  if (groupName !== "LEAGUE" && sorted.length > 2) {
-    sorted.forEach((player) => {
-      const highestChaserMax = Math.max(
-        ...sorted
-          .filter((other) => other.name !== player.name)
-          .map((other) => other.maxPTS)
-      );
-
-      if (player.PTS > highestChaserMax) {
-        player.status = "qualified";
-      }
-    });
-
-    const allPlayed = sorted.every((player) => player.remaining === 0);
-
-    if (allPlayed) {
-      sorted.forEach((player, index) => {
-        player.status = index < 2 ? "qualified" : "eliminated";
-      });
-    } else {
-      const secondPlace = sorted[1];
-
-      sorted.forEach((player) => {
-        if (
-          player.status !== "qualified" &&
-          player.maxPTS < secondPlace.PTS
-        ) {
-          player.status = "eliminated";
-        }
-      });
-    }
-  }
-
-  return sorted;
-}
-
-function compareStandings(a, b) {
-  if (b.PTS !== a.PTS) return b.PTS - a.PTS;
-  if (b.GD !== a.GD) return b.GD - a.GD;
-  return b.GF - a.GF;
-}
-
-function statusBadge(status) {
-  if (status === "qualified") {
-    return "<span class='qualification-badge qualified'>🏆 CONGRATULATIONS — QUALIFIED</span>";
-  }
-
-  if (status === "eliminated") {
-    return "<span class='qualification-badge eliminated'>❌ ELIMINATED</span>";
-  }
-
-  return "";
-}
-
-// =====================================================
 // STANDINGS
 // =====================================================
 
@@ -1496,11 +1127,8 @@ return;
 
 }
 
-const groups = getGroups();
-if (!groups.length) {
-  container.innerHTML = "<div class='loading'>⏳ Standings zitaonekana baada ya groups kugeneratiwa.</div>";
-  return;
-}
+const groups =
+getGroups();
 
 groups.forEach((group) => {
 
@@ -1517,8 +1145,7 @@ container.appendChild(title);
 
 container.appendChild(
   createStandingsTable(
-    group.players,
-    group.shortName
+    group.players
   )
 );
 
@@ -1530,26 +1157,142 @@ container.appendChild(
 // STANDINGS TABLE
 // =====================================================
 
-function createStandingsTable(groupPlayers, groupName = null) {
+function createStandingsTable(groupPlayers) {
 
-const wrapper = document.createElement("div");
-wrapper.className = "table-wrapper";
+const wrapper =
+document.createElement("div");
+
+wrapper.className =
+"table-wrapper";
 
 if (!groupPlayers.length) {
-  wrapper.innerHTML =
-    "<div class='loading'>WAITING FOR PLAYERS</div>";
-  return wrapper;
+
+wrapper.innerHTML =
+  "<div class='loading'>" +
+  "WAITING FOR PLAYERS" +
+  "</div>";
+
+return wrapper;
+
 }
 
-const statsList = groupName
-  ? buildGroupStats(groupPlayers, groupName)
-  : buildGroupStats(groupPlayers, "LEAGUE");
+const stats = {};
 
-const table = document.createElement("table");
-table.className = "standings-table";
+groupPlayers.forEach((player) => {
+
+const name =
+  player.username ||
+  player.name ||
+  "PLAYER";
+
+
+stats[name] = {
+
+  name: name,
+  P: 0,
+  W: 0,
+  D: 0,
+  L: 0,
+  GF: 0,
+  GA: 0,
+  GD: 0,
+  PTS: 0
+
+};
+
+});
+
+matches.forEach((match) => {
+
+if (!match.played) return;
+
+
+const home =
+  stats[match.homePlayer];
+
+
+const away =
+  stats[match.awayPlayer];
+
+
+if (!home || !away) return;
+
+
+const hg =
+  Number(match.homeGoals || 0);
+
+
+const ag =
+  Number(match.awayGoals || 0);
+
+
+home.P++;
+away.P++;
+
+
+home.GF += hg;
+home.GA += ag;
+
+
+away.GF += ag;
+away.GA += hg;
+
+
+if (hg > ag) {
+
+  home.W++;
+  home.PTS += 3;
+  away.L++;
+
+} else if (hg < ag) {
+
+  away.W++;
+  away.PTS += 3;
+  home.L++;
+
+} else {
+
+  home.D++;
+  away.D++;
+
+  home.PTS++;
+  away.PTS++;
+
+}
+
+});
+
+Object.values(stats).forEach((player) => {
+
+player.GD =
+  player.GF -
+  player.GA;
+
+});
+
+const sorted =
+Object.values(stats).sort((a, b) => {
+
+  if (b.PTS !== a.PTS)
+    return b.PTS - a.PTS;
+
+  if (b.GD !== a.GD)
+    return b.GD - a.GD;
+
+  return b.GF - a.GF;
+
+});
+
+const table =
+document.createElement("table");
+
+table.className =
+"standings-table";
 
 table.innerHTML =
-"<thead><tr>" +
+"<thead>" +
+
+"<tr>" +
 "<th>#</th>" +
 "<th>PLAYER</th>" +
 "<th>P</th>" +
@@ -1560,31 +1303,72 @@ table.innerHTML =
 "<th>GA</th>" +
 "<th>GD</th>" +
 "<th>PTS</th>" +
-"<th>STATUS</th>" +
-"</tr></thead><tbody></tbody>";
+"</tr>" +
 
-const tbody = table.querySelector("tbody");
+"</thead>" +
 
-statsList.forEach((player, index) => {
-  const row = document.createElement("tr");
+"<tbody></tbody>";
 
-  row.innerHTML =
-    "<td>" + (index + 1) + "</td>" +
-    "<td><strong>" + escapeHTML(player.name) + "</strong></td>" +
-    "<td>" + player.P + "</td>" +
-    "<td>" + player.W + "</td>" +
-    "<td>" + player.D + "</td>" +
-    "<td>" + player.L + "</td>" +
-    "<td>" + player.GF + "</td>" +
-    "<td>" + player.GA + "</td>" +
-    "<td>" + (player.GD >= 0 ? "+" + player.GD : player.GD) + "</td>" +
-    "<td><strong>" + player.PTS + "</strong></td>" +
-    "<td>" + statusBadge(player.status) + "</td>";
+const tbody =
+table.querySelector("tbody");
 
-  tbody.appendChild(row);
+sorted.forEach((player, index) => {
+
+const row =
+  document.createElement("tr");
+
+
+row.innerHTML =
+
+  "<td>" +
+  (index + 1) +
+  "</td>" +
+
+  "<td>" +
+  escapeHTML(player.name) +
+  "</td>" +
+
+  "<td>" +
+  player.P +
+  "</td>" +
+
+  "<td>" +
+  player.W +
+  "</td>" +
+
+  "<td>" +
+  player.D +
+  "</td>" +
+
+  "<td>" +
+  player.L +
+  "</td>" +
+
+  "<td>" +
+  player.GF +
+  "</td>" +
+
+  "<td>" +
+  player.GA +
+  "</td>" +
+
+  "<td>" +
+  (player.GD >= 0
+    ? "+" + player.GD
+    : player.GD) +
+  "</td>" +
+
+  "<td><strong>" +
+  player.PTS +
+  "</strong></td>";
+
+
+tbody.appendChild(row);
+
 });
 
 wrapper.appendChild(table);
+
 return wrapper;
 
 }
@@ -1609,211 +1393,6 @@ document
 startTournament
 );
 
-
-}
-
-// =====================================================
-// POT MANAGEMENT / GROUP DRAW
-// =====================================================
-
-function setupPotManagement() {
-  document.getElementById("drawGroupsFromPotsBtn")?.addEventListener("click", drawGroupsFromPots);
-}
-
-function potPlayers(pot) {
-  return players.filter((p) => Number(p.pot) === pot);
-}
-
-function renderPotManagement() {
-  const container = document.getElementById("potManagementContent");
-  if (!container || !adminLoggedIn) return;
-
-  const potNames = ["POT 1", "POT 2", "POT 3"];
-  const locks = [potState.pot1Locked, potState.pot2Locked, potState.pot3Locked];
-
-  container.innerHTML = `
-    <div class="pot-summary">
-      ${[1,2,3].map(p => `<div class="pot-summary-item"><strong>POT ${p}</strong><span>${potPlayers(p).length} players</span></div>`).join("")}
-    </div>
-    <div class="pot-grid">
-      ${[1,2,3].map((pot) => {
-        const list = potPlayers(pot);
-        const locked = locks[pot - 1];
-        return `
-          <div class="pot-card ${locked ? "pot-locked" : ""}">
-            <div class="pot-header"><h3>${potNames[pot-1]}</h3><span>${locked ? "🔒 LOCKED" : "🟢 OPEN"}</span></div>
-            <div class="pot-count">${list.length} players</div>
-            <div class="pot-player-list">
-              ${players.map((player) => {
-                const current = Number(player.pot) || 0;
-                const disabled = current === pot ? locked : (potState["pot" + pot + "Locked"] || false);
-                const label = escapeHTML(player.username || player.name || "PLAYER");
-                return `<div class="pot-player-row">
-                  <span><b>${String(player.teamNumber || "-").padStart(2,"0")}</b> ${label}</span>
-                  <select data-pot-player="${player.id}" ${disabled ? "disabled" : ""}>
-                    <option value="0" ${current===0 ? "selected" : ""}>Unassigned</option>
-                    <option value="1" ${current===1 ? "selected" : ""}>Pot 1</option>
-                    <option value="2" ${current===2 ? "selected" : ""}>Pot 2</option>
-                    <option value="3" ${current===3 ? "selected" : ""}>Pot 3</option>
-                  </select>
-                </div>`;
-              }).join("")}
-            </div>
-            <button type="button" class="primary-btn pot-lock-btn" data-lock-pot="${pot}" ${locked ? "disabled" : ""}>${locked ? "🔒 POT ${pot} LOCKED" : "🔒 LOCK POT ${pot}"}</button>
-          </div>`;
-      }).join("")}
-    </div>
-    <div class="pot-actions">
-      <p class="pot-help">Assign every registered player to Pot 1, 2 or 3. Lock each pot when you are satisfied, then draw the groups.</p>
-      <button type="button" class="primary-btn" id="drawGroupsFromPotsBtn" ${potState.groupingLocked ? "disabled" : ""}>🎲 DRAW GROUPS FROM POTS</button>
-      ${potState.groupingLocked ? `<span class="draw-locked">🔒 GROUPS LOCKED</span>` : ""}
-    </div>`;
-
-  container.querySelectorAll("select[data-pot-player]").forEach((select) => {
-    select.addEventListener("change", async () => {
-      await assignPlayerPot(select.dataset.potPlayer, Number(select.value));
-    });
-  });
-
-  container.querySelectorAll("[data-lock-pot]").forEach((button) => {
-    button.addEventListener("click", () => lockPot(Number(button.dataset.lockPot)));
-  });
-
-  document.getElementById("drawGroupsFromPotsBtn")?.addEventListener("click", drawGroupsFromPots);
-}
-
-async function assignPlayerPot(playerId, pot) {
-  if (!adminLoggedIn || potState.groupingLocked) return;
-  if (pot < 0 || pot > 3) return;
-  if (pot > 0 && potState["pot" + pot + "Locked"]) {
-    alert("🔒 Pot hiyo imefungwa.");
-    renderPotManagement();
-    return;
-  }
-  const player = players.find((p) => p.id === playerId);
-  if (!player) return;
-  const current = Number(player.pot) || 0;
-  if (current > 0 && potState["pot" + current + "Locked"] && current !== pot) {
-    alert("🔒 Mchezaji wa pot iliyofungwa hawezi kuhamishwa.");
-    renderPotManagement();
-    return;
-  }
-  try {
-    await updateDoc(doc(db, "registrations", playerId), { pot, updatedAt: serverTimestamp() });
-    player.pot = pot;
-    renderPotManagement();
-  } catch (error) {
-    console.error("Pot assignment error:", error);
-    alert("❌ Failed to assign player to pot.");
-  }
-}
-
-async function lockPot(pot) {
-  if (!adminLoggedIn) return;
-  if (pot < 1 || pot > 3) return;
-  const count = potPlayers(pot).length;
-  const groupCount = Number(tournamentSettings.groupCount || 2);
-  if (count < groupCount) {
-    alert(`⚠️ Pot ${pot} ina players ${count}, lakini una groups ${groupCount}. Weka angalau ${groupCount} players kwenye pot hii.`);
-    return;
-  }
-  if (players.some((p) => !Number(p.pot))) {
-    alert("⚠️ Assign players wote kwenye pots kwanza.");
-    return;
-  }
-  potState["pot" + pot + "Locked"] = true;
-  await savePotState();
-  renderPotManagement();
-}
-
-async function savePotState() {
-  try {
-    const data = {
-      seasonId: activeSeasonId,
-      seasonName: activeSeason?.name || "Season 1",
-      ...tournamentSettings,
-      ...potState,
-      updatedAt: serverTimestamp()
-    };
-    if (settingsDocId) {
-      await updateDoc(doc(db, "settings", settingsDocId), data);
-    } else {
-      const ref = await addDoc(collection(db, "settings"), data);
-      settingsDocId = ref.id;
-    }
-  } catch (error) {
-    console.error("Save pot state error:", error);
-    alert("❌ Failed to save pot state.");
-  }
-}
-
-function shuffle(list) {
-  const a = [...list];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-async function drawGroupsFromPots() {
-  if (!adminLoggedIn) return;
-  if (potState.groupingLocked) { alert("🔒 Grouping tayari imefungwa."); return; }
-  if (tournamentSettings.format !== "groups") { alert("⚠️ Chagua GROUPS format kwanza."); return; }
-  if (![1,2,3].every((p) => potState["pot" + p + "Locked"])) {
-    alert("🔒 Funga Pot 1, Pot 2 na Pot 3 kwanza.");
-    return;
-  }
-  if (players.some((p) => !Number(p.pot))) {
-    alert("⚠️ Kila player lazima awe kwenye pot.");
-    return;
-  }
-
-  const groupCount = Number(tournamentSettings.groupCount || 2);
-  if (players.length < groupCount) { alert("⚠️ Players wachache kuliko groups."); return; }
-  if (groupCount * 3 > players.length) { alert("⚠️ Group count hii haiwezi kugawa players kwenye Pot 1–3 kwa usawa. Punguza number ya groups."); return; }
-
-  const confirmed = confirm(`🎲 Generate ${groupCount} groups kutoka Pot 1–3? Hii itafunga grouping.`);
-  if (!confirmed) return;
-
-  try {
-    const groups = Array.from({ length: groupCount }, (_, i) => ({ shortName: groupLetter(i), players: [] }));
-    const used = new Set();
-
-    // First round: one player from every pot per group.
-    for (const pot of [1,2,3]) {
-      const pool = shuffle(potPlayers(pot));
-      for (let i = 0; i < groupCount; i++) {
-        const player = pool[i];
-        if (!player) continue;
-        groups[i].players.push(player);
-        used.add(player.id);
-      }
-    }
-
-    // Any remaining players are distributed fairly across groups.
-    const remaining = shuffle(players.filter((p) => !used.has(p.id)));
-    remaining.forEach((player, index) => {
-      groups[index % groupCount].players.push(player);
-    });
-
-    for (const group of groups) {
-      for (const player of group.players) {
-        await updateDoc(doc(db, "registrations", player.id), { group: group.shortName, updatedAt: serverTimestamp() });
-      }
-    }
-
-    potState.groupingLocked = true;
-    await savePotState();
-    await loadPlayers();
-    renderGroups();
-    renderKnockout();
-    renderPotManagement();
-    alert("🏆 Groups generated successfully and locked!");
-  } catch (error) {
-    console.error("Group draw error:", error);
-    alert("❌ Failed to generate groups.");
-  }
 }
 
 // =====================================================
@@ -1862,8 +1441,15 @@ return;
 }
 
 if (matches.length > 0) {
-  alert("⚠️ Fixtures tayari zimetengenezwa kwa season hii. Huwezi kuzalisha duplicate fixtures.");
-  return;
+
+const proceed =
+  confirm(
+    "Fixtures tayari zipo. Ongeza fixtures mpya?"
+  );
+
+
+if (!proceed) return;
+
 }
 
 try {
@@ -1895,12 +1481,23 @@ if (
       j++
     ) {
 
-      await createMatch(matchNumber, "LEAGUE", players[i], players[j], current, 1);
+      await createMatch(
+        matchNumber,
+        "LEAGUE",
+        players[i],
+        players[j],
+        current
+      );
+
+
       matchNumber++;
-      current = new Date(current.getTime() + interval * 60000);
-      await createMatch(matchNumber, "LEAGUE", players[j], players[i], current, 2);
-      matchNumber++;
-      current = new Date(current.getTime() + interval * 60000);
+
+
+      current =
+        new Date(
+          current.getTime() +
+          interval * 60000
+        );
 
     }
 
@@ -1926,12 +1523,23 @@ if (
         j++
       ) {
 
-        await createMatch(matchNumber, group.shortName, group.players[i], group.players[j], current, 1);
-      matchNumber++;
-      current = new Date(current.getTime() + interval * 60000);
-      await createMatch(matchNumber, group.shortName, group.players[j], group.players[i], current, 2);
-      matchNumber++;
-      current = new Date(current.getTime() + interval * 60000);
+        await createMatch(
+          matchNumber,
+          group.shortName,
+          group.players[i],
+          group.players[j],
+          current
+        );
+
+
+        matchNumber++;
+
+
+        current =
+          new Date(
+            current.getTime() +
+            interval * 60000
+          );
 
       }
 
@@ -1974,8 +1582,7 @@ matchNumber,
 group,
 home,
 away,
-date,
-leg = 1
+date
 ) {
 
 await addDoc(
@@ -1983,11 +1590,8 @@ collection(db, "matches"),
 {
 
   matchNumber: matchNumber,
-  seasonId: activeSeasonId,
 
   group: group,
-  leg: leg,
-  stage: "group",
 
   homePlayer:
     home.username ||
@@ -2053,7 +1657,7 @@ return;
 
 }
 
-matches.filter(match => match.stage !== "knockout").forEach((match, index) => {
+matches.forEach((match, index) => {
 
 const card =
   document.createElement("div");
@@ -2280,242 +1884,6 @@ alert(
 }
 
 // =====================================================
-// KNOCKOUT ADMIN + DYNAMIC ROUNDS
-// =====================================================
-function qualifiedPlayersFromGroups() {
-  const groups = getGroups(); const qualifiers = [];
-  groups.forEach(group => { const stats = buildGroupStats(group.players, group.shortName); if (stats[0]) qualifiers.push(stats[0].name); if (stats[1]) qualifiers.push(stats[1].name); });
-  return qualifiers;
-}
-function pairKnockoutTeams(teams) { const pairs=[]; for(let i=0;i<teams.length;i+=2) if(teams[i]&&teams[i+1]) pairs.push([teams[i],teams[i+1]]); return pairs; }
-async function generateNextKnockoutRound() {
-  if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
-  if (tournamentSettings.format !== "groups") return alert("⚠️ Tumia GROUPS format.");
-  if (!potState.groupingLocked) return alert("⚠️ Generate groups kwanza.");
-
-  const last = currentKnockoutStage();
-  let teams = [];
-
-  if (!last) {
-    const groups = getGroups();
-    if (!groups.length || groups.some(g => g.players.length < 2)) return alert("⚠️ Groups bado hazijakamilika.");
-    const groupMatches = matches.filter(m => m.stage !== "knockout");
-    if (groupMatches.length && !groupMatches.every(m => m.played)) return alert("⚠️ Maliza group stage kwanza.");
-    groups.forEach(g => {
-      const st = buildGroupStats(g.players, g.shortName);
-      if (st[0]) teams.push(st[0].name);
-      if (st[1]) teams.push(st[1].name);
-    });
-  } else {
-    if (!stageIsComplete(last.name)) return alert("⚠️ Maliza matokeo yote ya " + last.name + " kwanza.");
-    const ties = {};
-    getKnockoutMatches(last.name).forEach(m => (ties[m.tieId] ||= []).push(m));
-    const unresolvedDraw = Object.values(ties).find(t => !knockoutTieWinner(t));
-    if (unresolvedDraw) return alert("⚠️ Kuna tie iliyo draw kwa aggregate. Chagua mshindi wa tie kwanza.");
-    Object.values(ties).forEach(t => {
-      const w = knockoutTieWinner(t);
-      if (!w) {
-        throw new Error("DRAW_TIE_NEEDS_WINNER");
-      }
-      teams.push(w);
-    });
-    if (Array.isArray(last.byeTeams)) teams.push(...last.byeTeams);
-  }
-
-  teams = [...new Set(teams)];
-  if (teams.length === 1) { await announceChampion(teams[0]); return; }
-  if (teams.length < 2) return alert("⚠️ Hakuna qualifiers wa kutosha.");
-
-  // If the field is not already a power of two, create a PLAY-IN ROUND.
-  // Only enough matches are created to reduce the field to the next lower
-  // power of two; the remaining teams receive BYEs.
-  const exactPower = (teams.length & (teams.length - 1)) === 0;
-  const targetSize = exactPower ? teams.length : Math.pow(2, Math.floor(Math.log2(teams.length)));
-  const roundName = exactPower ? knockoutRoundName(targetSize) : "PLAY-IN ROUND";
-
-  if (knockoutStages.some(st => st.name === roundName)) return alert("⚠️ " + roundName + " tayari imegenerate.");
-
-  teams = shuffle(teams);
-  const matchesNeeded = exactPower ? targetSize / 2 : teams.length - targetSize;
-  const playingTeamsCount = matchesNeeded * 2;
-  const byeCount = teams.length - playingTeamsCount;
-  const byeTeams = teams.slice(playingTeamsCount);
-  const playable = teams.slice(0, playingTeamsCount);
-  const pairs = pairKnockoutTeams(playable);
-
-  const stageRef = await addDoc(collection(db, "knockoutStages"), {
-    seasonId: activeSeasonId,
-    name: roundName,
-    order: knockoutStages.length + 1,
-    teamCount: teams.length,
-    targetSize,
-    bracketSize: targetSize,
-    byeTeams,
-    createdAt: serverTimestamp()
-  });
-
-  let n = Math.max(0, ...matches.map(m => Number(m.matchNumber || 0))) + 1;
-  for (let i = 0; i < pairs.length; i++) {
-    const [a, b] = pairs[i];
-    const tieId = stageRef.id + "_TIE_" + (i + 1);
-    await addDoc(collection(db, "matches"), {
-      seasonId: activeSeasonId, stage: "knockout", round: roundName, tieId,
-      leg: 1, homePlayer: a, awayPlayer: b, group: roundName,
-      matchNumber: n++, played: false, createdAt: serverTimestamp()
-    });
-    await addDoc(collection(db, "matches"), {
-      seasonId: activeSeasonId, stage: "knockout", round: roundName, tieId,
-      leg: 2, homePlayer: b, awayPlayer: a, group: roundName,
-      matchNumber: n++, played: false, createdAt: serverTimestamp()
-    });
-  }
-
-  alert("✅ " + roundName + " generated. " + byeTeams.length + " BYE(s), " + pairs.length + " two-leg ties.");
-  await loadLeague();
-}
-
-function loadAdminKnockoutMatches(){
-  const c=document.getElementById("adminKnockoutMatches"); if(!c)return; c.innerHTML="";
-  if(!knockoutStages.length){c.innerHTML='<div class="loading">⏳ Waiting for teams to qualify. Knockout results will appear here immediately after qualification.</div>';return;}
-  knockoutStages.forEach(stage=>{
-    const ms=getKnockoutMatches(stage.name), title=document.createElement("h3"); title.className="knockout-stage-title"; title.textContent=stage.name; c.appendChild(title);
-    const ties={}; ms.forEach(m=>(ties[m.tieId] ||= []).push(m));
-    Object.values(ties).forEach((tie,idx)=>{
-      tie.sort((a,b)=>Number(a.leg)-Number(b.leg));
-      const card=document.createElement("div"); card.className="knockout-admin-match";
-      const teams=[...new Set(tie.flatMap(m=>[m.homePlayer,m.awayPlayer]))];
-      const aggregate = tie.every(m=>m.played) ? tie.reduce((x,m)=>x+Number(m.homeGoals||0),0) - tie.reduce((x,m)=>x+Number(m.awayGoals||0),0) : null;
-      const needsWinner = aggregate === 0 && !tie.some(m=>m.tieWinner);
-      card.innerHTML=`<h3>Tie ${idx+1}: ${escapeHTML(tie[0].homePlayer)} VS ${escapeHTML(tie[0].awayPlayer)}</h3>`+
-        tie.map(m=>`<div class="leg-title">LEG ${m.leg}: ${escapeHTML(m.homePlayer)} VS ${escapeHTML(m.awayPlayer)}</div><div class="score-box"><div><label>${escapeHTML(m.homePlayer)}</label><input type="number" min="0" id="ko-home-${m.id}" value="${m.played?m.homeGoals:""}"></div><strong>VS</strong><div><label>${escapeHTML(m.awayPlayer)}</label><input type="number" min="0" id="ko-away-${m.id}" value="${m.played?m.awayGoals:""}"></div></div><button type="button" class="primary-btn" data-ko-save="${m.id}">💾 SAVE LEG ${m.leg}</button>`).join("")+
-        (needsWinner ? `<div class="tie-winner-box"><label>AGGREGATE DRAW — SELECT WINNER</label><select id="tie-winner-${escapeHTML(tie[0].tieId)}"><option value="">Select winner</option>${teams.map(t=>`<option value="${escapeHTML(t)}">${escapeHTML(t)}</option>`).join("")}</select><button type="button" class="primary-btn" data-tie-winner="${escapeHTML(tie[0].tieId)}">🏆 SAVE TIE WINNER</button></div>` : "");
-      card.querySelectorAll("[data-ko-save]").forEach(btn=>btn.addEventListener("click",()=>saveKnockoutResult(btn.dataset.koSave)));
-      card.querySelector("[data-tie-winner]")?.addEventListener("click",()=>saveKnockoutTieWinner(card.querySelector("[data-tie-winner]").dataset.tieWinner));
-      c.appendChild(card);
-    });
-  });
-  const last = currentKnockoutStage();
-  if (last && stageIsComplete(last.name)) {
-    const btn=document.createElement("button"); btn.type="button"; btn.className="primary-btn"; btn.textContent="➡️ GENERATE NEXT ROUND";
-    btn.addEventListener("click", generateNextKnockoutRound); c.appendChild(btn);
-  }
-}
-
-async function saveKnockoutTieWinner(tieId){
-  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-  const select=document.getElementById("tie-winner-"+tieId); const winner=select?.value;
-  if(!winner)return alert("⚠️ Chagua mshindi wa tie.");
-  const tie=getKnockoutMatches(currentKnockoutStage()?.name).filter(m=>m.tieId===tieId);
-  if(!tie.length || tie.some(m=>!m.played)) return alert("⚠️ Weka results za legs zote kwanza.");
-  await Promise.all(tie.map(m=>updateDoc(doc(db,"matches",m.id),{tieWinner:winner,updatedAt:serverTimestamp()})));
-  await loadLeague();
-  if (currentKnockoutStage()?.name === "FINAL") {
-    await announceChampion(winner);
-  } else {
-    alert("🏆 Tie winner saved: "+winner);
-  }
-}
-
-async function saveKnockoutResult(id){
-  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-  const h=document.getElementById("ko-home-"+id)?.value,a=document.getElementById("ko-away-"+id)?.value;
-  if(h===""||a==="")return alert("⚠️ Weka goals zote mbili.");
-  await updateDoc(doc(db,"matches",id),{homeGoals:Number(h),awayGoals:Number(a),played:true,updatedAt:serverTimestamp()});
-  await loadLeague();
-  const last=currentKnockoutStage();
-  if(last && stageIsComplete(last.name) && last.name === "FINAL"){
-    const ties={}; getKnockoutMatches("FINAL").forEach(m=>(ties[m.tieId] ||= []).push(m));
-    const winner=Object.values(ties).map(t=>knockoutTieWinner(t))[0];
-    if(winner){ await announceChampion(winner); }
-  }
-  alert("✅ Knockout result saved!");
-}
-function setupKnockoutAdmin(){document.getElementById("generateKnockoutBtn")?.addEventListener("click",generateNextKnockoutRound);}
-
-// =====================================================
-// HALL OF FAME
-// =====================================================
-async function loadHallOfFame(){try{const snap=await getDocs(collection(db,"hallOfFame"));hallOfFame=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||b.year||"").localeCompare(String(a.date||a.year||"")));}catch(e){console.error("Hall of Fame load error",e);hallOfFame=[];}}
-function renderHallOfFame(){
-  const c=document.getElementById("hallOfFameContainer");
-  if(!c)return;
-  if(!hallOfFame.length){
-    c.innerHTML=`<div class="hall-empty"><div class="hall-empty-crown">♛</div><h3>THE HALL AWAITS ITS FIRST LEGEND</h3><p>Season champions will be immortalized here.</p></div>`;
-    return;
-  }
-  const total=hallOfFame.length;
-  c.innerHTML=hallOfFame.map((w,i)=>{
-    const rank=i+1;
-    const winner=escapeHTML(w.winner||"CHAMPION");
-    const edition=escapeHTML(w.edition||"Don Bosco eFootball League");
-    const date=escapeHTML(w.date||((w.year)?String(w.year):""));
-    const season=escapeHTML(w.seasonName||w.edition||"Season");
-    return `<article class="hall-card ${rank===1?'hall-card-featured':''}">
-      <div class="hall-card-top"><span class="hall-rank">#${String(rank).padStart(2,'0')}</span><span class="hall-season">${season}</span></div>
-      <div class="hall-medal"><div class="hall-medal-ring"><span>🏆</span></div><i></i></div>
-      <div class="hall-card-body"><span class="hall-label">CHAMPION</span><h3>${winner}</h3><p>${edition}</p><div class="hall-card-footer"><span>DATE <b>${date}</b></span><span>LEGEND <b>${rank===1?'#1':'#'+rank}</b></span></div></div>
-      ${rank===1?'<div class="hall-featured-badge">CURRENT ERA</div>':''}
-    </article>`;
-  }).join("");
-}
-function setupHallOfFameAdmin(){document.getElementById("addHallWinnerBtn")?.addEventListener("click",addHallWinner);}
-async function addHallWinner(){if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");const edition=document.getElementById("hallEdition")?.value.trim(),winner=document.getElementById("hallWinner")?.value.trim(),date=document.getElementById("hallDate")?.value.trim();if(!edition||!winner||!date)return alert("⚠️ Jaza edition, champion na date.");await addDoc(collection(db,"hallOfFame"),{edition,winner,date,seasonId:activeSeasonId,seasonName:activeSeason?.name || "Season 1",createdAt:serverTimestamp()});document.getElementById("hallEdition").value="";document.getElementById("hallWinner").value="";document.getElementById("hallDate").value="";await loadHallOfFame();renderHallOfFame();renderAdminHallOfFame();alert("🏆 Champion added to Hall of Fame.");}
-function renderAdminHallOfFame(){const c=document.getElementById("adminHallOfFame");if(!c)return;c.innerHTML=hallOfFame.map(w=>`<div class="admin-hall-row"><strong>${escapeHTML(w.edition)}</strong><span>🏆 ${escapeHTML(w.winner)} — ${escapeHTML(w.date||w.year||"")}</span></div>`).join("")||'<div class="loading">No champions yet.</div>';}
-async function announceChampion(winner){
-  if (!adminLoggedIn || !activeSeason) return;
-  try {
-    const current = seasons.find(s => s.id === activeSeasonId);
-    if (current?.status !== "COMPLETED") {
-      await updateDoc(doc(db, "seasons", activeSeasonId), {
-        status: "COMPLETED",
-        champion: winner,
-        completedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      current.status = "COMPLETED";
-      current.champion = winner;
-    }
-
-    const tournamentSnap = await getDocs(collection(db, "tournament"));
-    for (const item of tournamentSnap.docs.filter(d => seasonMatches(d.data()))) {
-      await updateDoc(doc(db, "tournament", item.id), { status: "completed", completedAt: serverTimestamp(), champion: winner });
-    }
-
-    // Automatically preserve the champion in the historical Hall of Fame.
-    if (!hallOfFame.some(w => w.seasonId === activeSeasonId)) {
-      await addDoc(collection(db, "hallOfFame"), {
-        edition: activeSeason.name || ("Season " + activeSeason.number),
-        winner,
-        date: new Date().toISOString().slice(0,10),
-        seasonId: activeSeasonId,
-        seasonName: activeSeason.name || ("Season " + activeSeason.number),
-        createdAt: serverTimestamp()
-      });
-    }
-
-    // Prepare the next season as UPCOMING so the league can continue immediately.
-    const nextNumber = seasons.reduce((max, s) => Math.max(max, Number(s.number || 0)), 0) + 1;
-    if (!seasons.some(s => Number(s.number) === nextNumber)) {
-      const ref = await addDoc(collection(db, "seasons"), {
-        number: nextNumber,
-        name: "Season " + nextNumber,
-        status: "UPCOMING",
-        createdAt: serverTimestamp()
-      });
-      seasons.push({ id: ref.id, number: nextNumber, name: "Season " + nextNumber, status: "UPCOMING" });
-    }
-
-    await loadHallOfFame();
-    renderHallOfFame();
-    renderSeasonManager();
-    alert("🏆 TOURNAMENT CHAMPION: " + winner + "\nSeason " + activeSeason.number + " is now COMPLETED. Season " + nextNumber + " is ready as UPCOMING.");
-  } catch (error) {
-    console.error("Complete season error:", error);
-    alert("🏆 Champion: " + winner + "\n⚠️ Champion was decided, but season archiving failed. Check Firebase.");
-  }
-}
-
-// =====================================================
 // START TOURNAMENT
 // =====================================================
 
@@ -2572,8 +1940,6 @@ await addDoc(
   {
 
     status: "started",
-    seasonId: activeSeasonId,
-    seasonName: activeSeason?.name || "Season 1",
 
     playerCount:
       players.length,
@@ -2632,8 +1998,9 @@ const snapshot =
 
 
 tournamentStarted =
-  snapshot.docs.filter(item => seasonMatches(item.data())).some(
-    (item) => item.data().status === "started"
+  snapshot.docs.some(
+    (item) =>
+      item.data().status === "started"
   );
 
 } catch (error) {
@@ -2754,6 +2121,436 @@ if (generate) {
 
 }
 
+}
+
+// =====================================================
+// HALL OF FAME + AUTOMATIC AWARDS + FAN VOTING
+// =====================================================
+
+let currentAwardData = null;
+let awardVoteCounts = {};
+let awardNominations = {};
+let awardVotesUnsubscribe = null;
+
+const AWARD_CATEGORIES = {
+  playerOfTournament: { title: "Player of the Tournament", icon: "⭐", accent: "award-star", type: "voted", description: "Fan-voted award. Admin publishes three finalists." },
+  upcomingPlayer: { title: "Upcoming Player", icon: "🚀", accent: "award-rising", type: "voted", description: "Fan-voted emerging talent. Admin publishes three finalists." },
+  fanPriority: { title: "Fan's Priority Player", icon: "❤️", accent: "award-priority", type: "voted", description: "Purely decided by the fans. Admin publishes three finalists." },
+  goldenBoot: { title: "Golden Boot / Top Scorer", icon: "⚽", accent: "award-gold", type: "automatic", description: "Automatically awarded to the player with the most goals." },
+  bestDefender: { title: "Best Defender", icon: "🛡️", accent: "award-defender", type: "automatic", description: "Automatically calculated from clean sheets and goals conceded." },
+  mostWins: { title: "Most Wins", icon: "🏅", accent: "award-wins", type: "automatic", description: "Automatically awarded to the player with the most wins." }
+};
+
+const VOTED_AWARD_KEYS = Object.keys(AWARD_CATEGORIES).filter((category) => AWARD_CATEGORIES[category].type === "voted");
+const AUTOMATIC_AWARD_KEYS = Object.keys(AWARD_CATEGORIES).filter((category) => AWARD_CATEGORIES[category].type === "automatic");
+
+function setupAwardsAndVoting() {
+  const voting = document.getElementById("awardVotingCategories");
+  if (voting) {
+    voting.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-vote-category]");
+      if (!button) return;
+      await castAwardVote(button.dataset.voteCategory, button.dataset.votePlayer);
+    });
+  }
+
+  // Live public results: every new vote is reflected without refreshing the page.
+  if (awardVotesUnsubscribe) awardVotesUnsubscribe();
+  try {
+    awardVotesUnsubscribe = onSnapshot(collection(db, "awardVotes"), (snapshot) => {
+      awardVoteCounts = {};
+      snapshot.docs.forEach((item) => {
+        const data = item.data();
+        if (!data.category || !data.playerId) return;
+        if (!awardVoteCounts[data.category]) awardVoteCounts[data.category] = {};
+        awardVoteCounts[data.category][data.playerId] = (awardVoteCounts[data.category][data.playerId] || 0) + 1;
+      });
+      // Only re-render once the page has award data loaded.
+      if (currentAwardData) renderAwardsAndVoting();
+    }, (error) => console.warn("Live award vote updates unavailable:", error));
+  } catch (error) {
+    console.warn("Could not start live award vote listener:", error);
+  }
+}
+
+function setupHallOfFameAdmin() {
+  const archiveButton = document.getElementById("archiveTournamentBtn");
+  if (archiveButton) archiveButton.addEventListener("click", archiveTournamentToHallOfFame);
+  const saveButton = document.getElementById("saveAwardNominationsBtn");
+  if (saveButton) saveButton.addEventListener("click", saveAwardNominations);
+}
+
+function getAwardStats() {
+  const stats = {};
+
+  players.forEach((player) => {
+    stats[player.id] = {
+      player,
+      id: player.id,
+      name: player.username || player.name || "PLAYER",
+      age: Number(player.age || 0),
+      P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0,
+      cleanSheets: 0, rating: 0
+    };
+  });
+
+  const findPlayer = (name) => {
+    const normalized = String(name || "").trim().toLowerCase();
+    return Object.values(stats).find((item) => String(item.name).trim().toLowerCase() === normalized);
+  };
+
+  matches.filter((match) => match.played).forEach((match) => {
+    const home = findPlayer(match.homePlayer);
+    const away = findPlayer(match.awayPlayer);
+    if (!home || !away) return;
+
+    const hg = Math.max(0, Number(match.homeGoals || 0));
+    const ag = Math.max(0, Number(match.awayGoals || 0));
+
+    home.P++; away.P++;
+    home.GF += hg; home.GA += ag;
+    away.GF += ag; away.GA += hg;
+
+    if (ag === 0) home.cleanSheets++;
+    if (hg === 0) away.cleanSheets++;
+
+    if (hg > ag) { home.W++; away.L++; }
+    else if (hg < ag) { away.W++; home.L++; }
+    else { home.D++; away.D++; }
+  });
+
+  Object.values(stats).forEach((item) => {
+    const points = item.W * 3 + item.D;
+    const gd = item.GF - item.GA;
+    item.PTS = points;
+    item.GD = gd;
+    item.rating = item.P ? Math.max(0, Math.min(10,
+      5 + (points / item.P) * 0.65 + (item.GF / item.P) * 0.35 +
+      (gd / item.P) * 0.25 + (item.cleanSheets / item.P) * 0.75
+    )) : 0;
+  });
+
+  return Object.values(stats);
+}
+
+function sortByPerformance(list) {
+  return [...list].sort((a, b) => b.rating - a.rating || b.PTS - a.PTS || b.GF - a.GF || a.GA - b.GA);
+}
+
+function getAutomaticCandidates(stats) {
+  const active = stats.filter((item) => item.P > 0);
+  return {
+    playerOfTournament: sortByPerformance(active),
+    upcomingPlayer: [...active].sort((a, b) => {
+      const aEligible = a.age > 0 && a.age <= 21 ? 1 : 0;
+      const bEligible = b.age > 0 && b.age <= 21 ? 1 : 0;
+      return bEligible - aEligible || b.rating - a.rating || b.PTS - a.PTS || b.GF - a.GF;
+    }),
+    fanPriority: sortByPerformance(active),
+    goldenBoot: [...active].sort((a, b) => b.GF - a.GF || b.rating - a.rating),
+    bestDefender: [...active].sort((a, b) => b.cleanSheets - a.cleanSheets || a.GA - b.GA || b.rating - a.rating),
+    mostWins: [...active].sort((a, b) => b.W - a.W || b.PTS - a.PTS || b.rating - a.rating)
+  };
+}
+
+function getDefaultNominations(stats) {
+  const auto = getAutomaticCandidates(stats);
+  const result = {};
+  VOTED_AWARD_KEYS.forEach((category) => {
+    result[category] = (auto[category] || []).slice(0, 3).map((item) => item.id);
+  });
+  return result;
+}
+
+async function loadAwardNominations(stats) {
+  try {
+    const snap = await getDoc(doc(db, "awardNominations", "current"));
+    const saved = snap.exists() ? (snap.data().nominations || {}) : {};
+    const defaults = getDefaultNominations(stats);
+    awardNominations = {};
+    VOTED_AWARD_KEYS.forEach((category) => {
+      const valid = Array.isArray(saved[category]) ? saved[category].filter((id) => stats.some((item) => item.id === id)) : [];
+      awardNominations[category] = valid.length === 3 ? valid : defaults[category];
+    });
+  } catch (error) {
+    console.warn("Award nominations unavailable; using automatic top-three suggestions.", error);
+    awardNominations = getDefaultNominations(stats);
+  }
+}
+
+function metricForAward(category, item) {
+  if (!item) return "";
+  if (category === "goldenBoot") return `${item.GF} goal${item.GF === 1 ? "" : "s"}`;
+  if (category === "bestDefender") return `${item.cleanSheets} clean sheet${item.cleanSheets === 1 ? "" : "s"} • ${item.GA} conceded`;
+  if (category === "mostWins") return `${item.W} win${item.W === 1 ? "" : "s"} • ${item.PTS} pts`;
+  if (category === "upcomingPlayer") return item.age ? `Age ${item.age} • ${item.rating.toFixed(1)} rating` : `${item.rating.toFixed(1)} rating`;
+  return `${item.rating.toFixed(1)} / 10 rating • ${item.GF} goals`;
+}
+
+function awardCard(title, icon, winner, metric, description, accentClass = "") {
+  if (!winner) return `<article class="award-card ${accentClass}"><div class="award-icon">${icon}</div><div class="award-label">${escapeHTML(title)}</div><div class="award-player-name">AWAITING RESULTS</div><p>${escapeHTML(description)}</p></article>`;
+  const player = winner.player || {};
+  const display = winner.name;
+  const initials = display.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
+  return `<article class="award-card decorated-player-card ${accentClass}">
+    <div class="award-ribbon">${icon}</div><div class="player-medallion"><span>${escapeHTML(initials || "P")}</span></div>
+    <div class="award-label">${escapeHTML(title)}</div><div class="award-player-name">${escapeHTML(display)}</div>
+    <div class="award-team">TEAM ${escapeHTML(player.teamNumber ?? "-")}</div><div class="award-metric">${escapeHTML(metric)}</div>
+    <p>${escapeHTML(description)}</p></article>`;
+}
+
+async function loadAwardVoteCounts() {
+  // Counts are normally maintained by the live onSnapshot listener.
+  // This fallback is useful during initial load before the listener fires.
+  if (Object.keys(awardVoteCounts).length) return;
+  awardVoteCounts = {};
+  try {
+    const snapshot = await getDocs(collection(db, "awardVotes"));
+    snapshot.docs.forEach((item) => {
+      const data = item.data();
+      if (!data.category || !data.playerId) return;
+      if (!awardVoteCounts[data.category]) awardVoteCounts[data.category] = {};
+      awardVoteCounts[data.category][data.playerId] = (awardVoteCounts[data.category][data.playerId] || 0) + 1;
+    });
+  } catch (error) {
+    console.warn("Award vote counts unavailable:", error);
+  }
+}
+
+function getVotedWinner(category, stats) {
+  const ids = awardNominations[category] || [];
+  const counts = awardVoteCounts[category] || {};
+  const candidates = ids.map((id) => stats.find((item) => item.id === id)).filter(Boolean);
+  if (!candidates.length) return null;
+  const total = candidates.reduce((sum, item) => sum + (counts[item.id] || 0), 0);
+  if (!total) return null;
+  return [...candidates].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0) || b.rating - a.rating)[0];
+}
+
+function getAutomaticWinner(category, stats) {
+  const candidates = getAutomaticCandidates(stats)[category] || [];
+  return candidates[0] || null;
+}
+
+async function renderAwardsAndVoting() {
+  const stats = getAwardStats();
+  await loadAwardNominations(stats);
+  await loadAwardVoteCounts();
+
+  const winners = {};
+  AUTOMATIC_AWARD_KEYS.forEach((category) => { winners[category] = getAutomaticWinner(category, stats); });
+  VOTED_AWARD_KEYS.forEach((category) => { winners[category] = getVotedWinner(category, stats); });
+  currentAwardData = { stats, ...winners };
+
+  const grid = document.getElementById("awardsGrid");
+  if (grid) {
+    grid.innerHTML = Object.entries(AWARD_CATEGORIES).map(([category, config]) => {
+      const winner = winners[category];
+      const counts = awardVoteCounts[category] || {};
+      const votes = winner ? counts[winner.id] || 0 : 0;
+      const metric = config.type === "automatic"
+        ? metricForAward(category, winner)
+        : (winner ? `${votes} fan vote${votes === 1 ? "" : "s"}` : `${(awardNominations[category] || []).length}/3 finalists`);
+      return awardCard(config.title, config.icon, winner, metric, config.description, config.accent);
+    }).join("");
+  }
+
+  renderAwardVoting(stats);
+  renderAwardNominationManager(stats);
+  renderCurrentChampion();
+  populateChampionOverride();
+}
+
+function renderAwardVoting(stats) {
+  const container = document.getElementById("awardVotingCategories");
+  if (!container) return;
+  const voted = JSON.parse(localStorage.getItem("donBoscoAwardVoter") || "{}");
+  const categories = VOTED_AWARD_KEYS.map((category) => [category, AWARD_CATEGORIES[category]]);
+  if (!categories.some(([category]) => (awardNominations[category] || []).length === 3)) {
+    container.innerHTML = `<div class="loading">Admin has not published three finalists for the fan-voted awards yet.</div>`;
+    return;
+  }
+  container.innerHTML = categories.map(([category, config]) => {
+    const ids = awardNominations[category] || [];
+    const counts = awardVoteCounts[category] || {};
+    const candidates = ids.map((id) => stats.find((item) => item.id === id)).filter(Boolean);
+    const hasVoted = Boolean(voted[category]);
+    const totalVotes = candidates.reduce((sum, item) => sum + (counts[item.id] || 0), 0);
+    return `<section class="award-vote-category ${config.accent}">
+      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three finalists"}</small></div>
+      <div class="vote-candidates">${candidates.map((item) => {
+        const initials = item.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
+        const votes = counts[item.id] || 0;
+        const percentage = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
+        const showResults = hasVoted;
+        return `<div class="vote-candidate ${hasVoted && voted[category] === item.id ? "vote-leader" : ""}">
+          <div class="vote-player-art"><span>${escapeHTML(initials || "P")}</span></div>
+          <div class="vote-player-info"><strong>${escapeHTML(item.name)}</strong><small>Team ${escapeHTML(item.player.teamNumber ?? "-")} • ${escapeHTML(metricForAward(category, item))}</small>
+            ${showResults ? `<div class="vote-result"><div class="vote-result-meta"><span>${votes} vote${votes === 1 ? "" : "s"}</span><strong>${percentage.toFixed(1)}%</strong></div><div class="vote-progress"><span style="width:${Math.min(100, percentage)}%"></span></div></div>` : `<span class="vote-hidden-result">Vote to reveal live percentages</span>`}
+          </div>
+          <button class="primary-btn vote-btn" data-vote-category="${escapeHTML(category)}" data-vote-player="${escapeHTML(item.id)}" ${hasVoted ? "disabled" : ""}>${hasVoted ? (voted[category] === item.id ? "VOTED ✓" : "VOTE CAST") : "VOTE"}</button>
+        </div>`;
+      }).join("")}</div>
+      ${hasVoted ? `<div class="live-vote-note">🔴 Live results • Percentages update as fans vote.</div>` : `<div class="vote-reveal-note">🔒 Percentages are hidden until you cast your vote.</div>`}
+    </section>`;
+  }).join("");
+
+  const message = document.getElementById("voteMessage");
+  if (message && Object.keys(voted).length) showMessage(message, "✅ Your votes are saved on this device. Vote percentages are now visible and update live.", "success");
+}
+
+async function castAwardVote(category, playerId) {
+  const message = document.getElementById("voteMessage");
+  if (!AWARD_CATEGORIES[category] || AWARD_CATEGORIES[category].type !== "voted" || !(awardNominations[category] || []).includes(playerId)) return;
+  const voted = JSON.parse(localStorage.getItem("donBoscoAwardVoter") || "{}");
+  if (voted[category]) {
+    showMessage(message, `⚠️ You already voted in ${AWARD_CATEGORIES[category].title}.`, "error");
+    return;
+  }
+  const player = players.find((item) => item.id === playerId);
+  if (!player) return;
+  const voterId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    await setDoc(doc(db, "awardVotes", `${voterId}_${category}`), {
+      voterId, category, playerId, playerName: player.username || player.name || "PLAYER", createdAt: serverTimestamp()
+    });
+    voted[category] = playerId;
+    localStorage.setItem("donBoscoAwardVoter", JSON.stringify(voted));
+    showMessage(message, `✅ Your vote for ${player.username || player.name} in ${AWARD_CATEGORIES[category].title} has been recorded.`, "success");
+    await renderAwardsAndVoting();
+  } catch (error) {
+    console.error("Award vote error:", error);
+    showMessage(message, "❌ Vote could not be recorded. Check Firebase permissions.", "error");
+  }
+}
+
+function renderAwardNominationManager(stats) {
+  const container = document.getElementById("awardNominationManager");
+  if (!container) return;
+  if (!adminLoggedIn) {
+    container.innerHTML = `<div class="loading">Log in as Admin to choose the three finalists for the fan-voted awards.</div>`;
+    return;
+  }
+  const auto = getAutomaticCandidates(stats);
+  container.innerHTML = VOTED_AWARD_KEYS.map((category) => {
+    const config = AWARD_CATEGORIES[category];
+    const selected = new Set(awardNominations[category] || []);
+    const options = (auto[category] || []).map((item) => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.name)} — ${escapeHTML(metricForAward(category, item))}</option>`).join("");
+    return `<div class="nomination-category"><div><strong>${config.icon} ${escapeHTML(config.title)}</strong><small>Choose exactly 3. Automatic rankings are only suggestions.</small></div>
+      <div class="nomination-selects">${[0,1,2].map((index) => `<select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} finalist ${index + 1}"><option value="">Select finalist ${index + 1}</option>${options}</select>`).join("")}</div>
+    </div>`;
+  }).join("");
+
+  VOTED_AWARD_KEYS.forEach((category) => {
+    const selects = [...container.querySelectorAll(`[data-nomination-category="${category}"]`)];
+    (awardNominations[category] || []).slice(0,3).forEach((id, index) => { if (selects[index]) selects[index].value = id; });
+  });
+}
+
+async function saveAwardNominations() {
+  if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
+  const message = document.getElementById("nominationMessage");
+  const stats = getAwardStats();
+  const nominations = {};
+  for (const category of VOTED_AWARD_KEYS) {
+    const selects = [...document.querySelectorAll(`[data-nomination-category="${category}"]`)];
+    const ids = selects.map((select) => select.value).filter(Boolean);
+    if (ids.length !== 3 || new Set(ids).size !== 3) {
+      showMessage(message, `⚠️ Choose exactly three different finalists for ${AWARD_CATEGORIES[category].title}.`, "error");
+      return;
+    }
+    if (ids.some((id) => !stats.some((item) => item.id === id))) {
+      showMessage(message, "⚠️ One of the selected finalists is no longer an active player.", "error");
+      return;
+    }
+    nominations[category] = ids;
+  }
+  try {
+    await setDoc(doc(db, "awardNominations", "current"), { nominations, updatedAt: serverTimestamp() });
+    awardNominations = nominations;
+    showMessage(message, "✅ Three finalists have been published for each fan-voted award. Voting is now live.", "success");
+    await renderAwardsAndVoting();
+  } catch (error) {
+    console.error("Award nominations save error:", error);
+    showMessage(message, "❌ Could not save finalists. Check Firebase permissions.", "error");
+  }
+}
+
+function getChampionFromFinal() {
+  const finals = matches.filter((match) => match.played && String(match.group || "").trim().toLowerCase() === "final");
+  if (!finals.length) return null;
+  const final = finals[finals.length - 1];
+  const hg = Number(final.homeGoals || 0), ag = Number(final.awayGoals || 0);
+  if (hg === ag) return null;
+  const winnerName = hg > ag ? final.homePlayer : final.awayPlayer;
+  return players.find((player) => String(player.username || player.name || "").toLowerCase() === String(winnerName || "").toLowerCase()) || null;
+}
+
+function renderCurrentChampion() {
+  const container = document.getElementById("currentChampion");
+  if (!container) return;
+  const champion = getChampionFromFinal();
+  if (!champion) {
+    container.innerHTML = `<div class="champion-crown">👑</div><div><span>TOURNAMENT CHAMPION</span><strong>TO BE DECIDED</strong><small>Play and record the FINAL result to crown the champion.</small></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="champion-crown">🏆</div><div><span>TOURNAMENT CHAMPION</span><strong>${escapeHTML(champion.username || champion.name)}</strong><small>Team ${escapeHTML(champion.teamNumber ?? "-")} • Crowned automatically from the FINAL result.</small></div>`;
+}
+
+function populateChampionOverride() {
+  const select = document.getElementById("championOverride");
+  if (!select) return;
+  const current = select.value;
+  select.innerHTML = `<option value="">Auto-detect from FINAL</option>` + players.map((player) => `<option value="${escapeHTML(player.id)}">${escapeHTML(player.username || player.name)} — Team ${escapeHTML(player.teamNumber ?? "-")}</option>`).join("");
+  select.value = current;
+}
+
+async function archiveTournamentToHallOfFame() {
+  if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
+  const message = document.getElementById("archiveMessage");
+  const overrideId = document.getElementById("championOverride")?.value;
+  const champion = (overrideId && players.find((p) => p.id === overrideId)) || getChampionFromFinal();
+  if (!champion) { showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error"); return; }
+  if (!currentAwardData) await renderAwardsAndVoting();
+  const awards = currentAwardData || {};
+  const season = String(new Date().getFullYear());
+  try {
+    const archiveAwards = {};
+    Object.keys(AWARD_CATEGORIES).forEach((category) => {
+      const winner = awards[category];
+      if (!winner) return;
+      archiveAwards[category] = { playerId: winner.id, name: winner.name, votes: awardVoteCounts[category]?.[winner.id] || 0, metric: metricForAward(category, winner), type: AWARD_CATEGORIES[category].type };
+    });
+    await addDoc(collection(db, "hallOfFame"), {
+      season, champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      awards: archiveAwards, archivedAt: serverTimestamp()
+    });
+    showMessage(message, `🏛️ ${season} tournament archived in the Hall of Fame.`, "success");
+    await renderHallOfFameHistory();
+  } catch (error) {
+    console.error("Hall of Fame archive error:", error);
+    showMessage(message, "❌ Could not archive tournament. Check Firebase permissions.", "error");
+  }
+}
+
+async function renderHallOfFameHistory() {
+  const container = document.getElementById("hallOfFameHistory");
+  if (!container) return;
+  try {
+    const snapshot = await getDocs(collection(db, "hallOfFame"));
+    if (snapshot.empty) { container.innerHTML = `<div class="loading">No archived champions yet. Finish your first tournament to create a legend.</div>`; return; }
+    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).reverse();
+    container.innerHTML = history.map((entry) => {
+      const a = entry.awards || {};
+      return `<article class="hof-history-item"><div class="hof-year">${escapeHTML(entry.season || "TOURNAMENT")}</div>
+        <div class="hof-champion">🏆 <strong>${escapeHTML(entry.champion?.name || "Unknown Champion")}</strong></div>
+        <div class="hof-awards">${Object.entries(AWARD_CATEGORIES).map(([category, config]) => a[category] ? `<span>${config.icon} ${escapeHTML(config.title)}: ${escapeHTML(a[category].name)}</span>` : "").join("")}</div>
+      </article>`;
+    }).join("");
+  } catch (error) {
+    console.error("Hall of Fame history error:", error);
+    container.innerHTML = `<div class="loading">Hall of Fame history is unavailable until Firebase permissions allow it.</div>`;
+  }
 }
 
 // =====================================================

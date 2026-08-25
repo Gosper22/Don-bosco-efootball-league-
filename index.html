@@ -130,6 +130,25 @@
 
 <div class="input-group">
 
+  <label for="age">
+    Player Age
+  </label>
+
+  <input
+    type="number"
+    id="age"
+    name="age"
+    min="13"
+    max="60"
+    placeholder="Age"
+    required
+  >
+
+</div>
+
+
+<div class="input-group">
+
   <label for="phone">
     Phone / WhatsApp Number
   </label>
@@ -235,27 +254,129 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">
-  <div class="section-heading"><span>ROAD TO THE FINAL</span>
-    <h2><strong>KNOCKOUT</strong> STAGE</h2>
-    <p>Knockout rounds are generated dynamically from the number of qualifiers.</p>
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
+
+<h2>
+  <strong>KNOCKOUT</strong>
+  STAGE
+</h2>
+
+<p>
+  Qualification and knockout stage.
+</p>
+
+  </div>  <div class="knockout-grid"><div class="round">
+
+  <h3>ROUND OF 16</h3>
+
+  <div id="round16">
+
+    <div class="knockout-match">
+      <span>QUALIFIER</span>
+      <strong>VS</strong>
+      <span>QUALIFIER</span>
+    </div>
+
   </div>
-  <div id="knockoutDynamic" class="knockout-grid">
-    <div class="loading">Knockout stage will appear here.</div>
+
+</div>
+
+
+<div class="round">
+
+  <h3>QUARTERFINALS</h3>
+
+  <div id="quarterfinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
   </div>
-</section><!-- ================= HALL OF FAME ================= -->
+
+</div>
+
+
+<div class="round">
+
+  <h3>SEMIFINALS</h3>
+
+  <div id="semifinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round final-round">
+
+  <h3>🏆 FINAL</h3>
+
+  <div id="final">
+
+    <div class="knockout-match final-match">
+      <span>FINALIST 1</span>
+      <strong>VS</strong>
+      <span>FINALIST 2</span>
+    </div>
+
+  </div>
+
+</div>
+
+  </div></section><!-- ================= HALL OF FAME ================= -->
 <section id="halloffame" class="section hall-of-fame-section">
-  <div class="section-heading"><span>LEGENDS</span>
+  <div class="section-heading">
+    <span>LEGENDS &amp; AWARDS</span>
     <h2>HALL OF <strong>FAME</strong></h2>
-    <p>Champions from previous Don Bosco eFootball League tournaments.</p>
+    <p>Automatic tournament awards, decorated player profiles and fan voting for the three community awards.</p>
   </div>
-  <div class="hall-intro-banner">
-    <div class="hall-intro-icon">♛</div>
-    <div><b>THE DON BOSCO LEGENDS</b><span>Every champion. Every season. Forever remembered.</span></div>
-    <div class="hall-intro-line"></div>
+
+  <div id="currentChampion" class="champion-banner">
+    <div class="champion-crown">👑</div>
+    <div>
+      <span>TOURNAMENT CHAMPION</span>
+      <strong>TO BE DECIDED</strong>
+      <small>Champion is determined from the played FINAL.</small>
+    </div>
   </div>
-  <div id="hallOfFameContainer" class="hall-of-fame-grid"><div class="loading">Loading champions...</div></div>
-</section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+
+  <div class="awards-grid" id="awardsGrid">
+    <div class="loading">Calculating tournament awards...</div>
+  </div>
+
+  <div class="potm-voting-card hall-voting-card">
+    <div class="vote-heading">
+      <span>FAN VOTING</span>
+      <h3>🗳️ VOTE FOR THE AWARDS</h3>
+      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin selects exactly three finalists for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
+    </div>
+    <div id="awardVotingCategories" class="award-voting-categories">
+      <div class="loading">Loading award finalists...</div>
+    </div>
+    <div id="voteMessage" class="message"></div>
+  </div>
+
+  <div class="hof-history-card">
+    <div class="section-heading compact-heading">
+      <span>TOURNAMENT HISTORY</span>
+      <h3>DON BOSCO <strong>LEGENDS</strong></h3>
+    </div>
+    <div id="hallOfFameHistory" class="hof-history-grid">
+      <div class="loading">No archived champions yet.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
 
 <h2>
   CONTACT
@@ -354,18 +475,6 @@
 <div id="adminPanel" style="display:none;">
 
 
-  <!-- SEASON MANAGEMENT -->
-  <div class="season-manager">
-    <div class="section-heading">
-      <span>LEAGUE HISTORY</span>
-      <h2>SEASON <strong>MANAGEMENT</strong></h2>
-      <p>Create new seasons, keep old seasons archived, and allow only one ONGOING season at a time.</p>
-    </div>
-    <div id="seasonManagerContent">
-      <div class="loading">Loading seasons...</div>
-    </div>
-  </div>
-
   <!-- TOURNAMENT SETTINGS -->
 
   <div class="tournament-settings">
@@ -458,22 +567,6 @@
 
 
   <p id="settingsMessage" class="message"></p>
-
-
-  <!-- POT DRAW / GROUPING -->
-  <div class="pot-management" id="potManagement">
-    <div class="section-heading">
-      <span>DRAW SYSTEM</span>
-      <h2>
-        POTS &amp;
-        <strong>GROUP DRAW</strong>
-      </h2>
-      <p>Assign registered players to Pot 1, Pot 2 or Pot 3, lock the pots, then generate the groups.</p>
-    </div>
-    <div id="potManagementContent">
-      <div class="loading">Login as admin to manage pots.</div>
-    </div>
-  </div>
 
 
   <!-- TOURNAMENT STATUS -->
@@ -591,6 +684,25 @@
   </div>
 
 
+  <!-- HALL OF FAME MANAGEMENT -->
+  <div class="tournament-control award-admin-control">
+    <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
+    <p>Statistics are calculated automatically. Choose exactly <strong>3 finalists</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
+    <div id="awardNominationManager" class="award-nomination-manager">
+      <div class="loading">Loading award nomination controls...</div>
+    </div>
+    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 FINALISTS PER FAN AWARD</button>
+    <p id="nominationMessage" class="message"></p>
+
+    <label for="championOverride">Champion (only use if there is no recorded FINAL)</label>
+    <select id="championOverride">
+      <option value="">Auto-detect from FINAL</option>
+    </select>
+    <button type="button" id="archiveTournamentBtn" class="primary-btn">🏛️ ARCHIVE TO HALL OF FAME</button>
+    <p id="archiveMessage" class="message"></p>
+  </div>
+
+
   <!-- MATCH MANAGEMENT -->
 
   <div class="match-management">
@@ -617,26 +729,6 @@
         Match management will appear here.
       </div>
 
-    </div>    <div class="knockout-admin-management">
-      <div class="section-heading">
-        <span>ADMIN</span>
-        <h2>KNOCKOUT <strong>MANAGEMENT</strong></h2>
-        <p>Generate the next round dynamically and enter both-leg results here.</p>
-      </div>
-      <button type="button" id="generateKnockoutBtn" class="primary-btn">⚔️ GENERATE NEXT KNOCKOUT ROUND</button>
-      <p id="knockoutAdminMessage" class="message"></p>
-      <div id="adminKnockoutMatches"><div class="loading">No knockout round generated yet.</div></div>
-    </div>
-
-    <div class="hall-admin-management">
-      <div class="section-heading"><span>HISTORY</span><h2>HALL OF <strong>FAME</strong></h2><p>Add the champion after each completed tournament.</p></div>
-      <div class="hall-admin-form">
-        <input id="hallEdition" type="text" placeholder="Tournament / Edition (e.g. Don Bosco League 2026 #1)">
-        <input id="hallWinner" type="text" placeholder="Champion username / team">
-        <input id="hallDate" type="date" aria-label="Season completion date">
-        <button type="button" id="addHallWinnerBtn" class="primary-btn">🏆 ADD CHAMPION</button>
-      </div>
-      <div id="adminHallOfFame"></div>
     </div>
 
   </div>
