@@ -1538,3 +1538,9 @@ a {
 .draw-team-row{display:flex;gap:9px;align-items:center;padding:9px 12px;border-top:1px solid rgba(255,255,255,.055);font-size:.86rem}
 .draw-team-row span{opacity:.55;font-size:.72rem}
 @media(max-width:760px){.pot-manager{grid-template-columns:1fr}.pot-unassigned{grid-column:auto}.pot-draw-actions{grid-template-columns:1fr}.pot-team{align-items:flex-start;flex-direction:column}.pot-actions{width:100%}.pot-move-btn{flex:1}}
+
+/* Fixture management: delete-all control */
+.fixture-danger-actions{margin:18px 0 22px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.danger-btn{background:#111;color:#fff;border:1px solid #dc2626;border-radius:10px;padding:12px 18px;font-weight:800;cursor:pointer;letter-spacing:.2px}
+.danger-btn:hover{background:#dc2626}
+.fixture-danger-actions .message{margin:0}
