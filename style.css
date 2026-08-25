@@ -1593,3 +1593,152 @@ a {
   .fixture-players span { min-width: 48px; padding: 7px 8px; }
   .match-status { font-size: 28px; }
 }
+
+
+/* FINAL MATCH CARD OVERRIDE */
+/* Presentation only — script.js/data/Firebase untouched. */
+
+.fixture {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 24px !important;
+  min-height: 150px !important;
+  padding: 26px 28px !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(57,255,20,.065), transparent 42%),
+    linear-gradient(145deg, #0b100c, #101711) !important;
+  border: 1px solid rgba(57,255,20,.20) !important;
+  box-shadow:
+    0 14px 40px rgba(0,0,0,.42),
+    inset 0 1px 0 rgba(255,255,255,.035) !important;
+  overflow: hidden !important;
+}
+
+.fixture::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  height: 4px !important;
+  background: linear-gradient(90deg, transparent, #39ff14 25%, #39ff14 75%, transparent) !important;
+  opacity: 1 !important;
+}
+
+.fixture::after {
+  content: "" !important;
+  position: absolute !important;
+  width: 180px !important;
+  height: 180px !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%,-50%) !important;
+  border-radius: 50% !important;
+  background: rgba(57,255,20,.055) !important;
+  filter: blur(28px) !important;
+  pointer-events: none !important;
+}
+
+.fixture-players {
+  position: relative !important;
+  z-index: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+}
+
+.fixture-players strong {
+  color: #f7faf7 !important;
+  font-size: clamp(18px, 2.6vw, 25px) !important;
+  font-weight: 950 !important;
+  line-height: 1.12 !important;
+  letter-spacing: -.45px !important;
+  text-shadow: 0 2px 14px rgba(0,0,0,.35) !important;
+}
+
+.fixture-players span {
+  flex: 0 0 auto !important;
+  min-width: 62px !important;
+  padding: 8px 11px !important;
+  border: 1px solid rgba(57,255,20,.20) !important;
+  border-radius: 999px !important;
+  background: rgba(57,255,20,.075) !important;
+  color: #39ff14 !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
+  letter-spacing: .12em !important;
+  text-align: center !important;
+}
+
+.match-schedule {
+  position: relative !important;
+  z-index: 1 !important;
+  color: #aeb8ae !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.7 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.match-status {
+  position: relative !important;
+  z-index: 1 !important;
+  min-width: 145px !important;
+  color: #39ff14 !important;
+  font-size: clamp(38px, 5.4vw, 64px) !important;
+  font-weight: 1000 !important;
+  line-height: .95 !important;
+  letter-spacing: -2px !important;
+  text-align: center !important;
+  text-shadow:
+    0 0 18px rgba(57,255,20,.18),
+    0 4px 18px rgba(0,0,0,.45) !important;
+}
+
+.fixture:hover {
+  transform: translateY(-2px) !important;
+  border-color: rgba(57,255,20,.48) !important;
+  box-shadow:
+    0 18px 48px rgba(0,0,0,.48),
+    0 0 24px rgba(57,255,20,.07) !important;
+}
+
+@media (max-width: 760px) {
+  .fixture {
+    grid-template-columns: 1fr auto 1fr !important;
+    gap: 10px !important;
+    min-height: 138px !important;
+    padding: 22px 12px !important;
+    border-radius: 19px !important;
+  }
+
+  .fixture-players {
+    gap: 7px !important;
+  }
+
+  .fixture-players strong {
+    font-size: clamp(15px, 4.2vw, 19px) !important;
+  }
+
+  .fixture-players span {
+    min-width: 45px !important;
+    padding: 6px 7px !important;
+    font-size: 11px !important;
+  }
+
+  .match-schedule {
+    font-size: 10px !important;
+    white-space: normal !important;
+  }
+
+  .match-status {
+    min-width: 90px !important;
+    font-size: clamp(30px, 9vw, 48px) !important;
+    letter-spacing: -1.5px !important;
+  }
+}
