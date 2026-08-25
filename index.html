@@ -14,6 +14,7 @@
     <a href="#standings">Standings</a>
     <a href="#playerDashboard">Players</a>
     <a href="#powerRanking">Power Ranking</a>
+    <a href="#seasonHistory">Seasons</a>
     <a href="#knockout">Knockout</a>
     <a href="#halloffame">Hall of Fame</a>
     <a href="#contact">Contact Admin</a>
@@ -385,7 +386,7 @@
     <div class="vote-heading">
       <span>FAN VOTING</span>
       <h3>🗳️ VOTE FOR THE AWARDS</h3>
-      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin selects exactly three finalists for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
+      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin freely chooses any three players for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
     </div>
     <div id="awardVotingCategories" class="award-voting-categories">
       <div class="loading">Loading award finalists...</div>
@@ -403,7 +404,7 @@
     </div>
   </div>
 
-  <div class="hof-history-card">
+  <div class="hof-history-card" id="seasonHistory">
     <div class="section-heading compact-heading">
       <span>FULL SEASON ARCHIVE</span>
       <h3>SEASON <strong>HISTORY</strong></h3>
@@ -731,7 +732,7 @@
     <div id="awardNominationManager" class="award-nomination-manager">
       <div class="loading">Loading award nomination controls...</div>
     </div>
-    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYERS PER FAN AWARD</button>
+    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYER CHOICES PER FAN AWARD</button>
     <p id="nominationMessage" class="message"></p>
     <button type="button" id="endAwardVotesBtn" class="primary-btn danger-btn">🔒 END VOTES &amp; DECLARE WINNERS</button>
     <p id="voteEndMessage" class="message"></p>

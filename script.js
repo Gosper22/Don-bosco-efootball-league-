@@ -2413,9 +2413,9 @@ let awardVotesUnsubscribe = null;
 let awardVotingState = { ended: false, endedAt: null, winners: {} };
 
 const AWARD_CATEGORIES = {
-  playerOfTournament: { title: "Player of the Tournament", icon: "⭐", accent: "award-star", type: "voted", description: "Fan-voted award. Admin publishes three finalists." },
-  upcomingPlayer: { title: "Upcoming Player", icon: "🚀", accent: "award-rising", type: "voted", description: "Fan-voted emerging talent. Admin publishes three finalists." },
-  fanPriority: { title: "Fan's Priority Player", icon: "❤️", accent: "award-priority", type: "voted", description: "Purely decided by the fans. Admin publishes three finalists." },
+  playerOfTournament: { title: "Player of the Tournament", icon: "⭐", accent: "award-star", type: "voted", description: "Fan-voted award. Admin chooses any 3 players." },
+  upcomingPlayer: { title: "Upcoming Player", icon: "🚀", accent: "award-rising", type: "voted", description: "Fan-voted emerging talent. Admin chooses any 3 players." },
+  fanPriority: { title: "Fan's Priority Player", icon: "❤️", accent: "award-priority", type: "voted", description: "Purely decided by the fans. Admin chooses any 3 players." },
   goldenBoot: { title: "Golden Boot / Top Scorer", icon: "⚽", accent: "award-gold", type: "automatic", description: "Automatically awarded to the player with the most goals." },
   bestDefender: { title: "Best Defender", icon: "🛡️", accent: "award-defender", type: "automatic", description: "Automatically calculated from clean sheets and goals conceded." },
   mostWins: { title: "Most Wins", icon: "🏅", accent: "award-wins", type: "automatic", description: "Automatically awarded to the player with the most wins." }
@@ -2670,20 +2670,22 @@ function renderAwardVoting(stats) {
   if (!container) return;
   const voted = JSON.parse(localStorage.getItem("donBoscoAwardVoter") || "{}");
   const categories = VOTED_AWARD_KEYS.map((category) => [category, AWARD_CATEGORIES[category]]);
-  if (!categories.some(([category]) => (awardNominations[category] || []).length === 3)) {
-    container.innerHTML = `<div class="loading">Admin has not published three finalists for the fan-voted awards yet.</div>`;
-    return;
-  }
   container.innerHTML = categories.map(([category, config]) => {
     const ids = awardNominations[category] || [];
     const counts = awardVoteCounts[category] || {};
     const candidates = ids.map((id) => stats.find((item) => item.id === id)).filter(Boolean);
+    if (candidates.length !== 3) {
+      return `<section class="award-vote-category ${config.accent}">
+        <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>WAITING FOR ADMIN NOMINATIONS</small></div>
+        <div class="vote-empty-state">Admin must choose exactly 3 players for this award before voting opens.</div>
+      </section>`;
+    }
     const hasVoted = Boolean(voted[category]);
     const votingEnded = Boolean(awardVotingState.ended);
     const showResults = hasVoted || votingEnded;
     const totalVotes = candidates.reduce((sum, item) => sum + (counts[item.id] || 0), 0);
     return `<section class="award-vote-category ${config.accent}">
-      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${votingEnded ? "VOTING CLOSED • FINAL RESULTS" : (hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three finalists")}</small></div>
+      <div class="award-vote-category-heading"><span>${config.icon} ${escapeHTML(config.title)}</span><small>${votingEnded ? "VOTING CLOSED • FINAL RESULTS" : (hasVoted ? "LIVE RESULTS • Your vote is recorded" : "Choose ONE of the three players")}</small></div>
       <div class="vote-candidates">${candidates.map((item) => {
         const initials = item.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
         const votes = counts[item.id] || 0;
@@ -2753,11 +2755,11 @@ function renderAwardNominationManager(stats) {
     return `<div class="nomination-category">
       <div>
         <strong>${config.icon} ${escapeHTML(config.title)}</strong>
-        <small>Admin can freely choose any 3 active players for this award.</small>
+        <small>Choose any 3 active players you want. They can be different in every award category.</small>
       </div>
       <div class="nomination-selects">${[0,1,2].map((index) => `
-        <select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} nominee ${index + 1}">
-          <option value="">Choose player ${index + 1}</option>
+        <select data-nomination-category="${escapeHTML(category)}" aria-label="${escapeHTML(config.title)} player choice ${index + 1}">
+          <option value="">Choose player</option>
           ${options}
         </select>`).join("")}
       </div>
@@ -3033,7 +3035,7 @@ async function updatePowerRankingsFromCurrentSeason() {
     groupData.forEach(group => {
       const groupPlayers = group.players || [];
       const groupNames = new Set(groupPlayers.map(p => getPlayerName(p).toLowerCase()));
-      const groupMatches = matches.filter(m => m.played && groupNames.has(String(m.homePlayer || "").toLowerCase()) && groupNames.has(String(m.awayPlayer || "").toLowerCase()) && String(m.group || "").toUpperCase() === String(group.shortName || "").toUpperCase());
+      const groupMatches = matches.filter(m => m.played && groupNames.has(String(m.homePlayer || "").toLowerCase()) && groupNames.has(String(m.awayPlayer || "").toLowerCase()) && (!m.group || String(m.group || "").toUpperCase() === String(group.shortName || group.name || "").toUpperCase()));
       const rows = getSeasonStandingsForPowerRanking(groupPlayers, groupMatches);
       rows.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups"); });
     });
