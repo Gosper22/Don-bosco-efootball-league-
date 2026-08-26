@@ -875,5 +875,89 @@
   </div></footer><!-- ================= JAVASCRIPT ================= --><script
   type="module"
   src="script.js"
-></script></body>
+></script>
+<script>
+/* Automatic Award Leaderboards: presentation-only layer */
+(function(){
+  function getArray(name){
+    try{
+      if (Array.isArray(window[name])) return window[name];
+      return [];
+    }catch(e){ return []; }
+  }
+  function num(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+  function playerName(p){ return p?.name || p?.playerName || p?.username || p?.displayName || "Unknown Player"; }
+
+  function calculate(){
+    const players = getArray("players");
+    const matches = getArray("matches");
+    const rows = players.map(p=>({
+      id:p.id || p.playerId || playerName(p),
+      name:playerName(p),
+      goals:num(p.goals ?? p.totalGoals ?? p.scoredGoals),
+      cleanSheets:num(p.cleanSheets ?? p.cleanSheet ?? p.clean_sheets),
+      wins:num(p.wins ?? p.totalWins)
+    }));
+
+    // If player totals are not stored directly, derive what can safely be derived
+    // from common match fields.
+    matches.forEach(m=>{
+      if (!m) return;
+      const home = m.homePlayer || m.player1 || m.home || m.homePlayerName;
+      const away = m.awayPlayer || m.player2 || m.away || m.awayPlayerName;
+      const hs = num(m.homeScore ?? m.score1 ?? m.homeGoals);
+      const as = num(m.awayScore ?? m.score2 ?? m.awayGoals);
+      const h = rows.find(x=>x.id===home || x.name===home);
+      const a = rows.find(x=>x.id===away || x.name===away);
+      if (h) h.goals = Math.max(h.goals, h.goals); // preserve explicit player totals
+      if (a) a.goals = Math.max(a.goals, a.goals);
+      if (h && hs>as) h.wins += 1;
+      if (a && as>hs) a.wins += 1;
+      if (hs===0 && as===0) return;
+      if (h && hs>0 && as===0) h.cleanSheets += 1;
+      if (a && as>0 && hs===0) a.cleanSheets += 1;
+    });
+
+    return {
+      scorer:[...rows].sort((a,b)=>b.goals-a.goals || b.wins-a.wins || a.name.localeCompare(b.name)),
+      defender:[...rows].sort((a,b)=>b.cleanSheets-a.cleanSheets || b.wins-a.wins || a.name.localeCompare(b.name)),
+      wins:[...rows].sort((a,b)=>b.wins-a.wins || b.goals-a.goals || a.name.localeCompare(b.name))
+    };
+  }
+
+  function render(){
+    const host = document.querySelector("#awards, #awardSection, .awards-section, [data-section='awards']");
+    if(!host || document.querySelector(".db-award-leaderboards")) return;
+    const data = calculate();
+    if(!data.scorer.length) return;
+
+    const wrap=document.createElement("div");
+    wrap.className="db-award-leaderboards";
+    const defs=[
+      ["⚽","TOP SCORER","goals","Goals","scorer"],
+      ["🛡️","BEST DEFENDER","cleanSheets","Clean Sheets","defender"],
+      ["🏆","MOST WINS","wins","Wins","wins"]
+    ];
+    defs.forEach(([icon,title,key,label,type])=>{
+      const list=data[type].slice(0,4);
+      const hero=list[0];
+      if(!hero) return;
+      const card=document.createElement("div");
+      card.className="db-award-leaderboard";
+      card.innerHTML=
+        `<h3>${icon} ${title} · RUNNING THE SHOW</h3>`+
+        `<div class="db-award-hero"><span class="db-award-hero-name">🥇 ${hero.name}</span><span class="db-award-hero-stat">${hero[key]} ${label}</span></div>`+
+        `<button class="db-award-toggle" type="button">View 3 challengers</button>`+
+        `<div class="db-award-list">${list.map((p,i)=>`<div class="db-award-row"><span class="db-award-rank">${i===0?"🥇":i===1?"🥈":i===2?"🥉":"4️⃣"}</span><span class="db-award-name">${p.name}</span><span class="db-award-stat">${p[key]} ${label}</span></div>`).join("")}</div>`;
+      card.querySelector("button").onclick=()=>card.classList.toggle("open");
+      wrap.appendChild(card);
+    });
+    host.appendChild(wrap);
+  }
+
+  document.addEventListener("DOMContentLoaded",render);
+})();
+</script>
+
+</body>
 </html>
