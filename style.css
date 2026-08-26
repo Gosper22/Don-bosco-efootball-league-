@@ -1635,3 +1635,255 @@ a {
   .match-schedule { order: 2; text-align: center; }
   .match-status { order: 3; min-width: 0; font-size: 38px; }
 }
+
+
+/* =========================================================
+   MODERN GROUPS / KNOCKOUT / LIVE AWARD LEADERS
+========================================================= */
+
+.groups-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+  gap: 20px !important;
+}
+
+.group-card {
+  position: relative !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(57,255,20,.11), transparent 35%),
+    linear-gradient(145deg, rgba(17,24,18,.98), rgba(8,12,9,.98)) !important;
+  border: 1px solid rgba(57,255,20,.18) !important;
+  box-shadow: 0 16px 38px rgba(0,0,0,.28) !important;
+}
+
+.group-title {
+  padding: 18px 19px !important;
+  background: linear-gradient(90deg, rgba(57,255,20,.12), rgba(57,255,20,.035)) !important;
+}
+
+.group-title strong {
+  font-size: 24px !important;
+  letter-spacing: .02em !important;
+}
+
+.group-player {
+  min-height: 54px !important;
+  padding: 13px 17px !important;
+  background: rgba(255,255,255,.018) !important;
+  transition: .18s ease !important;
+}
+
+.group-player:hover {
+  background: rgba(57,255,20,.065) !important;
+  padding-left: 21px !important;
+}
+
+.group-player > span {
+  display: grid !important;
+  place-items: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 9px !important;
+  background: rgba(57,255,20,.09) !important;
+  color: #39ff14 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+.group-player strong {
+  font-size: 15px !important;
+}
+
+.knockout-grid {
+  grid-template-columns: repeat(4, minmax(220px, 1fr)) !important;
+  gap: 22px !important;
+  align-items: stretch !important;
+}
+
+.round {
+  position: relative !important;
+  padding: 14px !important;
+  border-radius: 20px !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.035), rgba(255,255,255,.012)) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+}
+
+.round h3 {
+  margin: 0 0 14px !important;
+  padding: 10px 12px !important;
+  border-radius: 11px !important;
+  background: rgba(57,255,20,.075) !important;
+  font-size: 12px !important;
+}
+
+.knockout-match {
+  min-height: 108px !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  margin-bottom: 12px !important;
+  padding: 14px !important;
+  border-radius: 15px !important;
+  background: #0d130e !important;
+  border: 1px solid rgba(57,255,20,.13) !important;
+  box-shadow: 0 8px 22px rgba(0,0,0,.18) !important;
+}
+
+.knockout-match span {
+  display: block !important;
+  padding: 9px 10px !important;
+  border-radius: 9px !important;
+  background: rgba(255,255,255,.045) !important;
+  color: #eef4ef !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
+}
+
+.knockout-match strong {
+  display: block !important;
+  color: #39ff14 !important;
+  font-size: 14px !important;
+  letter-spacing: .08em !important;
+}
+
+.final-round {
+  background: radial-gradient(circle at 50% 0%, rgba(255,216,74,.10), rgba(255,255,255,.018) 45%) !important;
+  border-color: rgba(255,216,74,.22) !important;
+}
+
+.final-round h3 {
+  background: rgba(255,216,74,.08) !important;
+  color: #ffd84a !important;
+}
+
+.final-match {
+  border-color: rgba(255,216,74,.30) !important;
+  box-shadow: 0 0 28px rgba(255,216,74,.06) !important;
+}
+
+.automatic-award-leaderboards {
+  margin: 28px 0 32px !important;
+}
+
+.auto-awards-heading {
+  margin-bottom: 16px !important;
+}
+
+.auto-awards-heading span {
+  color: var(--green) !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: .16em !important;
+}
+
+.auto-awards-heading h3 {
+  margin: 6px 0 !important;
+  font-size: 24px !important;
+}
+
+.auto-awards-heading p {
+  margin: 0 !important;
+  opacity: .65 !important;
+  font-size: 12px !important;
+}
+
+.auto-awards-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0,1fr)) !important;
+  gap: 16px !important;
+}
+
+.auto-award-card {
+  padding: 16px !important;
+  border-radius: 19px !important;
+  border: 1px solid rgba(57,255,20,.15) !important;
+  background: linear-gradient(145deg, rgba(57,255,20,.055), rgba(255,255,255,.018)) !important;
+}
+
+.auto-award-topline {
+  display: flex !important;
+  justify-content: space-between !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  color: #cfd8d0 !important;
+}
+
+.auto-award-topline b {
+  color: #39ff14 !important;
+}
+
+.auto-award-hero {
+  margin-top: 12px !important;
+  padding: 16px !important;
+  border-radius: 15px !important;
+  background: rgba(57,255,20,.065) !important;
+}
+
+.auto-award-rank {
+  font-size: 24px !important;
+}
+
+.auto-award-name {
+  margin-top: 3px !important;
+  font-size: 21px !important;
+  font-weight: 950 !important;
+}
+
+.auto-award-stat {
+  margin-top: 5px !important;
+  color: #39ff14 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.auto-award-toggle {
+  width: 100% !important;
+  margin-top: 10px !important;
+  padding: 10px !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: rgba(255,255,255,.055) !important;
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+}
+
+.auto-award-challengers {
+  display: none !important;
+  margin-top: 8px !important;
+}
+
+.auto-award-card.expanded .auto-award-challengers {
+  display: block !important;
+}
+
+.auto-award-row {
+  display: grid !important;
+  grid-template-columns: 28px 1fr auto !important;
+  gap: 8px !important;
+  align-items: center !important;
+  padding: 10px 3px !important;
+  border-bottom: 1px solid rgba(255,255,255,.06) !important;
+}
+
+.auto-award-row strong {
+  font-size: 12px !important;
+}
+
+.auto-award-row em {
+  color: #39ff14 !important;
+  font-size: 10px !important;
+  font-style: normal !important;
+  font-weight: 800 !important;
+}
+
+@media (max-width: 900px) {
+  .knockout-grid { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+  .auto-awards-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 600px) {
+  .groups-grid { grid-template-columns: 1fr !important; }
+  .knockout-grid { grid-template-columns: 1fr !important; }
+}
