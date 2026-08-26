@@ -579,87 +579,443 @@ a {
 ========================================================= */
 
 .fixtures-container {
-  display:grid;
-  gap:18px;
+  display: grid;
+  gap: 14px;
 }
+
 .fixture {
-  position:relative;
-  display:block;
-  padding:24px 22px 20px;
-  border-radius:22px;
-  background:linear-gradient(145deg,#071008,#0c150d);
-  border:1px solid rgba(57,255,20,.18);
-  box-shadow:0 12px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.025);
-  overflow:hidden;
-  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+  display: grid;
+
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+
+  padding: 20px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 13px;
+
+  background: var(--card);
+
+  transition: 0.2s ease;
 }
-.fixture::before {
-  content:"";
-  position:absolute;
-  left:0;right:0;top:0;height:4px;
-  background:linear-gradient(90deg,transparent,#39ff14,transparent);
-  opacity:.9;
-}
+
 .fixture:hover {
-  transform:translateY(-2px);
-  border-color:rgba(57,255,20,.38);
-  box-shadow:0 18px 38px rgba(0,0,0,.34),0 0 22px rgba(57,255,20,.06);
+  border-color: var(--green);
 }
+
 .fixture-players {
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
-  align-items:center;
-  gap:14px;
-  text-align:center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
 }
-.fixture-players strong {
-  color:#fff;
-  font-size:clamp(18px,2.7vw,25px);
-  line-height:1.15;
-  font-weight:900;
-  word-break:break-word;
-}
+
 .fixture-players span {
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-width:54px;
-  height:42px;
-  padding:0 12px;
-  border-radius:999px;
-  background:rgba(57,255,20,.08);
-  border:1px solid rgba(57,255,20,.25);
-  color:#39ff14;
-  font-size:15px;
-  font-weight:950;
-  letter-spacing:.04em;
+  color: var(--green);
+  font-weight: 900;
 }
+
 .match-schedule {
-  margin-top:15px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-wrap:wrap;
-  gap:8px 14px;
-  color:#aeb8ae;
-  font-size:12px;
-  font-weight:700;
-  text-align:center;
+  color: var(--muted);
+  font-size: 12px;
 }
+
 .match-status {
-  margin-top:14px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-height:50px;
-  color:#39ff14;
-  font-size:clamp(34px,5.2vw,54px);
-  line-height:1;
-  font-weight:950;
-  letter-spacing:-1px;
-  text-align:center;
-  text-shadow:0 0 18px rgba(57,255,20,.13);
+  text-align: right;
+
+  color: var(--green);
+
+  font-size: 11px;
+  font-weight: 900;
 }
+
+/* =========================================================
+   STANDINGS
+========================================================= */
+
+.standings-container {
+  display: grid;
+  gap: 40px;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  background: var(--card);
+}
+
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  min-width: 700px;
+}
+
+.standings-table th {
+  padding: 14px;
+
+  background: rgba(57, 255, 20, 0.08);
+
+  color: var(--green);
+
+  font-size: 11px;
+  text-align: left;
+}
+
+.standings-table td {
+  padding: 14px;
+
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+
+  color: #cfd7d0;
+}
+
+.standings-table tr:hover td {
+  background: rgba(57, 255, 20, 0.035);
+}
+
+.standings-table td strong {
+  color: var(--green);
+}
+
+/* =========================================================
+   KNOCKOUT
+========================================================= */
+
+.knockout-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, 1fr);
+
+  gap: 18px;
+}
+
+.round {
+  min-width: 0;
+}
+
+.round h3 {
+  margin-bottom: 14px;
+
+  color: var(--green);
+
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.knockout-match {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 17px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  background: var(--card);
+
+  text-align: center;
+}
+
+.knockout-match strong {
+  color: var(--green);
+}
+
+.final-match {
+  border-color: rgba(255, 216, 74, 0.35);
+}
+
+.final-round h3 {
+  color: var(--gold);
+}
+
+/* =========================================================
+   ADMIN
+========================================================= */
+
+.admin-section {
+  max-width: 1200px;
+}
+
+.admin-panel {
+  display: grid;
+  gap: 25px;
+}
+
+.admin-login,
+.tournament-control,
+.admin-match,
+.settings-card {
+  padding: 25px;
+}
+
+.admin-login h3,
+.tournament-control h3 {
+  margin-bottom: 10px;
+
+  color: var(--green);
+}
+
+.admin-login p {
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+
+.admin-login .primary-btn {
+  margin-top: 12px;
+}
+
+.tournament-settings {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap: 18px;
+
+  margin-bottom: 20px;
+}
+
+.settings-info {
+  margin-top: 12px;
+
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-info strong {
+  color: var(--green);
+}
+
+.tournament-control > * {
+  margin-bottom: 15px;
+}
+
+.progress-bar {
+  margin: 18px 0 !important;
+}
+
+#playerProgress {
+  background: var(--green) !important;
+
+  box-shadow:
+    0 0 15px rgba(57, 255, 20, 0.4);
+}
+
+.match-management {
+  margin-top: 50px;
+}
+
+#adminMatches {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-match h3 {
+  margin-bottom: 10px;
+
+  color: #fff;
+}
+
+.admin-match h3 span {
+  margin: 0 8px;
+  color: var(--green);
+}
+
+.admin-match p {
+  margin-bottom: 18px;
+  color: var(--muted);
+}
+
+.score-box {
+  display: grid;
+
+  grid-template-columns: 1fr auto 1fr;
+
+  align-items: end;
+  gap: 15px;
+
+  margin: 18px 0;
+}
+
+.score-box > strong {
+  padding-bottom: 12px;
+
+  color: var(--green);
+}
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+
+.message {
+  margin-top: 12px;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.message.success {
+  color: var(--green);
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+/* =========================================================
+   LOADING
+========================================================= */
+
+.loading {
+  padding: 35px;
+
+  border: 1px dashed rgba(57, 255, 20, 0.2);
+  border-radius: 12px;
+
+  color: var(--muted);
+
+  text-align: center;
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.footer {
+  margin-top: 50px;
+  padding: 55px 20px;
+
+  border-top: 1px solid var(--border);
+
+  background: #030503;
+
+  text-align: center;
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer .logo {
+  align-items: center;
+}
+
+.footer p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.footer p strong {
+  color: var(--green);
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 900px) {
+
+  .navbar {
+    flex-direction: column;
+    gap: 14px;
+    padding: 15px;
+  }
+
+  .navbar nav {
+    width: 100%;
+
+    justify-content: center;
+
+    flex-wrap: wrap;
+
+    gap: 12px 18px;
+  }
+
+  .knockout-grid {
+    grid-template-columns:
+      repeat(2, 1fr);
+  }
+
+  .fixture {
+    grid-template-columns: 1fr;
+  }
+
+  .fixture-players {
+    justify-content: center;
+  }
+
+  .match-schedule,
+  .match-status {
+    text-align: center;
+  }
+
+}
+
+@media (max-width: 600px) {
+
+  .section {
+    width: 94%;
+    padding: 65px 0;
+  }
+
+  .hero {
+    min-height: 580px;
+  }
+
+  .hero h1 {
+    letter-spacing: -2px;
+  }
+
+  .register-form,
+  .admin-login,
+  .tournament-control,
+  .admin-match,
+  .settings-card {
+    padding: 20px;
+  }
+
+  .tournament-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .knockout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-box {
+    grid-template-columns: 1fr;
+  }
+
+  .score-box > strong {
+    text-align: center;
+    padding: 0;
+  }
+
+  .navbar nav a {
+    font-size: 11px;
+  }
+
+  .nav-register {
+    width: 100%;
+  }
+
+}
+
+/* =========================================================
+   HALL OF FAME / AWARDS
+========================================================= */
+
 .hall-of-fame-section {
   position: relative;
 }
@@ -1188,13 +1544,94 @@ a {
 .fixture-delete-hint{opacity:.72;font-size:.82rem}
 .admin-match-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 
+/* =========================================================
+   DON BOSCO — FINAL MATCH CARD POLISH
+   Presentation only. Existing HTML/JS/data structure preserved.
+========================================================= */
+.fixture {
+  position: relative;
+  min-height: 118px;
+  padding: 22px 24px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(180px, .85fr) minmax(120px, .65fr);
+  gap: 22px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255,255,255,.045), rgba(255,255,255,.018));
+  box-shadow: 0 12px 30px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.035);
+  overflow: hidden;
+}
 
-/* Final mobile match-card tuning; awards and app logic untouched. */
-@media (max-width: 620px) {
-  .fixture { padding:20px 12px 17px; border-radius:19px; }
-  .fixture-players { gap:7px; }
-  .fixture-players strong { font-size:clamp(15px,4.5vw,20px); }
-  .fixture-players span { min-width:46px; height:36px; padding:0 8px; font-size:12px; }
-  .match-schedule { font-size:10px; gap:6px 9px; }
-  .match-status { font-size:clamp(32px,9vw,46px); }
+.fixture::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--green);
+  opacity: .8;
+}
+
+.fixture:hover {
+  border-color: rgba(57,255,20,.45);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(0,0,0,.23), 0 0 22px rgba(57,255,20,.06);
+}
+
+.fixture-players {
+  min-width: 0;
+  gap: 12px;
+}
+
+.fixture-players strong {
+  min-width: 0;
+  color: #f5f7f5;
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -.25px;
+}
+
+.fixture-players span {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid rgba(57,255,20,.22);
+  border-radius: 999px;
+  background: rgba(57,255,20,.06);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+
+.match-schedule {
+  align-self: center;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.7;
+  font-weight: 700;
+}
+
+.match-status {
+  align-self: center;
+  min-width: 120px;
+  text-align: center;
+  color: var(--green);
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -1.5px;
+  text-shadow: 0 3px 16px rgba(57,255,20,.10);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .fixture {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    min-height: 0;
+    padding: 18px 16px;
+  }
+  .fixture-players { justify-content: center; }
+  .fixture-players strong { font-size: 18px; }
+  .match-schedule { order: 2; text-align: center; }
+  .match-status { order: 3; min-width: 0; font-size: 38px; }
 }

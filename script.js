@@ -2033,14 +2033,14 @@ card.innerHTML =
 
   "</div>" +
 
-  "<button " +
-  "type='button' " +
-  "class='primary-btn' " +
-  "data-save-match='" +
-  match.id +
-  "'>" +
+  "<div class='admin-match-actions'>" +
+  "<button type='button' class='primary-btn' data-save-match='" + match.id + "'>" +
   "💾 SAVE RESULT" +
-  "</button>";
+  "</button>" +
+  "<button type='button' class='danger-btn' data-delete-match='" + match.id + "'>" +
+  "🗑️ DELETE FIXTURE" +
+  "</button>" +
+  "</div>";
 
 
 const saveButton =
@@ -2056,11 +2056,49 @@ saveButton?.addEventListener(
   () => saveAdminMatch(match.id)
 );
 
+const deleteButton = card.querySelector("[data-delete-match='" + match.id + "']");
+deleteButton?.addEventListener("click", () => deleteSingleFixture(match.id));
 
 container.appendChild(card);
 
 });
 
+}
+
+// =====================================================
+// DELETE ONE FIXTURE
+// =====================================================
+
+async function deleteSingleFixture(matchId) {
+  if (!adminLoggedIn) {
+    alert("🔐 Admin login kwanza.");
+    return;
+  }
+
+  const match = matches.find((item) => item.id === matchId);
+  if (!match) {
+    alert("⚠️ Fixture haipo tena.");
+    return;
+  }
+
+  const label = `${match.homePlayer || "TBD"} vs ${match.awayPlayer || "TBD"}`;
+  const confirmed = confirm(`DELETE THIS FIXTURE?\n\n${label}\n${match.group || "LEAGUE"}\n\nThis removes only this current-season fixture. Season History is not affected.`);
+  if (!confirmed) return;
+
+  try {
+    await deleteDoc(doc(db, "matches", matchId));
+    matches = matches.filter((item) => item.id !== matchId);
+    renderFixtures();
+    renderStandings();
+    renderPlayerDashboard();
+    await renderPowerRanking();
+    await renderAwardsAndVoting();
+    loadAdminMatches();
+    updateTournamentUI();
+  } catch (error) {
+    console.error("Delete fixture error:", error);
+    alert("❌ Could not delete fixture. Check Firebase permissions.");
+  }
 }
 
 // =====================================================
