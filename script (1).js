@@ -3512,3 +3512,33 @@ button.innerHTML =
     }
   },true);
 })();
+
+/* FLEXIBLE KNOCKOUT WORKFLOW */
+(function(){
+  const KEY="db_knockout_start_round";
+  const names={r16:"Round of 16",qf:"Quarter-Final",sf:"Semi-Final",final:"Final"};
+  function init(){
+    const box=document.getElementById("flexibleKnockoutSetup");
+    if(!box)return;
+    const buttons=[...box.querySelectorAll("[data-start-round]")];
+    const status=document.getElementById("flexibleKnockoutStatus");
+    const next=document.getElementById("knockoutNextStep");
+    let selected=localStorage.getItem(KEY)||"";
+    function paint(){
+      buttons.forEach(b=>b.classList.toggle("selected",b.dataset.startRound===selected));
+      status.textContent=selected ? names[selected].toUpperCase() : "NOT SET";
+      next.textContent=selected ? "Next: confirm qualified teams, then create "+names[selected]+"." : "Select the first knockout stage.";
+    }
+    buttons.forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.startRound;paint()}));
+    const save=document.getElementById("saveKnockoutStart");
+    if(save) save.addEventListener("click",()=>{
+      if(!selected){alert("Please choose the starting knockout round first.");return;}
+      localStorage.setItem(KEY,selected);
+      status.textContent=names[selected].toUpperCase()+" SAVED";
+      next.textContent="✓ Starting stage saved. Proceed to "+names[selected]+".";
+    });
+    paint();
+  }
+  document.addEventListener("DOMContentLoaded",init);
+})();
+

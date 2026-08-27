@@ -1890,3 +1890,17 @@ a {
 
 /* VOTING LOCK UI */
 button:disabled{cursor:not-allowed!important;opacity:.48!important}
+
+/* FLEXIBLE KNOCKOUT SETUP */
+.flexible-knockout-setup{margin:18px 0;padding:18px;border:1px solid rgba(57,255,20,.18);border-radius:20px;background:linear-gradient(145deg,rgba(57,255,20,.045),rgba(255,255,255,.018));box-shadow:0 12px 30px rgba(0,0,0,.22)}
+.flexible-knockout-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.flexible-kicker{font-size:10px;font-weight:900;letter-spacing:.16em;color:#39ff14}
+.flexible-knockout-head h3{margin:5px 0 4px;font-size:21px}
+.flexible-knockout-head p{margin:0;font-size:12px;opacity:.62}
+.flexible-status{padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.055);font-size:10px;font-weight:900}
+.flexible-round-options{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.flexible-round-options button{border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px 8px;background:rgba(255,255,255,.035);color:#fff;font-weight:900;font-size:11px;cursor:pointer}
+.flexible-round-options button.selected{background:rgba(57,255,20,.12);border-color:rgba(57,255,20,.55);color:#39ff14;box-shadow:0 0 18px rgba(57,255,20,.08)}
+.save-knockout-start{margin-top:12px;width:100%;padding:12px;border:0;border-radius:12px;background:#39ff14;color:#061006;font-weight:950;cursor:pointer}
+.knockout-next-step{margin-top:9px;font-size:11px;opacity:.72;text-align:center}
+@media(max-width:650px){.flexible-round-options{grid-template-columns:1fr 1fr}.flexible-knockout-head{flex-direction:column}}
