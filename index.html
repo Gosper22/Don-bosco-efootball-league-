@@ -284,6 +284,31 @@
 
 <!-- ================= KNOCKOUT ================= -->
 
+
+<div id="qualifiedKnockoutPanel" class="qualified-knockout-panel">
+  <div class="qualified-head">
+    <div>
+      <span>GROUPS → KNOCKOUT</span>
+      <h3>QUALIFY TEAMS</h3>
+      <p>Select the teams that will move from the Groups into the knockout stage.</p>
+    </div>
+    <span id="qualifiedCount" class="qualified-count">0 / 0</span>
+  </div>
+
+  <div class="qualified-toolbar">
+    <button type="button" id="buildQualifiedList" class="secondary-btn">🔄 LOAD GROUP STANDINGS</button>
+    <button type="button" id="autoPickQualified" class="primary-btn">⚡ AUTO PICK TOP TEAMS</button>
+    <button type="button" id="clearQualified" class="clear-qualified-btn">CLEAR</button>
+  </div>
+
+  <div id="qualifiedTeamsList" class="qualified-teams-list">
+    <div class="draw-preview-empty">Choose your knockout starting round first, then load the group standings.</div>
+  </div>
+
+  <button type="button" id="pushQualifiedTeams" class="push-qualified-btn">➡️ PUSH SELECTED TEAMS TO KNOCKOUT</button>
+  <p id="qualifiedMessage" class="message"></p>
+</div>
+
 <section id="flexibleKnockoutSetup" class="flexible-knockout-setup">
   <div class="flexible-knockout-head">
     <div>

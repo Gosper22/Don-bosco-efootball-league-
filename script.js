@@ -3583,6 +3583,10 @@ button.innerHTML =
   }
 
   function getNames(){
+    try{
+      const state=JSON.parse(localStorage.getItem(KEY)||"null");
+      if(Array.isArray(state?.qualifiedNames) && state.qualifiedNames.length) return state.qualifiedNames;
+    }catch(e){}
     return namesFromGlobals().length ? namesFromGlobals() : namesFromDOM();
   }
 
@@ -3680,6 +3684,164 @@ button.innerHTML =
 
     paint();
   }
+  document.addEventListener("DOMContentLoaded",init);
+})();
+
+
+/* =========================================================
+   REAL QUALIFIED TEAM PUSH WORKFLOW
+   Admin selects qualified teams from live group standings,
+   then explicitly pushes them into the selected knockout stage.
+========================================================= */
+(function(){
+  const KEY="db_knockout_qualified_v1";
+  const STAGE_KEY="db_knockout_start_round";
+
+  const slots={r16:16,qf:8,sf:4,final:2};
+  const labels={r16:"ROUND OF 16",qf:"QUARTER-FINAL",sf:"SEMI-FINAL",final:"FINAL"};
+
+  function getState(){
+    try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){return null}
+  }
+  function saveState(v){localStorage.setItem(KEY,JSON.stringify(v))}
+  function playerName(p){return p.username||p.name||"PLAYER"}
+
+  function groupStandings(group){
+    const stats=(group.players||[]).map(p=>({
+      id:p.id,name:playerName(p),P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,PTS:0
+    }));
+    const byName={}; stats.forEach(x=>byName[x.name]=x);
+    (window.matches||[]).forEach(m=>{
+      if(!m?.played)return;
+      const h=byName[m.homePlayer], a=byName[m.awayPlayer];
+      if(!h||!a)return;
+      const hg=Number(m.homeGoals||0), ag=Number(m.awayGoals||0);
+      h.P++;a.P++;h.GF+=hg;h.GA+=ag;a.GF+=ag;a.GA+=hg;
+      if(hg>ag){h.W++;h.PTS+=3;a.L++}
+      else if(ag>hg){a.W++;a.PTS+=3;h.L++}
+      else{h.D++;a.D++;h.PTS++;a.PTS++}
+    });
+    stats.forEach(x=>x.GD=x.GF-x.GA);
+    return stats.sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF);
+  }
+
+  function getGroupsSafe(){
+    try{
+      if(typeof getGroups==="function") return getGroups();
+    }catch(e){}
+    return [];
+  }
+
+  function selectedIds(){
+    return [...document.querySelectorAll(".qualified-team input:checked")].map(x=>x.value);
+  }
+
+  function render(){
+    const root=document.getElementById("qualifiedTeamsList");
+    const count=document.getElementById("qualifiedCount");
+    const push=document.getElementById("pushQualifiedTeams");
+    if(!root)return;
+
+    const stage=localStorage.getItem(STAGE_KEY)||"";
+    const max=slots[stage]||0;
+    const saved=getState();
+    const selected=new Set(saved?.selectedIds||[]);
+    if(!stage){
+      root.innerHTML='<div class="draw-preview-empty">Select a starting knockout round above first.</div>';
+      count.textContent="0 / 0"; if(push)push.disabled=true; return;
+    }
+
+    const groups=getGroupsSafe();
+    if(!groups.length){
+      root.innerHTML='<div class="draw-preview-empty">No groups available yet. Complete and publish the Group Draw first.</div>';
+      count.textContent=`0 / ${max}`; if(push)push.disabled=true; return;
+    }
+
+    root.innerHTML=groups.map((g,gi)=>{
+      const rows=groupStandings(g);
+      return `<div class="qualified-group">
+        <div class="qualified-group-head"><strong>GROUP ${escapeHTML(g.shortName||String.fromCharCode(65+gi))}</strong><span>${rows.length} TEAMS</span></div>
+        ${rows.map((p,i)=>`
+          <label class="qualified-team ${selected.has(String(p.id))?'selected':''}">
+            <input type="checkbox" value="${escapeHTML(String(p.id))}" ${selected.has(String(p.id))?'checked':''}>
+            <strong>${i+1}. ${escapeHTML(p.name)}</strong>
+            <small>${p.PTS} PTS · ${p.GD>=0?"+":""}${p.GD} GD</small>
+          </label>`).join("")}
+      </div>`;
+    }).join("");
+
+    function refreshCount(){
+      const n=selectedIds().length;
+      count.textContent=`${n} / ${max}`;
+      if(push)push.disabled=n!==max;
+      root.querySelectorAll(".qualified-team").forEach(x=>x.classList.toggle("selected",x.querySelector("input").checked));
+      if(n>max){
+        count.textContent=`${n} / ${max} — TOO MANY`;
+        if(push)push.disabled=true;
+      }
+    }
+    root.querySelectorAll("input").forEach(input=>input.addEventListener("change",refreshCount));
+    refreshCount();
+  }
+
+  function autoPick(){
+    const stage=localStorage.getItem(STAGE_KEY);
+    const max=slots[stage]||0;
+    if(!max)return alert("Choose the starting knockout round first.");
+    const groups=getGroupsSafe();
+    if(!groups.length)return alert("Complete and publish the Groups first.");
+
+    const ranked=[];
+    groups.forEach((g,gi)=>groupStandings(g).forEach((p,rank)=>ranked.push({...p,group:gi,rank})));
+
+    // Prefer the same number of top finishers from each group where possible.
+    const perGroup=Math.floor(max/groups.length);
+    const remainder=max%groups.length;
+    const picked=[];
+    groups.forEach((g,gi)=>{
+      const rows=ranked.filter(x=>x.group===gi).sort((a,b)=>a.rank-b.rank);
+      const take=perGroup+(gi<remainder?1:0);
+      rows.slice(0,take).forEach(x=>picked.push(x.id));
+    });
+
+    // Fill any shortfall by overall standings.
+    for(const p of ranked.sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF)){
+      if(picked.length>=max)break;
+      if(!picked.includes(p.id))picked.push(p.id);
+    }
+    saveState({stage,selectedIds:picked.slice(0,max),pushed:false});
+    render();
+  }
+
+  function init(){
+    if(!document.getElementById("qualifiedKnockoutPanel"))return;
+    document.getElementById("buildQualifiedList")?.addEventListener("click",render);
+    document.getElementById("autoPickQualified")?.addEventListener("click",autoPick);
+    document.getElementById("clearQualified")?.addEventListener("click",()=>{
+      localStorage.removeItem(KEY); render();
+    });
+    document.getElementById("pushQualifiedTeams")?.addEventListener("click",()=>{
+      const stage=localStorage.getItem(STAGE_KEY);
+      const ids=selectedIds();
+      if(!slots[stage]||ids.length!==slots[stage]){
+        return alert(`Select exactly ${slots[stage]||0} qualified teams first.`);
+      }
+      saveState({stage,selectedIds:ids,pushed:true});
+      const names=ids.map(id=>{
+        const p=(window.players||[]).find(x=>String(x.id)===String(id));
+        return p?.username||p?.name||id;
+      });
+      // Feed the selected qualifiers into the existing draw engine.
+      localStorage.setItem("db_knockout_draw_v2",JSON.stringify({
+        round:stage, qualifiedIds:ids, qualifiedNames:names, pairs:[],
+        drawnAt:null
+      }));
+      alert(`✅ ${ids.length} teams pushed to ${labels[stage]}. Now press DRAW TEAMS.`);
+      render();
+    });
+    render();
+  }
+
   document.addEventListener("DOMContentLoaded",init);
 })();
 
