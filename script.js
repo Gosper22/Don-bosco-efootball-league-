@@ -3845,3 +3845,42 @@ button.innerHTML =
   document.addEventListener("DOMContentLoaded",init);
 })();
 
+
+/* ROAD TO FINAL BRANCH BRACKET */
+(function(){
+  function state(){
+    try{return JSON.parse(localStorage.getItem("db_knockout_draw_v2")||"null")}catch(e){return null}
+  }
+  function esc(x){return String(x||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+  function matchCard(round, pair, i){
+    const a=pair?.[0]||"TBD", b=pair?.[1]||"TBD";
+    return `<div class="road-match"><div class="road-round-label">${round} · MATCH ${i+1}</div>
+      <div class="road-team ${a!=="TBD"?"":"road-empty-slot"}"><span>${esc(a)}</span><span class="road-score">–</span></div>
+      <div class="road-team ${b!=="TBD"?"":"road-empty-slot"}"><span>${esc(b)}</span><span class="road-score">–</span></div>
+    </div>`;
+  }
+  function render(){
+    const board=document.getElementById("roadFinalBracketBoard"); if(!board)return;
+    const st=state(), pairs=st?.pairs||[];
+    const round=(st?.round||localStorage.getItem("db_knockout_start_round")||"sf").toLowerCase();
+    let matches=pairs;
+    const names=st?.qualifiedNames||[];
+    if(!matches.length && names.length>=2){
+      matches=[]; for(let i=0;i<names.length;i+=2) matches.push([names[i],names[i+1]]);
+    }
+    if(round==="final"){
+      board.innerHTML=`<div></div><div class="road-center"><div class="road-final-card"><div class="road-round-label">FINAL · MATCH 1</div><div class="road-team">${esc(matches[0]?.[0]||names[0]||"TBD")}</div><div class="road-team">${esc(matches[0]?.[1]||names[1]||"TBD")}</div></div></div><div></div>`;
+      return;
+    }
+    const mid=Math.ceil(matches.length/2);
+    const left=matches.slice(0,mid), right=matches.slice(mid);
+    const nextLabel=round==="r16"?"QUARTER-FINAL":round==="qf"?"SEMI-FINAL":"FINAL";
+    const nextCount=Math.max(1,Math.floor(matches.length/2));
+    board.innerHTML=`
+      <div class="road-side">${left.map((p,i)=>matchCard(round==="r16"?"ROUND OF 16":round==="qf"?"QUARTER-FINAL":"SEMI-FINAL",p,i)).join("")}</div>
+      <div class="road-center"><div class="road-final-card"><div class="road-round-label">${nextLabel}</div>${Array.from({length:nextCount},(_,i)=>`<div class="road-match"><div class="road-round-label">MATCH ${i+1}</div><div class="road-team road-empty-slot">WINNER</div><div class="road-team road-empty-slot">WINNER</div></div>`).join("")}</div></div>
+      <div class="road-side right">${right.map((p,i)=>matchCard(round==="r16"?"ROUND OF 16":round==="qf"?"QUARTER-FINAL":"SEMI-FINAL",p,i)).join("")}</div>`;
+  }
+  document.addEventListener("DOMContentLoaded",render);
+  window.addEventListener("storage",render);
+})();

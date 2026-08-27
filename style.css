@@ -1945,3 +1945,26 @@ button:disabled{cursor:not-allowed!important;opacity:.48!important}
 .qualified-team.selected{background:rgba(57,255,20,.08)}
 .push-qualified-btn{width:100%;margin-top:13px;padding:13px;border:0;border-radius:12px;background:#39ff14;color:#061006;font-weight:950;cursor:pointer}
 .push-qualified-btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* ROAD TO FINAL BRANCH BRACKET */
+.road-final-section{margin:22px 0;padding:20px;border-radius:22px;border:1px solid rgba(255,255,255,.09);background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(0,0,0,.16));overflow-x:auto}
+.road-final-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+.road-final-title span{font-size:9px;letter-spacing:.18em;color:#39ff14;font-weight:950}
+.road-final-title h2{margin:4px 0 0;font-size:22px}
+.road-champion{font-weight:950;color:#39ff14;font-size:12px}
+.road-bracket-board{min-width:900px;display:grid;grid-template-columns:1fr 90px 1fr;gap:16px;align-items:center}
+.road-side{display:flex;flex-direction:column;gap:18px}
+.road-side.right{transform:scaleX(-1)}
+.road-side.right .road-match>*{transform:scaleX(-1)}
+.road-match{position:relative;border:1px solid rgba(255,255,255,.08);border-radius:13px;background:rgba(0,0,0,.22);padding:7px;min-width:220px}
+.road-match:after{content:"";position:absolute;right:-48px;top:50%;width:48px;border-top:1px solid rgba(57,255,20,.28)}
+.road-side.right .road-match:after{right:auto;left:-48px}
+.road-team{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 9px;border-radius:8px;font-size:11px;font-weight:900;background:rgba(255,255,255,.035)}
+.road-team.winner{background:rgba(57,255,20,.10);color:#39ff14}
+.road-score{font-size:13px;font-weight:950}
+.road-round-label{font-size:8px;letter-spacing:.13em;color:#39ff14;margin:0 0 5px 3px;font-weight:950}
+.road-center{display:flex;flex-direction:column;align-items:center;gap:12px}
+.road-final-card{border:1px solid rgba(57,255,20,.28);border-radius:16px;padding:16px;width:100%;background:rgba(57,255,20,.05);text-align:center}
+.road-final-card .road-team{margin:6px 0}
+.road-empty-slot{opacity:.35}
+@media(max-width:700px){.road-final-section{padding:14px}.road-bracket-board{min-width:820px}}
