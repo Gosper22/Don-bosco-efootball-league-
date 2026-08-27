@@ -283,24 +283,34 @@
 </section>
 
 <!-- ================= KNOCKOUT ================= -->
+
 <section id="flexibleKnockoutSetup" class="flexible-knockout-setup">
   <div class="flexible-knockout-head">
     <div>
-      <span class="flexible-kicker">KNOCKOUT STAGE</span>
+      <span class="flexible-kicker">KNOCKOUT DRAW</span>
       <h3>Choose Starting Round</h3>
-      <p>Round of 16 is optional. Choose the first stage for this season.</p>
+      <p>Pick the first knockout stage for this season. Round of 16 is optional.</p>
     </div>
     <span id="flexibleKnockoutStatus" class="flexible-status">NOT SET</span>
   </div>
+
   <div class="flexible-round-options">
     <button type="button" data-start-round="r16">ROUND OF 16</button>
     <button type="button" data-start-round="qf">QUARTER-FINAL</button>
     <button type="button" data-start-round="sf">SEMI-FINAL</button>
     <button type="button" data-start-round="final">FINAL</button>
   </div>
-  <button type="button" id="saveKnockoutStart" class="save-knockout-start">SAVE & CONTINUE →</button>
+
+  <div class="draw-controls">
+    <button type="button" id="saveKnockoutStart" class="save-knockout-start">SAVE STAGE</button>
+    <button type="button" id="drawKnockoutNow" class="draw-knockout-now" disabled>🎲 DRAW TEAMS</button>
+    <button type="button" id="clearKnockoutDraw" class="clear-knockout-draw">CLEAR</button>
+  </div>
+
   <div id="knockoutNextStep" class="knockout-next-step"></div>
+  <div id="knockoutDrawBoard" class="knockout-draw-board"></div>
 </section>
+
 
 <section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
 

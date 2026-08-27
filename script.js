@@ -3491,3 +3491,195 @@ button.innerHTML =
 "<span>→</span>";
 
 }
+
+/* VOTING LOCK: only Admin START VOTE may enable voting */
+(function(){
+  function isLive(){
+    try{
+      const state=JSON.parse(localStorage.getItem("db_voting_controls_v1")||"{}");
+      return state.status==="active";
+    }catch(e){ return false; }
+  }
+  document.addEventListener("click",function(e){
+    const b=e.target.closest("button");
+    if(!b)return;
+    const t=(b.textContent||"").trim().toLowerCase();
+    const vote=/\bvote\b/.test(t)&&!/start vote|end vote|reset vote|view|voting/.test(t);
+    if(vote&&!isLive()){
+      e.preventDefault(); e.stopImmediatePropagation();
+      alert("Voting has not started yet. Please wait for the Admin to START VOTE.");
+      return false;
+    }
+  },true);
+})();
+
+/* FLEXIBLE KNOCKOUT WORKFLOW */
+(function(){
+  const KEY="db_knockout_start_round";
+  const names={r16:"Round of 16",qf:"Quarter-Final",sf:"Semi-Final",final:"Final"};
+  function init(){
+    const box=document.getElementById("flexibleKnockoutSetup");
+    if(!box)return;
+    const buttons=[...box.querySelectorAll("[data-start-round]")];
+    const status=document.getElementById("flexibleKnockoutStatus");
+    const next=document.getElementById("knockoutNextStep");
+    let selected=localStorage.getItem(KEY)||"";
+    function paint(){
+      buttons.forEach(b=>b.classList.toggle("selected",b.dataset.startRound===selected));
+      status.textContent=selected ? names[selected].toUpperCase() : "NOT SET";
+      next.textContent=selected ? "Next: confirm qualified teams, then create "+names[selected]+"." : "Select the first knockout stage.";
+    }
+    buttons.forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.startRound;paint()}));
+    const save=document.getElementById("saveKnockoutStart");
+    if(save) save.addEventListener("click",()=>{
+      if(!selected){alert("Please choose the starting knockout round first.");return;}
+      localStorage.setItem(KEY,selected);
+      status.textContent=names[selected].toUpperCase()+" SAVED";
+      next.textContent="✓ Starting stage saved. Proceed to "+names[selected]+".";
+    });
+    paint();
+  }
+  document.addEventListener("DOMContentLoaded",init);
+})();
+
+
+/* =========================================================
+   REAL KNOCKOUT DRAW ENGINE
+   - Admin chooses starting round
+   - Draw is randomized only after explicit DRAW TEAMS click
+   - Results are stored locally so refresh does not erase the draw
+   - Does not alter existing Firebase/fixture functions
+========================================================= */
+(function(){
+  const KEY="db_knockout_draw_v2";
+  const ROUND_NAMES={r16:"ROUND OF 16",qf:"QUARTER-FINAL",sf:"SEMI-FINAL",final:"FINAL"};
+  const SLOTS={r16:16,qf:8,sf:4,final:2};
+
+  function namesFromGlobals(){
+    const candidates=["players","teams","allPlayers","registeredPlayers","members","users"];
+    for(const key of candidates){
+      try{
+        const arr=window[key];
+        if(Array.isArray(arr) && arr.length){
+          const names=arr.map(x=>typeof x==="string"?x:(x?.name||x?.playerName||x?.teamName||x?.displayName||x?.username)).filter(Boolean);
+          if(names.length) return [...new Set(names)];
+        }
+      }catch(e){}
+    }
+    return [];
+  }
+
+  function namesFromDOM(){
+    const selectors=[
+      ".player-name",".team-name",".group-player strong",
+      "[data-player-name]","[data-team-name]"
+    ];
+    const out=[];
+    selectors.forEach(sel=>document.querySelectorAll(sel).forEach(el=>{
+      const n=el.dataset.playerName||el.dataset.teamName||el.textContent;
+      if(n && n.trim()) out.push(n.trim());
+    }));
+    return [...new Set(out)];
+  }
+
+  function getNames(){
+    return namesFromGlobals().length ? namesFromGlobals() : namesFromDOM();
+  }
+
+  function shuffle(a){
+    const x=[...a];
+    for(let i=x.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [x[i],x[j]]=[x[j],x[i]];
+    }
+    return x;
+  }
+
+  function load(){try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){return null}}
+  function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
+
+  function renderDraw(state){
+    const board=document.getElementById("knockoutDrawBoard");
+    if(!board)return;
+    if(!state || !state.pairs?.length){
+      board.innerHTML='<div class="draw-empty">Choose a round, save it, then press <b>DRAW TEAMS</b>.</div>';
+      return;
+    }
+    board.innerHTML=`
+      <div class="draw-board-head">
+        <div><span>DRAW RESULT</span><strong>${ROUND_NAMES[state.round]}</strong></div>
+        <small>${state.pairs.length} MATCHES</small>
+      </div>
+      <div class="draw-pairs">
+        ${state.pairs.map((p,i)=>`
+          <div class="draw-pair">
+            <span class="draw-match-no">MATCH ${i+1}</span>
+            <strong>${escapeHTML(p[0])}</strong>
+            <em>VS</em>
+            <strong>${escapeHTML(p[1])}</strong>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function init(){
+    const box=document.getElementById("flexibleKnockoutSetup");
+    if(!box)return;
+    const buttons=[...box.querySelectorAll("[data-start-round]")];
+    const status=document.getElementById("flexibleKnockoutStatus");
+    const next=document.getElementById("knockoutNextStep");
+    const draw=document.getElementById("drawKnockoutNow");
+    const saved=load();
+    let selected=saved?.round||"";
+
+    function paint(){
+      buttons.forEach(b=>b.classList.toggle("selected",b.dataset.startRound===selected));
+      status.textContent=selected?(ROUND_NAMES[selected]||selected):"NOT SET";
+      draw.disabled=!selected;
+      next.textContent=selected
+        ? `Starting stage: ${ROUND_NAMES[selected]}. Save it, then draw the qualified teams.`
+        : "Select the first knockout stage.";
+      renderDraw(load());
+    }
+
+    buttons.forEach(b=>b.addEventListener("click",()=>{
+      selected=b.dataset.startRound;
+      paint();
+    }));
+
+    document.getElementById("saveKnockoutStart").onclick=function(){
+      if(!selected){alert("Choose the starting knockout round first.");return;}
+      const old=load();
+      save({round:selected,pairs:old?.round===selected?old.pairs:[]});
+      status.textContent=ROUND_NAMES[selected]+" SAVED";
+      next.textContent=`✓ ${ROUND_NAMES[selected]} selected. Press DRAW TEAMS when you are ready.`;
+      renderDraw(load());
+    };
+
+    draw.onclick=function(){
+      if(!selected)return;
+      const required=SLOTS[selected];
+      const names=getNames();
+      if(names.length<required){
+        alert(`You need at least ${required} qualified teams/players to draw ${ROUND_NAMES[selected]}. Found ${names.length}.`);
+        return;
+      }
+      const picked=shuffle(names).slice(0,required);
+      const pairs=[];
+      for(let i=0;i<picked.length;i+=2)pairs.push([picked[i],picked[i+1]]);
+      const state={round:selected,pairs,drawnAt:new Date().toISOString()};
+      save(state);
+      renderDraw(state);
+      next.textContent=`✓ ${ROUND_NAMES[selected]} drawn.`;
+    };
+
+    document.getElementById("clearKnockoutDraw").onclick=function(){
+      localStorage.removeItem(KEY);
+      selected="";
+      paint();
+    };
+
+    paint();
+  }
+  document.addEventListener("DOMContentLoaded",init);
+})();
+
