@@ -2862,6 +2862,61 @@ async function loadAwardVotingState() {
   }
 }
 
+
+function renderAutomaticAwardLeaderboards(stats) {
+  const host = document.getElementById("automaticAwardLeaderboards");
+  if (!host) return;
+
+  const configs = [
+    { key: "goldenBoot", icon: "⚽", title: "TOP SCORER", metric: (x) => `${x.GF} GOALS`, sort: (a,b) => b.GF-a.GF || b.rating-a.rating },
+    { key: "bestDefender", icon: "🛡️", title: "BEST DEFENDER", metric: (x) => `${x.cleanSheets} CLEAN SHEETS`, sort: (a,b) => b.cleanSheets-a.cleanSheets || a.GA-b.GA || b.rating-a.rating },
+    { key: "mostWins", icon: "🏆", title: "MOST WINS", metric: (x) => `${x.W} WINS`, sort: (a,b) => b.W-a.W || b.PTS-a.PTS || b.rating-a.rating }
+  ];
+
+  host.innerHTML = `
+    <div class="auto-awards-heading">
+      <span>LIVE PERFORMANCE</span>
+      <h3>🔥 <strong>RUNNING THE SHOW</strong></h3>
+      <p>Automatic leaders calculated from played tournament results.</p>
+    </div>
+    <div class="auto-awards-grid">
+      ${configs.map(cfg => {
+        const ranked = [...stats].sort(cfg.sort);
+        const top = ranked[0];
+        if (!top) return "";
+        return `
+          <article class="auto-award-card">
+            <div class="auto-award-topline"><span>${cfg.icon} ${cfg.title}</span><b>#1</b></div>
+            <div class="auto-award-hero">
+              <div class="auto-award-rank">🥇</div>
+              <div class="auto-award-name">${escapeHTML(top.name)}</div>
+              <div class="auto-award-stat">${cfg.metric(top)}</div>
+            </div>
+            <button class="auto-award-toggle" type="button">VIEW 3 CHALLENGERS</button>
+            <div class="auto-award-challengers">
+              ${ranked.slice(1,4).map((p,i) => `
+                <div class="auto-award-row">
+                  <span>${i===0?"🥈":i===1?"🥉":"4️⃣"}</span>
+                  <strong>${escapeHTML(p.name)}</strong>
+                  <em>${cfg.metric(p)}</em>
+                </div>
+              `).join("") || '<div class="auto-award-empty">No challengers yet.</div>'}
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+
+  host.querySelectorAll(".auto-award-toggle").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const card = btn.closest(".auto-award-card");
+      card.classList.toggle("expanded");
+      btn.textContent = card.classList.contains("expanded") ? "HIDE CHALLENGERS" : "VIEW 3 CHALLENGERS";
+    });
+  });
+}
+
 async function renderAwardsAndVoting() {
   await loadAwardVotingState();
   const stats = getAwardStats();
@@ -2890,6 +2945,7 @@ async function renderAwardsAndVoting() {
     }).join("");
   }
 
+  renderAutomaticAwardLeaderboards(stats);
   renderAwardVoting(stats);
   renderAwardNominationManager(stats);
   renderCurrentChampion();
@@ -3435,3 +3491,24 @@ button.innerHTML =
 "<span>→</span>";
 
 }
+
+/* VOTING LOCK: only Admin START VOTE may enable voting */
+(function(){
+  function isLive(){
+    try{
+      const state=JSON.parse(localStorage.getItem("db_voting_controls_v1")||"{}");
+      return state.status==="active";
+    }catch(e){ return false; }
+  }
+  document.addEventListener("click",function(e){
+    const b=e.target.closest("button");
+    if(!b)return;
+    const t=(b.textContent||"").trim().toLowerCase();
+    const vote=/\bvote\b/.test(t)&&!/start vote|end vote|reset vote|view|voting/.test(t);
+    if(vote&&!isLive()){
+      e.preventDefault(); e.stopImmediatePropagation();
+      alert("Voting has not started yet. Please wait for the Admin to START VOTE.");
+      return false;
+    }
+  },true);
+})();

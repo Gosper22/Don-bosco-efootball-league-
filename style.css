@@ -1887,3 +1887,6 @@ a {
   .groups-grid { grid-template-columns: 1fr !important; }
   .knockout-grid { grid-template-columns: 1fr !important; }
 }
+
+/* VOTING LOCK UI */
+button:disabled{cursor:not-allowed!important;opacity:.48!important}
