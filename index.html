@@ -283,136 +283,18 @@
 </section>
 
 <!-- ================= KNOCKOUT ================= -->
-
-
-
-
-<div id="qualifiedKnockoutPanel" class="qualified-knockout-panel">
-  <div class="qualified-head">
-    <div>
-      <span>GROUPS → KNOCKOUT</span>
-      <h3>QUALIFY TEAMS</h3>
-      <p>Select the teams that will move from the Groups into the knockout stage.</p>
-    </div>
-    <span id="qualifiedCount" class="qualified-count">0 / 0</span>
+<section id="knockout" class="section knockout-section">
+  <div class="section-heading">
+    <span>ROAD TO THE FINAL</span>
+    <h2><strong>KNOCKOUT</strong> STAGE</h2>
+    <p>Home &amp; away knockout ties • aggregate scores • automatic progression.</p>
   </div>
-
-  <div class="qualified-toolbar">
-    <button type="button" id="buildQualifiedList" class="secondary-btn">🔄 LOAD GROUP STANDINGS</button>
-    <button type="button" id="autoPickQualified" class="primary-btn">⚡ AUTO PICK TOP TEAMS</button>
-    <button type="button" id="clearQualified" class="clear-qualified-btn">CLEAR</button>
+  <div id="publicKnockoutContainer" class="public-knockout-container">
+    <div class="loading">Loading knockout stage...</div>
   </div>
-
-  <div id="qualifiedTeamsList" class="qualified-teams-list">
-    <div class="draw-preview-empty">Choose your knockout starting round first, then load the group standings.</div>
-  </div>
-
-  <button type="button" id="pushQualifiedTeams" class="push-qualified-btn">➡️ PUSH SELECTED TEAMS TO KNOCKOUT</button>
-  <p id="qualifiedMessage" class="message"></p>
-</div>
-
-
-<section id="flexibleKnockoutSetup" class="knockout-admin-manager">
-  <div class="kam-head">
-    <div><span>KNOCKOUT ADMIN</span><h3>DRAW & RESULTS</h3><p>Draw teams here. Public users only see the published knockout matches.</p></div>
-    <strong id="kamStageStatus">NO STAGE</strong>
-  </div>
-  <div class="kam-rounds">
-    <button data-kam-stage="r16">ROUND OF 16<br><small>8 matches</small></button>
-    <button data-kam-stage="qf">QUARTER-FINAL<br><small>4 matches</small></button>
-    <button data-kam-stage="sf">SEMI-FINAL<br><small>2 matches</small></button>
-    <button data-kam-stage="final">FINAL<br><small>1 match</small></button>
-  </div>
-  <div class="kam-actions">
-    <button id="kamLoadTeams">LOAD QUALIFIED TEAMS</button>
-    <button id="kamDraw" disabled>🎲 DRAW SELECTED TEAMS</button>
-    <button id="kamPublish" disabled>✓ PUBLISH KNOCKOUT</button>
-  </div>
-  <div id="kamTeamPicker" class="kam-picker"></div>
-  <div id="kamMatches" class="kam-matches"></div>
 </section>
 
-
-
-<section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
-
-<h2>
-  <strong>KNOCKOUT</strong>
-  STAGE
-</h2>
-
-<p>
-  Qualification and knockout stage.
-</p>
-
-  </div>  <div class="knockout-grid"><div class="round">
-
-  <h3>ROUND OF 16</h3>
-
-  <div id="round16">
-
-    <div class="knockout-match">
-      <span>QUALIFIER</span>
-      <strong>VS</strong>
-      <span>QUALIFIER</span>
-    </div>
-
-  </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>QUARTERFINALS</h3>
-
-  <div id="quarterfinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
-    </div>
-
-  </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>SEMIFINALS</h3>
-
-  <div id="semifinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
-    </div>
-
-  </div>
-
-</div>
-
-
-<div class="round final-round">
-
-  <h3>🏆 FINAL</h3>
-
-  <div id="final">
-
-    <div class="knockout-match final-match">
-      <span>FINALIST 1</span>
-      <strong>VS</strong>
-      <span>FINALIST 2</span>
-    </div>
-
-  </div>
-
-</div>
-
-  </div></section><!-- ================= HALL OF FAME ================= -->
+<!-- ================= HALL OF FAME ================= -->
 <section id="halloffame" class="section hall-of-fame-section">
   <div class="section-heading">
     <span>LEGENDS &amp; AWARDS</span>
@@ -805,7 +687,38 @@
   </div>
 
 
-  <!-- HALL OF FAME MANAGEMENT -->
+  
+<!-- KNOCKOUT MANAGEMENT -->
+<div class="tournament-control knockout-admin-control" id="knockoutAdminControl">
+  <div class="knockout-admin-heading">
+    <div>
+      <span>KNOCKOUT CONTROL CENTER</span>
+      <h3>ADVANCE TO NEXT STAGE OF KNOCKOUT</h3>
+      <p>Choose the first stage once. The system creates the correct number of ties, two legs per tie, calculates aggregate and carries winners forward.</p>
+    </div>
+    <strong id="knockoutAdminStatus">NOT STARTED</strong>
+  </div>
+
+  <div class="knockout-start-buttons">
+    <button type="button" data-knockout-start="r16">ROUND OF 16<br><small>8 TIES</small></button>
+    <button type="button" data-knockout-start="qf">QUARTER-FINAL<br><small>4 TIES</small></button>
+    <button type="button" data-knockout-start="sf">SEMI-FINAL<br><small>2 TIES</small></button>
+    <button type="button" data-knockout-start="final">FINAL<br><small>1 TIE</small></button>
+  </div>
+
+  <div class="knockout-admin-actions">
+    <button type="button" id="setKnockoutStartBtn" class="secondary-btn">SET STARTING STAGE</button>
+    <button type="button" id="advanceKnockoutBtn" class="primary-btn">➡️ ADVANCE TO NEXT STAGE OF KNOCKOUT</button>
+    <button type="button" id="resetKnockoutBtn" class="danger-btn">RESET KNOCKOUT</button>
+  </div>
+
+  <p id="knockoutAdminMessage" class="message"></p>
+  <div id="adminKnockoutMatches" class="admin-knockout-matches">
+    <div class="draw-preview-empty">Select a starting stage to begin.</div>
+  </div>
+</div>
+
+<!-- HALL OF FAME MANAGEMENT -->
   <div class="tournament-control award-admin-control">
     <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
     <p>Statistics are calculated automatically. Admin is free to choose <strong>any 3 active players</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>

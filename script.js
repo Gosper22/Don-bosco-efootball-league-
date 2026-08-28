@@ -69,6 +69,7 @@ setupHallOfFameAdmin();
 setupSeasonControls();
 setupPlayerDashboardControls();
 setupDeleteAllFixtures();
+setupKnockoutSystem();
 
 loadLeague();
 });
@@ -406,6 +407,8 @@ await Promise.all(deletions);
 matches = [];
 
 renderFixtures();
+renderAdminKnockout();
+renderPublicKnockout();
 renderStandings();
 renderPlayerDashboard();
 await renderPowerRanking();
@@ -456,6 +459,8 @@ catch (error) { console.error("Settings loading error:", error); }
 
 try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
+try { await loadKnockoutState(); }
+catch (error) { console.error("Knockout loading error:", error); }
 
 renderPotManager();
 updateBlindDrawUI();
@@ -3491,396 +3496,377 @@ button.innerHTML =
 "<span>→</span>";
 
 }
+/* =========================================================
+   CLEAN KNOCKOUT ENGINE V4
+   Original base retained. No random team injection.
+   Flow: Groups -> Advance -> 2 legs -> Aggregate -> Winner -> Next stage.
+========================================================= */
+const KO_STAGE_ORDER = ["r16","qf","sf","final"];
+const KO_LABEL = {
+  r16:"ROUND OF 16",
+  qf:"QUARTER-FINAL",
+  sf:"SEMI-FINAL",
+  final:"FINAL"
+};
+const KO_TIES = {r16:8,qf:4,sf:2,final:1};
+let knockoutState = {
+  startingStage:"",
+  currentStage:"",
+  stages:{}
+};
 
-/* VOTING LOCK: only Admin START VOTE may enable voting */
-(function(){
-  function isLive(){
-    try{
-      const state=JSON.parse(localStorage.getItem("db_voting_controls_v1")||"{}");
-      return state.status==="active";
-    }catch(e){ return false; }
+async function loadKnockoutState(){
+  try{
+    const snap = await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
+    if(snap.exists()){
+      const d=snap.data()||{};
+      knockoutState={
+        startingStage:d.startingStage||"",
+        currentStage:d.currentStage||"",
+        stages:d.stages||{}
+      };
+    } else {
+      knockoutState={startingStage:"",currentStage:"",stages:{}};
+    }
+  }catch(e){
+    console.error("Knockout state load error:",e);
+    knockoutState={startingStage:"",currentStage:"",stages:{}};
   }
-  document.addEventListener("click",function(e){
-    const b=e.target.closest("button");
-    if(!b)return;
-    const t=(b.textContent||"").trim().toLowerCase();
-    const vote=/\bvote\b/.test(t)&&!/start vote|end vote|reset vote|view|voting/.test(t);
-    if(vote&&!isLive()){
-      e.preventDefault(); e.stopImmediatePropagation();
-      alert("Voting has not started yet. Please wait for the Admin to START VOTE.");
-      return false;
-    }
-  },true);
-})();
+}
 
-/* FLEXIBLE KNOCKOUT WORKFLOW */
-(function(){
-  const KEY="db_knockout_start_round";
-  const names={r16:"Round of 16",qf:"Quarter-Final",sf:"Semi-Final",final:"Final"};
-  function init(){
-    const box=document.getElementById("flexibleKnockoutSetup");
-    if(!box)return;
-    const buttons=[...box.querySelectorAll("[data-start-round]")];
-    const status=document.getElementById("flexibleKnockoutStatus");
-    const next=document.getElementById("knockoutNextStep");
-    let selected=localStorage.getItem(KEY)||"";
-    function paint(){
-      buttons.forEach(b=>b.classList.toggle("selected",b.dataset.startRound===selected));
-      status.textContent=selected ? names[selected].toUpperCase() : "NOT SET";
-      next.textContent=selected ? "Next: confirm qualified teams, then create "+names[selected]+"." : "Select the first knockout stage.";
-    }
-    buttons.forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.startRound;paint()}));
-    const save=document.getElementById("saveKnockoutStart");
-    if(save) save.addEventListener("click",()=>{
-      if(!selected){alert("Please choose the starting knockout round first.");return;}
-      localStorage.setItem(KEY,selected);
-      status.textContent=names[selected].toUpperCase()+" SAVED";
-      next.textContent="✓ Starting stage saved. Proceed to "+names[selected]+".";
+async function saveKnockoutState(){
+  await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{
+    startingStage:knockoutState.startingStage||"",
+    currentStage:knockoutState.currentStage||"",
+    stages:knockoutState.stages||{},
+    updatedAt:serverTimestamp()
+  });
+}
+
+function koStageIndex(stage){ return KO_STAGE_ORDER.indexOf(stage); }
+
+function koCurrentStage(){
+  return knockoutState.currentStage || knockoutState.startingStage || "";
+}
+
+function koName(p){
+  return p?.username || p?.name || p?.teamName || "TEAM";
+}
+
+function koGroupsWithStandings(){
+  const groups=getGroups();
+  return groups.map(group=>{
+    const stats={};
+    (group.players||[]).forEach(p=>{
+      const name=koName(p);
+      stats[name]={name,id:p.id,P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,PTS:0};
     });
-    paint();
-  }
-  document.addEventListener("DOMContentLoaded",init);
-})();
-
-
-/* =========================================================
-   REAL KNOCKOUT DRAW ENGINE
-   - Admin chooses starting round
-   - Draw is randomized only after explicit DRAW TEAMS click
-   - Results are stored locally so refresh does not erase the draw
-   - Does not alter existing Firebase/fixture functions
-========================================================= */
-(function(){
-  const KEY="db_knockout_draw_v2";
-  const ROUND_NAMES={r16:"ROUND OF 16",qf:"QUARTER-FINAL",sf:"SEMI-FINAL",final:"FINAL"};
-  const SLOTS={r16:16,qf:8,sf:4,final:2};
-
-  function namesFromGlobals(){
-    const candidates=["players","teams","allPlayers","registeredPlayers","members","users"];
-    for(const key of candidates){
-      try{
-        const arr=window[key];
-        if(Array.isArray(arr) && arr.length){
-          const names=arr.map(x=>typeof x==="string"?x:(x?.name||x?.playerName||x?.teamName||x?.displayName||x?.username)).filter(Boolean);
-          if(names.length) return [...new Set(names)];
-        }
-      }catch(e){}
-    }
-    return [];
-  }
-
-  function namesFromDOM(){
-    const selectors=[
-      ".player-name",".team-name",".group-player strong",
-      "[data-player-name]","[data-team-name]"
-    ];
-    const out=[];
-    selectors.forEach(sel=>document.querySelectorAll(sel).forEach(el=>{
-      const n=el.dataset.playerName||el.dataset.teamName||el.textContent;
-      if(n && n.trim()) out.push(n.trim());
-    }));
-    return [...new Set(out)];
-  }
-
-  function getNames(){
-    try{
-      const state=JSON.parse(localStorage.getItem(KEY)||"null");
-      if(Array.isArray(state?.qualifiedNames) && state.qualifiedNames.length) return state.qualifiedNames;
-    }catch(e){}
-    return namesFromGlobals().length ? namesFromGlobals() : namesFromDOM();
-  }
-
-  function shuffle(a){
-    const x=[...a];
-    for(let i=x.length-1;i>0;i--){
-      const j=Math.floor(Math.random()*(i+1));
-      [x[i],x[j]]=[x[j],x[i]];
-    }
-    return x;
-  }
-
-  function load(){try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){return null}}
-  function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
-
-  function renderDraw(state){
-    const board=document.getElementById("knockoutDrawBoard");
-    if(!board)return;
-    if(!state || !state.pairs?.length){
-      board.innerHTML='<div class="draw-empty">Choose a round, save it, then press <b>DRAW TEAMS</b>.</div>';
-      return;
-    }
-    board.innerHTML=`
-      <div class="draw-board-head">
-        <div><span>DRAW RESULT</span><strong>${ROUND_NAMES[state.round]}</strong></div>
-        <small>${state.pairs.length} MATCHES</small>
-      </div>
-      <div class="draw-pairs">
-        ${state.pairs.map((p,i)=>`
-          <div class="draw-pair">
-            <span class="draw-match-no">MATCH ${i+1}</span>
-            <strong>${escapeHTML(p[0])}</strong>
-            <em>VS</em>
-            <strong>${escapeHTML(p[1])}</strong>
-          </div>`).join("")}
-      </div>`;
-  }
-
-  function init(){
-    const box=document.getElementById("flexibleKnockoutSetup");
-    if(!box)return;
-    const buttons=[...box.querySelectorAll("[data-start-round]")];
-    const status=document.getElementById("flexibleKnockoutStatus");
-    const next=document.getElementById("knockoutNextStep");
-    const draw=document.getElementById("drawKnockoutNow");
-    const saved=load();
-    let selected=saved?.round||"";
-
-    function paint(){
-      buttons.forEach(b=>b.classList.toggle("selected",b.dataset.startRound===selected));
-      status.textContent=selected?(ROUND_NAMES[selected]||selected):"NOT SET";
-      draw.disabled=!selected;
-      next.textContent=selected
-        ? `Starting stage: ${ROUND_NAMES[selected]}. Save it, then draw the qualified teams.`
-        : "Select the first knockout stage.";
-      renderDraw(load());
-    }
-
-    buttons.forEach(b=>b.addEventListener("click",()=>{
-      selected=b.dataset.startRound;
-      paint();
-    }));
-
-    document.getElementById("saveKnockoutStart").onclick=function(){
-      if(!selected){alert("Choose the starting knockout round first.");return;}
-      const old=load();
-      save({round:selected,pairs:old?.round===selected?old.pairs:[]});
-      status.textContent=ROUND_NAMES[selected]+" SAVED";
-      next.textContent=`✓ ${ROUND_NAMES[selected]} selected. Press DRAW TEAMS when you are ready.`;
-      renderDraw(load());
-    };
-
-    draw.onclick=function(){
-      if(!selected)return;
-      const required=SLOTS[selected];
-      const names=getNames();
-      if(names.length<required){
-        alert(`You need at least ${required} qualified teams/players to draw ${ROUND_NAMES[selected]}. Found ${names.length}.`);
-        return;
-      }
-      const picked=shuffle(names).slice(0,required);
-      const pairs=[];
-      for(let i=0;i<picked.length;i+=2)pairs.push([picked[i],picked[i+1]]);
-      const state={round:selected,pairs,drawnAt:new Date().toISOString()};
-      save(state);
-      renderDraw(state);
-      next.textContent=`✓ ${ROUND_NAMES[selected]} drawn.`;
-    };
-
-    document.getElementById("clearKnockoutDraw").onclick=function(){
-      localStorage.removeItem(KEY);
-      selected="";
-      paint();
-    };
-
-    paint();
-  }
-  document.addEventListener("DOMContentLoaded",init);
-})();
-
-
-/* =========================================================
-   REAL QUALIFIED TEAM PUSH WORKFLOW
-   Admin selects qualified teams from live group standings,
-   then explicitly pushes them into the selected knockout stage.
-========================================================= */
-(function(){
-  const KEY="db_knockout_qualified_v1";
-  const STAGE_KEY="db_knockout_start_round";
-
-  const slots={r16:16,qf:8,sf:4,final:2};
-  const labels={r16:"ROUND OF 16",qf:"QUARTER-FINAL",sf:"SEMI-FINAL",final:"FINAL"};
-
-  function getState(){
-    try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){return null}
-  }
-  function saveState(v){localStorage.setItem(KEY,JSON.stringify(v))}
-  function playerName(p){return p.username||p.name||"PLAYER"}
-
-  function groupStandings(group){
-    const stats=(group.players||[]).map(p=>({
-      id:p.id,name:playerName(p),P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,PTS:0
-    }));
-    const byName={}; stats.forEach(x=>byName[x.name]=x);
-    (window.matches||[]).forEach(m=>{
-      if(!m?.played)return;
-      const h=byName[m.homePlayer], a=byName[m.awayPlayer];
-      if(!h||!a)return;
+    matches.forEach(m=>{
+      if(!m.played || m.group!==group.shortName) return;
+      const h=stats[m.homePlayer], a=stats[m.awayPlayer];
+      if(!h || !a) return;
       const hg=Number(m.homeGoals||0), ag=Number(m.awayGoals||0);
       h.P++;a.P++;h.GF+=hg;h.GA+=ag;a.GF+=ag;a.GA+=hg;
       if(hg>ag){h.W++;h.PTS+=3;a.L++}
       else if(ag>hg){a.W++;a.PTS+=3;h.L++}
       else{h.D++;a.D++;h.PTS++;a.PTS++}
     });
-    stats.forEach(x=>x.GD=x.GF-x.GA);
-    return stats.sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF);
-  }
+    const table=Object.values(stats).map(x=>({...x,GD:x.GF-x.GA}))
+      .sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF);
+    return {shortName:group.shortName,table};
+  });
+}
 
-  function getGroupsSafe(){
+/* A1 vs B2, B1 vs A2, then C/D in the same pattern.
+   If more than two groups exist, adjacent groups are paired. */
+function buildInitialQualifiers(stage){
+  const groups=koGroupsWithStandings();
+  const required=KO_TIES[stage]*2;
+  if(groups.length<2) throw new Error("At least 2 groups are required for automatic knockout seeding.");
+
+  const selected=[];
+  for(let i=0;i<groups.length;i+=2){
+    const a=groups[i], b=groups[i+1];
+    if(!b) break;
+    const a1=a.table[0], a2=a.table[1], b1=b.table[0], b2=b.table[1];
+    if(stage==="r16"){
+      if(a1&&b2) selected.push({name:koName({name:a1.name}),group:a.shortName,position:1});
+      if(b1&&a2) selected.push({name:b1.name,group:b.shortName,position:1});
+      if(b2&&a1) selected.push({name:b2.name,group:b.shortName,position:2});
+      if(a2&&b1) selected.push({name:a2.name,group:a.shortName,position:2});
+    } else {
+      // For a starting QF/SF/Final, take the required top-ranked players
+      // across the available groups, in group order.
+      selected.push(...a.table.slice(0,2).map((x,j)=>({name:x.name,group:a.shortName,position:j+1})));
+      selected.push(...b.table.slice(0,2).map((x,j)=>({name:x.name,group:b.shortName,position:j+1})));
+    }
+  }
+  // Remove duplicates while preserving the deterministic order.
+  const unique=[];
+  const seen=new Set();
+  selected.forEach(x=>{if(!seen.has(x.name)){seen.add(x.name);unique.push(x)}});
+  if(unique.length<required) throw new Error(`Not enough qualified teams. Need ${required}, found ${unique.length}.`);
+  return unique.slice(0,required);
+}
+
+function makeTiesFromTeams(names, stage){
+  const shuffled=[...names]; // deterministic pairing after qualification; no random team selection
+  const ties=[];
+  for(let i=0;i<shuffled.length;i+=2){
+    ties.push({
+      tie:i/2+1,
+      home:shuffled[i],
+      away:shuffled[i+1],
+      leg1:{homeScore:null,awayScore:null,played:false},
+      leg2:{homeScore:null,awayScore:null,played:false},
+      aggregate:{home:0,away:0},
+      winner:null,
+      decided:false
+    });
+  }
+  return ties.slice(0,KO_TIES[stage]);
+}
+
+function koAggregate(tie){
+  const l1=tie.leg1||{}, l2=tie.leg2||{};
+  const h1=l1.homeScore==null?0:Number(l1.homeScore);
+  const a1=l1.awayScore==null?0:Number(l1.awayScore);
+  // Leg 2 is stored with the same displayed home/away teams.
+  const h2=l2.homeScore==null?0:Number(l2.homeScore);
+  const a2=l2.awayScore==null?0:Number(l2.awayScore);
+  return {home:h1+h2,away:a1+a2};
+}
+
+function koDecideTie(tie){
+  const agg=koAggregate(tie);
+  tie.aggregate=agg;
+  const both=tie.leg1?.played && tie.leg2?.played;
+  tie.decided=false;
+  tie.winner=null;
+  if(both){
+    if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
+    else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
+    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
+  }
+  return tie;
+}
+
+function koAllDecided(stage){
+  const ties=knockoutState.stages?.[stage]?.ties||[];
+  return ties.length===KO_TIES[stage] && ties.every(t=>koDecideTie(t).decided);
+}
+
+function koNextStage(stage){
+  const i=koStageIndex(stage);
+  return i<0||i>=KO_STAGE_ORDER.length-1 ? "" : KO_STAGE_ORDER[i+1];
+}
+
+function setupKnockoutSystem(){
+  document.querySelectorAll("[data-knockout-start]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      document.querySelectorAll("[data-knockout-start]").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+      btn.dataset.selected="true";
+    });
+  });
+
+  document.getElementById("setKnockoutStartBtn")?.addEventListener("click",async()=>{
+    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+    const btn=document.querySelector("[data-knockout-start].active");
+    if(!btn)return alert("Chagua starting stage kwanza.");
+    const stage=btn.dataset.knockoutStart;
+    knockoutState.startingStage=stage;
+    knockoutState.currentStage=stage;
+    if(!knockoutState.stages)knockoutState.stages={};
+    await saveKnockoutState();
+    renderAdminKnockout();
+    renderPublicKnockout();
+  });
+
+  document.getElementById("advanceKnockoutBtn")?.addEventListener("click",advanceKnockoutStage);
+
+  document.getElementById("resetKnockoutBtn")?.addEventListener("click",async()=>{
+    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+    if(!confirm("Reset knockout yote ya season hii?"))return;
+    knockoutState={startingStage:"",currentStage:"",stages:{}};
+    await saveKnockoutState();
+    renderAdminKnockout();renderPublicKnockout();
+  });
+}
+
+async function advanceKnockoutStage(){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  let stage=koCurrentStage();
+  if(!stage)return alert("Chagua starting stage kwanza.");
+
+  const existing=knockoutState.stages?.[stage];
+
+  if(!existing){
+    let qualified;
     try{
-      if(typeof getGroups==="function") return getGroups();
-    }catch(e){}
-    return [];
+      qualified=buildInitialQualifiers(stage);
+    }catch(e){return alert("⚠️ "+e.message)}
+    knockoutState.stages[stage]={
+      stage,
+      ties:makeTiesFromTeams(qualified.map(x=>x.name),stage),
+      published:true
+    };
+    knockoutState.currentStage=stage;
+    await saveKnockoutState();
+    renderAdminKnockout();renderPublicKnockout();
+    return;
   }
 
-  function selectedIds(){
-    return [...document.querySelectorAll(".qualified-team input:checked")].map(x=>x.value);
+  const ties=existing.ties||[];
+  ties.forEach(koDecideTie);
+
+  if(!koAllDecided(stage)){
+    return alert("⚠️ Kamilisha Leg 1 na Leg 2 za ties zote, kisha Advance tena.");
   }
 
-  function render(){
-    const root=document.getElementById("qualifiedTeamsList");
-    const count=document.getElementById("qualifiedCount");
-    const push=document.getElementById("pushQualifiedTeams");
-    if(!root)return;
-
-    const stage=localStorage.getItem(STAGE_KEY)||"";
-    const max=slots[stage]||0;
-    const saved=getState();
-    const selected=new Set(saved?.selectedIds||[]);
-    if(!stage){
-      root.innerHTML='<div class="draw-preview-empty">Select a starting knockout round above first.</div>';
-      count.textContent="0 / 0"; if(push)push.disabled=true; return;
-    }
-
-    const groups=getGroupsSafe();
-    if(!groups.length){
-      root.innerHTML='<div class="draw-preview-empty">No groups available yet. Complete and publish the Group Draw first.</div>';
-      count.textContent=`0 / ${max}`; if(push)push.disabled=true; return;
-    }
-
-    root.innerHTML=groups.map((g,gi)=>{
-      const rows=groupStandings(g);
-      return `<div class="qualified-group">
-        <div class="qualified-group-head"><strong>GROUP ${escapeHTML(g.shortName||String.fromCharCode(65+gi))}</strong><span>${rows.length} TEAMS</span></div>
-        ${rows.map((p,i)=>`
-          <label class="qualified-team ${selected.has(String(p.id))?'selected':''}">
-            <input type="checkbox" value="${escapeHTML(String(p.id))}" ${selected.has(String(p.id))?'checked':''}>
-            <strong>${i+1}. ${escapeHTML(p.name)}</strong>
-            <small>${p.PTS} PTS · ${p.GD>=0?"+":""}${p.GD} GD</small>
-          </label>`).join("")}
-      </div>`;
-    }).join("");
-
-    function refreshCount(){
-      const n=selectedIds().length;
-      count.textContent=`${n} / ${max}`;
-      if(push)push.disabled=n!==max;
-      root.querySelectorAll(".qualified-team").forEach(x=>x.classList.toggle("selected",x.querySelector("input").checked));
-      if(n>max){
-        count.textContent=`${n} / ${max} — TOO MANY`;
-        if(push)push.disabled=true;
-      }
-    }
-    root.querySelectorAll("input").forEach(input=>input.addEventListener("change",refreshCount));
-    refreshCount();
+  const next=koNextStage(stage);
+  if(!next){
+    alert("🏆 FINAL imekamilika. Champion ni "+(ties[0]?.winner||"TBD")+".");
+    return;
   }
 
-  function autoPick(){
-    const stage=localStorage.getItem(STAGE_KEY);
-    const max=slots[stage]||0;
-    if(!max)return alert("Choose the starting knockout round first.");
-    const groups=getGroupsSafe();
-    if(!groups.length)return alert("Complete and publish the Groups first.");
-
-    const ranked=[];
-    groups.forEach((g,gi)=>groupStandings(g).forEach((p,rank)=>ranked.push({...p,group:gi,rank})));
-
-    // Prefer the same number of top finishers from each group where possible.
-    const perGroup=Math.floor(max/groups.length);
-    const remainder=max%groups.length;
-    const picked=[];
-    groups.forEach((g,gi)=>{
-      const rows=ranked.filter(x=>x.group===gi).sort((a,b)=>a.rank-b.rank);
-      const take=perGroup+(gi<remainder?1:0);
-      rows.slice(0,take).forEach(x=>picked.push(x.id));
-    });
-
-    // Fill any shortfall by overall standings.
-    for(const p of ranked.sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF)){
-      if(picked.length>=max)break;
-      if(!picked.includes(p.id))picked.push(p.id);
-    }
-    saveState({stage,selectedIds:picked.slice(0,max),pushed:false});
-    render();
+  if(knockoutState.stages[next]){
+    knockoutState.currentStage=next;
+    await saveKnockoutState();
+    renderAdminKnockout();renderPublicKnockout();
+    return;
   }
 
-  function init(){
-    if(!document.getElementById("qualifiedKnockoutPanel"))return;
-    document.getElementById("buildQualifiedList")?.addEventListener("click",render);
-    document.getElementById("autoPickQualified")?.addEventListener("click",autoPick);
-    document.getElementById("clearQualified")?.addEventListener("click",()=>{
-      localStorage.removeItem(KEY); render();
-    });
-    document.getElementById("pushQualifiedTeams")?.addEventListener("click",()=>{
-      const stage=localStorage.getItem(STAGE_KEY);
-      const ids=selectedIds();
-      if(!slots[stage]||ids.length!==slots[stage]){
-        return alert(`Select exactly ${slots[stage]||0} qualified teams first.`);
-      }
-      saveState({stage,selectedIds:ids,pushed:true});
-      const names=ids.map(id=>{
-        const p=(window.players||[]).find(x=>String(x.id)===String(id));
-        return p?.username||p?.name||id;
-      });
-      // Feed the selected qualifiers into the existing draw engine.
-      localStorage.setItem("db_knockout_draw_v2",JSON.stringify({
-        round:stage, qualifiedIds:ids, qualifiedNames:names, pairs:[],
-        drawnAt:null
-      }));
-      alert(`✅ ${ids.length} teams pushed to ${labels[stage]}. Now press DRAW TEAMS.`);
-      render();
-    });
-    render();
+  const winners=ties.map(t=>t.winner).filter(Boolean);
+  if(winners.length!==KO_TIES[next]*2){
+    return alert(`⚠️ Next stage inahitaji ${KO_TIES[next]*2} winners.`);
   }
 
-  document.addEventListener("DOMContentLoaded",init);
-})();
+  knockoutState.stages[next]={
+    stage:next,
+    ties:makeTiesFromTeams(winners,next),
+    published:true
+  };
+  knockoutState.currentStage=next;
+  await saveKnockoutState();
+  renderAdminKnockout();renderPublicKnockout();
+}
 
-
-/* ROAD TO FINAL BRANCH BRACKET */
-(function(){
-  function state(){
-    try{return JSON.parse(localStorage.getItem("db_knockout_draw_v2")||"null")}catch(e){return null}
+function renderAdminKnockout(){
+  const root=document.getElementById("adminKnockoutMatches");
+  const status=document.getElementById("knockoutAdminStatus");
+  if(!root)return;
+  const stage=koCurrentStage();
+  if(!stage){
+    if(status)status.textContent="NOT STARTED";
+    root.innerHTML='<div class="draw-preview-empty">Select a starting stage to begin.</div>';
+    return;
   }
-  function esc(x){return String(x||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-  function matchCard(round, pair, i){
-    const a=pair?.[0]||"TBD", b=pair?.[1]||"TBD";
-    return `<div class="road-match"><div class="road-round-label">${round} · MATCH ${i+1}</div>
-      <div class="road-team ${a!=="TBD"?"":"road-empty-slot"}"><span>${esc(a)}</span><span class="road-score">–</span></div>
-      <div class="road-team ${b!=="TBD"?"":"road-empty-slot"}"><span>${esc(b)}</span><span class="road-score">–</span></div>
+  if(status)status.textContent=KO_LABEL[stage];
+  const data=knockoutState.stages?.[stage];
+  if(!data?.ties?.length){
+    root.innerHTML=`<div class="draw-preview-empty">Press ADVANCE TO NEXT STAGE OF KNOCKOUT to create ${KO_LABEL[stage]}.</div>`;
+    return;
+  }
+
+  root.innerHTML=data.ties.map((raw,i)=>{
+    const t=koDecideTie({...raw});
+    const agg=t.aggregate;
+    return `<div class="admin-ko-tie">
+      <div class="admin-ko-title"><span>${KO_LABEL[stage]}</span><strong>TIE ${i+1}</strong></div>
+      <div class="admin-ko-teams"><strong>${escapeHTML(t.home)}</strong><span>VS</span><strong>${escapeHTML(t.away)}</strong></div>
+
+      <div class="admin-ko-leg">
+        <div><small>LEG 1</small><strong>${escapeHTML(t.home)} <b>HOME</b> vs ${escapeHTML(t.away)}</strong></div>
+        <input type="number" min="0" data-ko-score="l1h" data-ko-index="${i}" value="${t.leg1?.homeScore??""}">
+        <span>–</span>
+        <input type="number" min="0" data-ko-score="l1a" data-ko-index="${i}" value="${t.leg1?.awayScore??""}">
+        <button type="button" data-ko-save-leg="1" data-ko-index="${i}">SAVE</button>
+      </div>
+
+      <div class="admin-ko-leg">
+        <div><small>LEG 2</small><strong>${escapeHTML(t.away)} <b>HOME</b> vs ${escapeHTML(t.home)}</strong></div>
+        <input type="number" min="0" data-ko-score="l2h" data-ko-index="${i}" value="${t.leg2?.awayScore??""}">
+        <span>–</span>
+        <input type="number" min="0" data-ko-score="l2a" data-ko-index="${i}" value="${t.leg2?.homeScore??""}">
+        <button type="button" data-ko-save-leg="2" data-ko-index="${i}">SAVE</button>
+      </div>
+
+      <div class="admin-ko-aggregate">
+        <span>AGGREGATE</span>
+        <strong>${agg.home} – ${agg.away}</strong>
+        <em>${t.winner ? "WINNER: "+escapeHTML(t.winner) : "AWAITING BOTH LEGS"}</em>
+      </div>
+
+      ${(!t.winner && t.leg1?.played && t.leg2?.played && agg.home===agg.away)
+        ? `<div class="ko-tiebreak"><label>TIE ON AGGREGATE — PENALTY WINNER</label>
+             <select data-ko-penalty="${i}"><option value="">Select winner</option><option ${t.penaltyWinner===t.home?"selected":""}>${escapeHTML(t.home)}</option><option ${t.penaltyWinner===t.away?"selected":""}>${escapeHTML(t.away)}</option></select></div>` : ""}
     </div>`;
+  }).join("");
+
+  root.querySelectorAll("[data-ko-save-leg]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+      const i=Number(btn.dataset.koIndex), leg=btn.dataset.koSaveLeg;
+      const tie=knockoutState.stages[stage].ties[i];
+      if(leg==="1"){
+        const h=document.querySelector(`[data-ko-score="l1h"][data-ko-index="${i}"]`).value;
+        const a=document.querySelector(`[data-ko-score="l1a"][data-ko-index="${i}"]`).value;
+        if(h===""||a==="")return alert("Weka scores zote za Leg 1.");
+        tie.leg1={homeScore:Number(h),awayScore:Number(a),played:true};
+      }else{
+        // Leg 2 UI is away-at-home first; store back into tie's canonical home/away order.
+        const homeAtLeg2=document.querySelector(`[data-ko-score="l2h"][data-ko-index="${i}"]`).value;
+        const awayAtLeg2=document.querySelector(`[data-ko-score="l2a"][data-ko-index="${i}"]`).value;
+        if(homeAtLeg2===""||awayAtLeg2==="")return alert("Weka scores zote za Leg 2.");
+        tie.leg2={homeScore:Number(awayAtLeg2),awayScore:Number(homeAtLeg2),played:true};
+      }
+      koDecideTie(tie);
+      await saveKnockoutState();
+      renderAdminKnockout();renderPublicKnockout();
+    });
+  });
+
+  root.querySelectorAll("[data-ko-penalty]").forEach(sel=>{
+    sel.addEventListener("change",async()=>{
+      const i=Number(sel.dataset.koPenalty);
+      const tie=knockoutState.stages[stage].ties[i];
+      tie.penaltyWinner=sel.value||null;
+      koDecideTie(tie);
+      await saveKnockoutState();
+      renderAdminKnockout();renderPublicKnockout();
+    });
+  });
+}
+
+function publicTieCard(tie,i,stage){
+  const t=koDecideTie({...tie});
+  const l1=t.leg1||{},l2=t.leg2||{},agg=t.aggregate||{home:0,away:0};
+  return `<article class="public-ko-tie">
+    <header><span>${KO_LABEL[stage]}</span><strong>TIE ${i+1}</strong></header>
+    <div class="public-ko-teams"><strong>${escapeHTML(t.home)}</strong><b>VS</b><strong>${escapeHTML(t.away)}</strong></div>
+    <div class="public-ko-leg"><span>LEG 1</span><strong>${l1.played?l1.homeScore+" – "+l1.awayScore:"–"}</strong></div>
+    <div class="public-ko-leg"><span>LEG 2</span><strong>${l2.played?l2.awayScore+" – "+l2.homeScore:"–"}</strong></div>
+    <div class="public-ko-aggregate"><span>AGGREGATE</span><strong>${agg.home} – ${agg.away}</strong></div>
+    <div class="public-ko-winner">${t.winner ? "🏆 "+escapeHTML(t.winner) : "WINNER PENDING"}</div>
+  </article>`;
+}
+
+function renderPublicKnockout(){
+  const root=document.getElementById("publicKnockoutContainer");
+  if(!root)return;
+  const stages=knockoutState.stages||{};
+  const active=KO_STAGE_ORDER.filter(x=>stages[x]?.ties?.length);
+  if(!active.length){
+    root.innerHTML='<div class="loading">Knockout stage has not started yet.</div>';
+    return;
   }
-  function render(){
-    const board=document.getElementById("roadFinalBracketBoard"); if(!board)return;
-    const st=state(), pairs=st?.pairs||[];
-    const round=(st?.round||localStorage.getItem("db_knockout_start_round")||"sf").toLowerCase();
-    let matches=pairs;
-    const names=st?.qualifiedNames||[];
-    if(!matches.length && names.length>=2){
-      matches=[]; for(let i=0;i<names.length;i+=2) matches.push([names[i],names[i+1]]);
-    }
-    if(round==="final"){
-      board.innerHTML=`<div></div><div class="road-center"><div class="road-final-card"><div class="road-round-label">FINAL · MATCH 1</div><div class="road-team">${esc(matches[0]?.[0]||names[0]||"TBD")}</div><div class="road-team">${esc(matches[0]?.[1]||names[1]||"TBD")}</div></div></div><div></div>`;
-      return;
-    }
-    const mid=Math.ceil(matches.length/2);
-    const left=matches.slice(0,mid), right=matches.slice(mid);
-    const nextLabel=round==="r16"?"QUARTER-FINAL":round==="qf"?"SEMI-FINAL":"FINAL";
-    const nextCount=Math.max(1,Math.floor(matches.length/2));
-    board.innerHTML=`
-      <div class="road-side">${left.map((p,i)=>matchCard(round==="r16"?"ROUND OF 16":round==="qf"?"QUARTER-FINAL":"SEMI-FINAL",p,i)).join("")}</div>
-      <div class="road-center"><div class="road-final-card"><div class="road-round-label">${nextLabel}</div>${Array.from({length:nextCount},(_,i)=>`<div class="road-match"><div class="road-round-label">MATCH ${i+1}</div><div class="road-team road-empty-slot">WINNER</div><div class="road-team road-empty-slot">WINNER</div></div>`).join("")}</div></div>
-      <div class="road-side right">${right.map((p,i)=>matchCard(round==="r16"?"ROUND OF 16":round==="qf"?"QUARTER-FINAL":"SEMI-FINAL",p,i)).join("")}</div>`;
-  }
-  document.addEventListener("DOMContentLoaded",render);
-  window.addEventListener("storage",render);
-})();
+  root.innerHTML=active.map(stage=>{
+    const ties=stages[stage].ties||[];
+    return `<section class="public-ko-round">
+      <div class="public-ko-round-heading"><span>${KO_LABEL[stage]}</span><strong>${ties.length} ${ties.length===1?"TIE":"TIES"}</strong></div>
+      <div class="public-ko-grid">${ties.map((t,i)=>publicTieCard(t,i,stage)).join("")}</div>
+    </section>`;
+  }).join("");
+}
+
