@@ -3633,7 +3633,11 @@ function renderManualKnockoutFixtures(){
   if(!root)return;
   const stage=koCurrentStage();
   if(!stage){
-    root.style.display="none";
+    root.style.display="block";
+    root.innerHTML=`<div class="draw-preview-empty" style="text-align:left">
+      <strong>MANUAL KNOCKOUT FIXTURES</strong>
+      <p>Chagua ROUND OF 16, QUARTER-FINAL, SEMI-FINAL au FINAL kwanza.</p>
+    </div>`;
     return;
   }
   root.style.display="block";
@@ -3641,32 +3645,50 @@ function renderManualKnockoutFixtures(){
   const ties=Array.from({length:KO_TIES[stage]},(_,i)=>existing[i]||makeEmptyKoTie(i+1));
   root.innerHTML=`<div class="draw-preview-empty" style="text-align:left">
     <strong>MANUAL ${KO_LABEL[stage]} FIXTURES</strong>
-    <p>Ingiza majina ya wachezaji/team kwa kila tie. Mfumo hautapanga pairing moja kwa moja.</p>
+    <p>Andika majina ya washiriki/team mwenyewe. Hapa hakuna automatic pairing.</p>
     ${ties.map((t,i)=>`<div class="admin-ko-leg" style="margin-top:12px">
       <div><small>TIE ${i+1}</small><strong>TEAM / PLAYER PAIRING</strong></div>
-      <input type="text" data-manual-ko="home" data-ko-index="${i}" value="${escapeHTML(t.home||"")}" placeholder="Home / Player 1">
+      <input type="text" data-manual-ko="home" data-ko-index="${i}" value="${escapeHTML(t.home||"")}" placeholder="Player / Team 1">
       <span>VS</span>
-      <input type="text" data-manual-ko="away" data-ko-index="${i}" value="${escapeHTML(t.away||"")}" placeholder="Away / Player 2">
+      <input type="text" data-manual-ko="away" data-ko-index="${i}" value="${escapeHTML(t.away||"")}" placeholder="Player / Team 2">
     </div>`).join("")}
     <button type="button" id="saveManualKnockoutFixturesBtn" class="primary-btn" style="margin-top:14px">💾 SAVE MANUAL KNOCKOUT FIXTURES</button>
+    <p id="manualKoSaveStatus" class="message" style="margin-top:10px"></p>
   </div>`;
-  document.getElementById("saveManualKnockoutFixturesBtn")?.addEventListener("click",async()=>{
+
+  const saveBtn=document.getElementById("saveManualKnockoutFixturesBtn");
+  saveBtn?.addEventListener("click",async()=>{
     if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-    const newTies=[];
-    for(let i=0;i<KO_TIES[stage];i++){
-      const home=root.querySelector(`[data-manual-ko="home"][data-ko-index="${i}"]`)?.value.trim();
-      const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
-      if(!home||!away)return alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`);
-      if(home.toLowerCase()===away.toLowerCase())return alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`);
-      newTies.push(makeEmptyKoTie(i+1,home,away));
+    const status=document.getElementById("manualKoSaveStatus");
+    try{
+      const newTies=[];
+      for(let i=0;i<KO_TIES[stage];i++){
+        const home=root.querySelector(`[data-manual-ko="home"][data-ko-index="${i}"]`)?.value.trim();
+        const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
+        if(!home||!away){ alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`); return; }
+        if(home.toLowerCase()===away.toLowerCase()){ alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`); return; }
+        newTies.push(makeEmptyKoTie(i+1,home,away));
+      }
+      knockoutState.stages=knockoutState.stages||{};
+      const old=knockoutState.stages[stage]||{};
+      knockoutState.stages[stage]={
+        ...old,
+        stage,
+        ties:newTies,
+        published:true,
+        manual:true
+      };
+      knockoutState.currentStage=stage;
+      await saveKnockoutState();
+      if(status)status.textContent="✅ Fixtures zimehifadhiwa kikamilifu.";
+      renderAdminKnockout();
+      renderPublicKnockout();
+      alert(`✅ Manual ${KO_LABEL[stage]} fixtures zimehifadhiwa.`);
+    }catch(err){
+      console.error("Manual knockout save error:",err);
+      if(status)status.textContent="❌ Imeshindikana kuhifadhi fixtures. Angalia Firebase connection/rules.";
+      alert("❌ Imeshindikana kuhifadhi manual fixtures. Tafadhali jaribu tena.");
     }
-    knockoutState.stages=knockoutState.stages||{};
-    knockoutState.stages[stage]={stage,ties:newTies,published:true,manual:true};
-    knockoutState.currentStage=stage;
-    await saveKnockoutState();
-    root.style.display="none";
-    renderAdminKnockout();renderPublicKnockout();
-    alert(`✅ Manual ${KO_LABEL[stage]} fixtures zimehifadhiwa.`);
   });
 }
 
@@ -3710,6 +3732,11 @@ function setupKnockoutSystem(){
       document.querySelectorAll("[data-knockout-start]").forEach(x=>x.classList.remove("active"));
       btn.classList.add("active");
       btn.dataset.selected="true";
+      // Show the manual area immediately after choosing a stage.
+      if(document.getElementById("manualKnockoutFixtures") && adminLoggedIn){
+        knockoutState.currentStage=btn.dataset.knockoutStart;
+        renderManualKnockoutFixtures();
+      }
     });
   });
 
@@ -3720,16 +3747,20 @@ function setupKnockoutSystem(){
     const stage=btn.dataset.knockoutStart;
     knockoutState.startingStage=stage;
     knockoutState.currentStage=stage;
-    if(!knockoutState.stages)knockoutState.stages={};
+    knockoutState.stages=knockoutState.stages||{};
     await saveKnockoutState();
     renderAdminKnockout();
     renderPublicKnockout();
+    renderManualKnockoutFixtures();
   });
 
   document.getElementById("manualKnockoutFixturesBtn")?.addEventListener("click",()=>{
     if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-    if(!koCurrentStage())return alert("Chagua starting stage kwanza.");
+    if(!koCurrentStage()){
+      return alert("Chagua starting stage kwanza (Round of 16 / Quarter-final / Semi-final / Final).");
+    }
     renderManualKnockoutFixtures();
+    document.getElementById("manualKnockoutFixtures")?.scrollIntoView({behavior:"smooth",block:"center"});
   });
 
   document.getElementById("advanceKnockoutBtn")?.addEventListener("click",advanceKnockoutStage);
