@@ -3586,7 +3586,7 @@ function buildInitialQualifiers(stage){
 
   // IMPORTANT: first knockout pairing must NEVER be 1st vs 2nd
   // from the same group. For each adjacent group pair:
-  // A1 vs B2 and B1 vs A2.
+  // A1 vs B2 and B1 vs A2. The explicit tie builder below enforces this.
   if(stage==="r16"){
     const selected=[];
     for(let i=0;i<groups.length;i+=2){
@@ -3614,6 +3614,33 @@ function buildInitialQualifiers(stage){
   });
   if(pool.length<required) throw new Error(`Not enough qualified teams. Need ${required}, found ${pool.length}.`);
   return pool.slice(0,required);
+}
+
+
+function makeInitialCrossGroupTies(seeds, stage){
+  // seeds are deliberately returned in this order:
+  // A1, B2, B1, A2, C1, D2, D1, C2...
+  // Build the ties explicitly so A1 can NEVER meet A2.
+  const ties=[];
+  for(let i=0;i<seeds.length;i+=4){
+    const a1=seeds[i], b2=seeds[i+1], b1=seeds[i+2], a2=seeds[i+3];
+    if(a1 && b2) ties.push({
+      tie:ties.length+1, home:a1.name, away:b2.name,
+      homeGroup:a1.group, awayGroup:b2.group,
+      leg1:{homeScore:null,awayScore:null,played:false},
+      leg2:{homeScore:null,awayScore:null,played:false},
+      aggregate:{home:0,away:0}, winner:null, decided:false
+    });
+    if(b1 && a2) ties.push({
+      tie:ties.length+1, home:b1.name, away:a2.name,
+      homeGroup:b1.group, awayGroup:a2.group,
+      leg1:{homeScore:null,awayScore:null,played:false},
+      leg2:{homeScore:null,awayScore:null,played:false},
+      aggregate:{home:0,away:0}, winner:null, decided:false
+    });
+  }
+  if(ties.length!==KO_TIES[stage]) throw new Error(`Could not create ${KO_TIES[stage]} cross-group ties.`);
+  return ties;
 }
 
 function makeTiesFromTeams(names, stage){
@@ -3715,7 +3742,9 @@ async function advanceKnockoutStage(){
     }catch(e){return alert("⚠️ "+e.message)}
     knockoutState.stages[stage]={
       stage,
-      ties:makeTiesFromTeams(qualified.map(x=>x.name),stage),
+      ties: stage==="r16"
+        ? makeInitialCrossGroupTies(qualified,stage)
+        : makeTiesFromTeams(qualified.map(x=>x.name),stage),
       published:true
     };
     knockoutState.currentStage=stage;
