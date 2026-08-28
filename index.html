@@ -286,13 +286,7 @@
 
 
 
-<section id="roadToFinalBracket" class="road-final-section">
-  <div class="road-final-title">
-    <div><span>ROAD TO FINAL</span><h2>KNOCKOUT BRACKET</h2></div>
-    <div id="roadFinalChampion" class="road-champion"></div>
-  </div>
-  <div id="roadFinalBracketBoard" class="road-bracket-board"></div>
-</section>
+
 <div id="qualifiedKnockoutPanel" class="qualified-knockout-panel">
   <div class="qualified-head">
     <div>
@@ -317,32 +311,27 @@
   <p id="qualifiedMessage" class="message"></p>
 </div>
 
-<section id="flexibleKnockoutSetup" class="flexible-knockout-setup">
-  <div class="flexible-knockout-head">
-    <div>
-      <span class="flexible-kicker">KNOCKOUT DRAW</span>
-      <h3>Choose Starting Round</h3>
-      <p>Pick the first knockout stage for this season. Round of 16 is optional.</p>
-    </div>
-    <span id="flexibleKnockoutStatus" class="flexible-status">NOT SET</span>
-  </div>
 
-  <div class="flexible-round-options">
-    <button type="button" data-start-round="r16">ROUND OF 16</button>
-    <button type="button" data-start-round="qf">QUARTER-FINAL</button>
-    <button type="button" data-start-round="sf">SEMI-FINAL</button>
-    <button type="button" data-start-round="final">FINAL</button>
+<section id="flexibleKnockoutSetup" class="knockout-admin-manager">
+  <div class="kam-head">
+    <div><span>KNOCKOUT ADMIN</span><h3>DRAW & RESULTS</h3><p>Draw teams here. Public users only see the published knockout matches.</p></div>
+    <strong id="kamStageStatus">NO STAGE</strong>
   </div>
-
-  <div class="draw-controls">
-    <button type="button" id="saveKnockoutStart" class="save-knockout-start">SAVE STAGE</button>
-    <button type="button" id="drawKnockoutNow" class="draw-knockout-now" disabled>🎲 DRAW TEAMS</button>
-    <button type="button" id="clearKnockoutDraw" class="clear-knockout-draw">CLEAR</button>
+  <div class="kam-rounds">
+    <button data-kam-stage="r16">ROUND OF 16<br><small>8 matches</small></button>
+    <button data-kam-stage="qf">QUARTER-FINAL<br><small>4 matches</small></button>
+    <button data-kam-stage="sf">SEMI-FINAL<br><small>2 matches</small></button>
+    <button data-kam-stage="final">FINAL<br><small>1 match</small></button>
   </div>
-
-  <div id="knockoutNextStep" class="knockout-next-step"></div>
-  <div id="knockoutDrawBoard" class="knockout-draw-board"></div>
+  <div class="kam-actions">
+    <button id="kamLoadTeams">LOAD QUALIFIED TEAMS</button>
+    <button id="kamDraw" disabled>🎲 DRAW SELECTED TEAMS</button>
+    <button id="kamPublish" disabled>✓ PUBLISH KNOCKOUT</button>
+  </div>
+  <div id="kamTeamPicker" class="kam-picker"></div>
+  <div id="kamMatches" class="kam-matches"></div>
 </section>
+
 
 
 <section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>

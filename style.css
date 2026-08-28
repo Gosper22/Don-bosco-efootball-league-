@@ -1968,3 +1968,12 @@ button:disabled{cursor:not-allowed!important;opacity:.48!important}
 .road-final-card .road-team{margin:6px 0}
 .road-empty-slot{opacity:.35}
 @media(max-width:700px){.road-final-section{padding:14px}.road-bracket-board{min-width:820px}}
+
+/* KNOCKOUT ADMIN HOME AWAY */
+.knockout-admin-manager{margin:18px 0;padding:18px;border:1px solid rgba(57,255,20,.2);border-radius:20px;background:rgba(255,255,255,.025)}
+.kam-head{display:flex;justify-content:space-between;gap:15px}.kam-head span{font-size:9px;color:#39ff14;font-weight:950;letter-spacing:.16em}.kam-head h3{margin:4px 0}.kam-head p{font-size:11px;opacity:.6;margin:0}.kam-head>strong{font-size:10px;color:#39ff14}
+.kam-rounds{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:15px}.kam-rounds button{padding:11px 5px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:#fff;border-radius:11px;font-weight:950;cursor:pointer}.kam-rounds button.active{border-color:#39ff14;color:#39ff14;background:rgba(57,255,20,.1)}.kam-rounds small{opacity:.55}
+.kam-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:11px}.kam-actions button{border:0;border-radius:10px;padding:11px 13px;font-weight:950;cursor:pointer;background:#39ff14;color:#061006}.kam-actions button:disabled{opacity:.3;cursor:not-allowed}.kam-actions button:last-child{background:rgba(255,255,255,.08);color:#fff}
+.kam-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:13px}.kam-team-pick{padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:rgba(255,255,255,.025);display:flex;gap:8px;align-items:center;font-size:11px}.kam-team-pick input{accent-color:#39ff14}
+.kam-matches{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:15px}.kam-match{border:1px solid rgba(255,255,255,.08);border-radius:15px;padding:12px;background:rgba(0,0,0,.18)}.kam-match-title{font-size:9px;color:#39ff14;font-weight:950;margin-bottom:8px}.kam-leg{padding:9px;border-radius:9px;background:rgba(255,255,255,.035);margin-top:7px}.kam-leg strong{font-size:11px}.kam-score{display:flex;gap:7px;align-items:center;margin-top:7px}.kam-score input{width:55px;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:#111;color:#fff;text-align:center;font-weight:900}.kam-score button{padding:7px 9px;border:0;border-radius:7px;background:#39ff14;font-weight:900}
+@media(max-width:650px){.kam-rounds{grid-template-columns:1fr 1fr}}
