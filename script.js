@@ -3584,33 +3584,40 @@ function buildInitialQualifiers(stage){
   const required=KO_TIES[stage]*2;
   if(groups.length<2) throw new Error("At least 2 groups are required for automatic knockout seeding.");
 
-  const selected=[];
-  for(let i=0;i<groups.length;i+=2){
-    const a=groups[i], b=groups[i+1];
-    if(!b) break;
-    const a1=a.table[0], a2=a.table[1], b1=b.table[0], b2=b.table[1];
-    if(stage==="r16"){
-      if(a1&&b2) selected.push({name:koName({name:a1.name}),group:a.shortName,position:1});
-      if(b1&&a2) selected.push({name:b1.name,group:b.shortName,position:1});
-      if(b2&&a1) selected.push({name:b2.name,group:b.shortName,position:2});
-      if(a2&&b1) selected.push({name:a2.name,group:a.shortName,position:2});
-    } else {
-      // For a starting QF/SF/Final, take the required top-ranked players
-      // across the available groups, in group order.
-      selected.push(...a.table.slice(0,2).map((x,j)=>({name:x.name,group:a.shortName,position:j+1})));
-      selected.push(...b.table.slice(0,2).map((x,j)=>({name:x.name,group:b.shortName,position:j+1})));
+  // IMPORTANT: first knockout pairing must NEVER be 1st vs 2nd
+  // from the same group. For each adjacent group pair:
+  // A1 vs B2 and B1 vs A2.
+  if(stage==="r16"){
+    const selected=[];
+    for(let i=0;i<groups.length;i+=2){
+      const a=groups[i], b=groups[i+1];
+      if(!b) continue;
+      const a1=a.table[0], a2=a.table[1], b1=b.table[0], b2=b.table[1];
+      if(a1&&b2) selected.push({name:a1.name,group:a.shortName,position:1,opponentGroup:b.shortName,opponentPosition:2});
+      if(b2&&a1) selected.push({name:b2.name,group:b.shortName,position:2,opponentGroup:a.shortName,opponentPosition:1});
+      if(b1&&a2) selected.push({name:b1.name,group:b.shortName,position:1,opponentGroup:a.shortName,opponentPosition:2});
+      if(a2&&b1) selected.push({name:a2.name,group:a.shortName,position:2,opponentGroup:b.shortName,opponentPosition:1});
     }
+    const unique=[], seen=new Set();
+    selected.forEach(x=>{if(!seen.has(x.name)){seen.add(x.name);unique.push(x)}});
+    if(unique.length<required) throw new Error(`Not enough qualified teams. Need ${required}, found ${unique.length}.`);
+    return unique.slice(0,required);
   }
-  // Remove duplicates while preserving the deterministic order.
-  const unique=[];
-  const seen=new Set();
-  selected.forEach(x=>{if(!seen.has(x.name)){seen.add(x.name);unique.push(x)}});
-  if(unique.length<required) throw new Error(`Not enough qualified teams. Need ${required}, found ${unique.length}.`);
-  return unique.slice(0,required);
+
+  // If the tournament starts at QF/SF/Final, use qualified teams already
+  // present in the groups, without pairing 1st/2nd from the same group.
+  const pool=[];
+  groups.forEach(g=>{
+    g.table.slice(0,2).forEach((x,j)=>pool.push({
+      name:x.name, group:g.shortName, position:j+1
+    }));
+  });
+  if(pool.length<required) throw new Error(`Not enough qualified teams. Need ${required}, found ${pool.length}.`);
+  return pool.slice(0,required);
 }
 
 function makeTiesFromTeams(names, stage){
-  const shuffled=[...names]; // deterministic pairing after qualification; no random team selection
+  const shuffled=[...names]; // deterministic; never randomizes qualified selection
   const ties=[];
   for(let i=0;i<shuffled.length;i+=2){
     ties.push({
