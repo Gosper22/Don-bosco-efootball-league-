@@ -2,22 +2,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Don Bosco eFootball League</title>  <link rel="stylesheet" href="style.css">
-<style>
-/* Don Bosco Match Center */
-.db-mc-card{position:relative;border-radius:22px;padding:22px 20px;margin:14px 0;background:linear-gradient(145deg,#101515,#171d1d);border:1px solid rgba(65,255,155,.22);box-shadow:0 14px 35px rgba(0,0,0,.22);overflow:hidden}
-.db-mc-card:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(65,255,155,.07),transparent 45%,rgba(65,255,155,.04));pointer-events:none}
-.db-mc-status{display:inline-flex;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;background:rgba(65,255,155,.12);color:#73ffb0}
-.db-mc-status.upcoming{background:rgba(255,255,255,.08);color:#fff}
-.db-mc-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px}
-.db-mc-team{font-size:clamp(15px,2.4vw,21px);font-weight:800;line-height:1.15;color:#fff;word-break:break-word}
-.db-mc-team.home{text-align:right}.db-mc-team.away{text-align:left}
-.db-mc-score{min-width:150px;text-align:center;font-size:clamp(38px,7vw,58px);line-height:.95;font-weight:950;letter-spacing:-.045em;color:#fff}
-.db-mc-score small{display:block;margin-top:8px;font-size:10px;letter-spacing:.12em;font-weight:800;color:rgba(255,255,255,.55)}
-.db-mc-vs{min-width:150px;text-align:center;font-size:clamp(24px,4vw,36px);font-weight:950;color:#fff}
-.db-mc-meta{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:16px}
-.db-mc-pill{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:11px;font-weight:700}
-@media(max-width:600px){.db-mc-teams{gap:8px}.db-mc-score,.db-mc-vs{min-width:90px}.db-mc-card{padding:18px 12px}}
-</style></head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
+</head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
     <span>DON BOSCO</span>
     <strong>eFOOTBALL</strong>
     <small>LEAGUE</small>
@@ -27,8 +12,6 @@
     <a href="#groups">Groups</a>
     <a href="#fixtures">Fixtures</a>
     <a href="#standings">Standings</a>
-    <a href="#playerDashboard">Players</a>
-    <a href="#powerRanking">Power Ranking</a>
     <a href="#knockout">Knockout</a>
     <a href="#halloffame">Hall of Fame</a>
     <a href="#contact">Contact Admin</a>
@@ -66,7 +49,30 @@
 
 </div>
 
-  </div></section><!-- ================= REGISTRATION ================= --><section id="register" class="section register-section">  <div class="section-heading"><span>JOIN THE TOURNAMENT</span>
+  </div></section><!-- ================= PRIZE MONEY BANNER ================= -->
+<section class="prize-banner-section" aria-label="Tournament prize money">
+  <div class="prize-banner">
+    <div class="prize-banner-glow"></div>
+    <div class="prize-banner-top">🏆 <span>DON BOSCO eFOOTBALL LEAGUE</span> 🏆</div>
+    <h2>WIN THE TOURNAMENT.<br><strong>WIN THE PRIZE MONEY.</strong></h2>
+    <p class="prize-banner-subtitle">The best players don't just compete — they take the prize.</p>
+    <div class="prize-cards">
+      <div class="prize-card first-prize">
+        <div class="prize-medal">🥇</div>
+        <div class="prize-place">1ST PLACE</div>
+        <div class="prize-amount">10,000 <span>TZS</span></div>
+        <div class="prize-label">TOURNAMENT WINNER</div>
+      </div>
+      <div class="prize-card second-prize">
+        <div class="prize-medal">🥈</div>
+        <div class="prize-place">2ND PLACE</div>
+        <div class="prize-amount">5,000 <span>TZS</span></div>
+        <div class="prize-label">RUNNER-UP</div>
+      </div>
+    </div>
+    <div class="prize-banner-footer">🔥 32 PLAYERS &nbsp;•&nbsp; 1 CHAMPION &nbsp;•&nbsp; CASH PRIZES</div>
+  </div>
+</section><!-- ================= REGISTRATION ================= --><section id="register" class="section register-section">  <div class="section-heading"><span>JOIN THE TOURNAMENT</span>
 
 <h2>
   PLAYER
@@ -139,25 +145,6 @@
     name="name"
     placeholder="Enter your full name"
     autocomplete="name"
-    required
-  >
-
-</div>
-
-
-<div class="input-group">
-
-  <label for="age">
-    Player Age
-  </label>
-
-  <input
-    type="number"
-    id="age"
-    name="age"
-    min="13"
-    max="60"
-    placeholder="Age"
     required
   >
 
@@ -271,101 +258,22 @@
   Loading standings...
 </div>
 
-  </div></section><!-- ================= PLAYER DASHBOARD & POWER RANKING ================= -->
-<section id="playerDashboard" class="section player-dashboard-section">
-  <div class="section-heading">
-    <span>PLAYER ANALYTICS</span>
-    <h2>PLAYER <strong>DASHBOARD</strong></h2>
-    <p>Automatic season statistics for every registered player.</p>
-  </div>
-  <div class="dashboard-toolbar">
-    <input id="playerSearch" type="search" placeholder="Search player..." autocomplete="off">
-  </div>
-  <div id="playerDashboardGrid" class="player-dashboard-grid">
-    <div class="loading">Loading player dashboard...</div>
-  </div>
-</section>
-
-<section id="powerRanking" class="section power-ranking-section">
-  <div class="section-heading">
-    <span>CONTINENTAL STYLE RANKING</span>
-    <h2>POWER <strong>RANKING</strong></h2>
-    <p>Season 1 creates the first ranking points. From Season 2 onward, points carry forward season after season.</p>
-  </div>
-  <div id="powerRankingContainer" class="power-ranking-container">
-    <div class="loading">Power Ranking starts after Season 1.</div>
-  </div>
-</section>
-
-<!-- ================= KNOCKOUT ================= -->
-<section id="knockout" class="section knockout-section">
-  <div class="section-heading">
-    <span>ROAD TO THE FINAL</span>
+  </div></section><!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">
+  <div class="section-heading"><span>ROAD TO THE FINAL</span>
     <h2><strong>KNOCKOUT</strong> STAGE</h2>
-    <p>Home &amp; away • aggregate • automatic progression</p>
+    <p>Knockout rounds are generated dynamically from the number of qualifiers.</p>
   </div>
-  <div id="publicKnockoutContainer" class="knockout-live-container">
-    <div class="loading">Knockout stage has not started yet.</div>
+  <div id="knockoutDynamic" class="knockout-grid">
+    <div class="loading">Knockout stage will appear here.</div>
   </div>
-</section>
-
-<!-- ================= HALL OF FAME ================= -->
+</section><!-- ================= HALL OF FAME ================= -->
 <section id="halloffame" class="section hall-of-fame-section">
-  <div class="section-heading">
-    <span>LEGENDS &amp; AWARDS</span>
+  <div class="section-heading"><span>LEGENDS</span>
     <h2>HALL OF <strong>FAME</strong></h2>
-    <p>Automatic tournament awards, decorated player profiles and fan voting for the three community awards.</p>
+    <p>Champions from previous Don Bosco eFootball League tournaments.</p>
   </div>
-
-  <div id="currentChampion" class="champion-banner">
-    <div class="champion-crown">👑</div>
-    <div>
-      <span>TOURNAMENT CHAMPION</span>
-      <strong>TO BE DECIDED</strong>
-      <small>Champion is determined from the played FINAL.</small>
-    </div>
-  </div>
-
-  <div class="awards-grid" id="awardsGrid">
-    <div class="loading">Calculating tournament awards...</div>
-  </div>
-
-  <div class="potm-voting-card hall-voting-card">
-    <div class="vote-heading">
-      <span>FAN VOTING</span>
-      <h3>🗳️ VOTE FOR THE AWARDS</h3>
-      <p>Champion, Top Scorer, Best Defender and Most Wins are calculated automatically. Admin selects exactly three finalists for Player of the Tournament, Upcoming Player and Fan's Priority Player. Fans vote once in each category; percentages are hidden until you vote, then shown live.</p>
-    </div>
-    <div id="awardVotingCategories" class="award-voting-categories">
-      <div class="loading">Loading award finalists...</div>
-    </div>
-    <div id="voteMessage" class="message"></div>
-  </div>
-
-  <div class="hof-history-card">
-    <div class="section-heading compact-heading">
-      <span>TOURNAMENT HISTORY</span>
-      <h3>DON BOSCO <strong>LEGENDS</strong></h3>
-    </div>
-    <div id="hallOfFameHistory" class="hof-history-grid">
-      <div class="loading">No archived champions yet.</div>
-    </div>
-  </div>
-
-  <div class="hof-history-card">
-    <div class="section-heading compact-heading">
-      <span>FULL SEASON ARCHIVE</span>
-      <h3>SEASON <strong>HISTORY</strong></h3>
-      <p>Every season keeps its players, fixtures, results, standings data, votes, awards and settings.</p>
-    </div>
-    <div id="seasonHistoryList" class="season-history-list">
-      <div class="loading">No previous seasons yet.</div>
-    </div>
-    <div id="seasonArchiveDetails"></div>
-  </div>
-</section>
-
-<!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
+  <div id="hallOfFameContainer" class="hall-of-fame-grid"><div class="loading">Loading champions...</div></div>
+</section><!-- ================= CONTACT ADMIN ================= --><section id="contact" class="section contact-section">  <div class="section-heading"><span>NEED HELP?</span>
 
 <h2>
   CONTACT
@@ -464,6 +372,18 @@
 <div id="adminPanel" style="display:none;">
 
 
+  <!-- SEASON MANAGEMENT -->
+  <div class="season-manager">
+    <div class="section-heading">
+      <span>LEAGUE HISTORY</span>
+      <h2>SEASON <strong>MANAGEMENT</strong></h2>
+      <p>Create new seasons, keep old seasons archived, and allow only one ONGOING season at a time.</p>
+    </div>
+    <div id="seasonManagerContent">
+      <div class="loading">Loading seasons...</div>
+    </div>
+  </div>
+
   <!-- TOURNAMENT SETTINGS -->
 
   <div class="tournament-settings">
@@ -557,32 +477,19 @@
 
   <p id="settingsMessage" class="message"></p>
 
-  <!-- POT + BLIND GROUP DRAW -->
-  <div class="tournament-control pot-draw-control">
-    <h3>🎲 GROUP DRAW — POTS &amp; BLIND REVEAL</h3>
-    <p>Assign every team to Pot 1, 2 or 3. Team names stay hidden during the blind draw until you tap a Pot. The revealed team is placed automatically in the next open Group.</p>
 
-    <div id="potManager" class="pot-manager">
-      <div class="loading">Loading Pots...</div>
+  <!-- POT DRAW / GROUPING -->
+  <div class="pot-management" id="potManagement">
+    <div class="section-heading">
+      <span>DRAW SYSTEM</span>
+      <h2>
+        POTS &amp;
+        <strong>GROUP DRAW</strong>
+      </h2>
+      <p>Assign registered players to Pot 1, Pot 2 or Pot 3, lock the pots, then generate the groups.</p>
     </div>
-
-    <div class="pot-draw-actions">
-      <button type="button" class="pot-reveal-btn" data-draw-pot="1">🎲 REVEAL POT 1</button>
-      <button type="button" class="pot-reveal-btn" data-draw-pot="2">🎲 REVEAL POT 2</button>
-      <button type="button" class="pot-reveal-btn" data-draw-pot="3">🎲 REVEAL POT 3</button>
-    </div>
-
-    <div id="blindDrawStatus" class="blind-draw-status">Waiting for teams.</div>
-    <div id="blindReveal" class="blind-reveal"><span>🎲 BLIND DRAW</span><strong>Tap a Pot to reveal</strong><small>The next team will be assigned automatically.</small></div>
-
-    <div class="pot-draw-secondary-actions">
-      <button type="button" id="autoGenerateGroupsBtn" class="primary-btn">⚡ GENERATE GROUPS FROM POTS</button>
-      <button type="button" id="confirmGroupsBtn" class="secondary-btn">✅ CONFIRM &amp; PUBLISH GROUPS</button>
-    </div>
-    <p id="groupDrawMessage" class="message"></p>
-
-    <div id="drawGroupsPreview" class="draw-groups-preview">
-      <div class="draw-preview-empty">Groups will appear here after the draw is generated.</div>
+    <div id="potManagementContent">
+      <div class="loading">Login as admin to manage pots.</div>
     </div>
   </div>
 
@@ -702,56 +609,6 @@
   </div>
 
 
-  <!-- KNOCKOUT MANAGEMENT -->
-<div class="tournament-control knockout-admin-control">
-  <h3>🏆 KNOCKOUT STAGE MANAGEMENT</h3>
-  <p>Choose where the knockout starts, then use <strong>ADVANCE TO NEXT STAGE OF KNOCKOUT</strong>. Teams come from the final Group standings — no random teams are created.</p>
-
-  <div class="ko-start-grid">
-    <button type="button" class="ko-start-btn" data-ko-start="r16">ROUND OF 16<br><small>8 TIES</small></button>
-    <button type="button" class="ko-start-btn" data-ko-start="qf">QUARTER-FINAL<br><small>4 TIES</small></button>
-    <button type="button" class="ko-start-btn" data-ko-start="sf">SEMI-FINAL<br><small>2 TIES</small></button>
-    <button type="button" class="ko-start-btn" data-ko-start="final">FINAL<br><small>1 TIE</small></button>
-  </div>
-
-  <div class="ko-admin-actions">
-    <button type="button" id="koSetStartBtn" class="secondary-btn">SET STARTING STAGE</button>
-    <button type="button" id="koAdvanceBtn" class="primary-btn">➡️ ADVANCE TO NEXT STAGE OF KNOCKOUT</button>
-    <button type="button" id="koResetBtn" class="danger-btn">RESET KNOCKOUT</button>
-  </div>
-  <p id="koAdminMessage" class="message"></p>
-  <div id="adminKnockoutContainer" class="admin-knockout-container"></div>
-</div>
-
-<!-- HALL OF FAME MANAGEMENT -->
-  <div class="tournament-control award-admin-control">
-    <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
-    <p>Statistics are calculated automatically. Admin is free to choose <strong>any 3 active players</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
-    <div id="awardNominationManager" class="award-nomination-manager">
-      <div class="loading">Loading award nomination controls...</div>
-    </div>
-    <button type="button" id="saveAwardNominationsBtn" class="primary-btn">💾 PUBLISH 3 PLAYERS PER FAN AWARD</button>
-    <p id="nominationMessage" class="message"></p>
-    <button type="button" id="endAwardVotesBtn" class="primary-btn danger-btn">🔒 END VOTES &amp; DECLARE WINNERS</button>
-    <p id="voteEndMessage" class="message"></p>
-
-    <label for="championOverride">Champion (only use if there is no recorded FINAL)</label>
-    <select id="championOverride">
-      <option value="">Auto-detect from FINAL</option>
-    </select>
-    <button type="button" id="archiveTournamentBtn" class="primary-btn">🏛️ ARCHIVE TO HALL OF FAME</button>
-    <p id="archiveMessage" class="message"></p>
-
-    <div class="season-management-card">
-      <span class="season-management-label">CURRENT SEASON</span>
-      <strong id="currentSeasonAdmin">SEASON 1</strong>
-      <p>End this season and start the next one. The complete current season is archived first; nothing from the old season is mixed with the new season.</p>
-      <button type="button" id="startNewSeasonBtn" class="secondary-btn">🔄 END SEASON &amp; START NEXT SEASON</button>
-      <p id="seasonMessage" class="message"></p>
-    </div>
-  </div>
-
-
   <!-- MATCH MANAGEMENT -->
 
   <div class="match-management">
@@ -772,22 +629,32 @@
     </div>
 
 
-    <div class="fixture-admin-actions">
-      <div class="fixture-delete-actions">
-      <button type="button" id="deleteAllFixturesBtn" class="danger-btn">
-        🗑️ DELETE ALL FIXTURES
-      </button>
-      <span class="fixture-delete-hint">Delete one fixture below, or clear the whole current season.</span>
-    </div>
-      <p id="deleteAllFixturesMessage" class="message"></p>
-    </div>
-
     <div id="adminMatches">
 
       <div class="loading">
         Match management will appear here.
       </div>
 
+    </div>    <div class="knockout-admin-management">
+      <div class="section-heading">
+        <span>ADMIN</span>
+        <h2>KNOCKOUT <strong>MANAGEMENT</strong></h2>
+        <p>Generate the next round dynamically and enter both-leg results here.</p>
+      </div>
+      <button type="button" id="generateKnockoutBtn" class="primary-btn">⚔️ GENERATE NEXT KNOCKOUT ROUND</button>
+      <p id="knockoutAdminMessage" class="message"></p>
+      <div id="adminKnockoutMatches"><div class="loading">No knockout round generated yet.</div></div>
+    </div>
+
+    <div class="hall-admin-management">
+      <div class="section-heading"><span>HISTORY</span><h2>HALL OF <strong>FAME</strong></h2><p>Add the champion after each completed tournament.</p></div>
+      <div class="hall-admin-form">
+        <input id="hallEdition" type="text" placeholder="Tournament / Edition (e.g. Don Bosco League 2026 #1)">
+        <input id="hallWinner" type="text" placeholder="Champion username / team">
+        <input id="hallYear" type="number" min="2020" max="2100" placeholder="Year">
+        <button type="button" id="addHallWinnerBtn" class="primary-btn">🏆 ADD CHAMPION</button>
+      </div>
+      <div id="adminHallOfFame"></div>
     </div>
 
   </div>
@@ -809,6 +676,19 @@
   Official Don Bosco eFootball League
 </p>
 
+
+<!-- Official WhatsApp Community -->
+<div class="whatsapp-group-card">
+  <div class="whatsapp-group-icon">💬</div>
+  <div class="whatsapp-group-copy">
+    <span>OFFICIAL COMMUNITY</span>
+    <h3>JOIN THE DON BOSCO GAMERS GROUP</h3>
+    <p>Get league announcements, fixtures, results, updates and tournament news.</p>
+  </div>
+  <a class="whatsapp-group-btn" href="https://chat.whatsapp.com/Cfb0BVBH24A5ORSNx9PR8N?s=cl&amp;p=a&amp;ilr=4" target="_blank" rel="noopener noreferrer">
+    JOIN WHATSAPP <span>↗</span>
+  </a>
+</div>
 
 <p>
   Need help?
@@ -845,17 +725,5 @@
   </div></footer><!-- ================= JAVASCRIPT ================= --><script
   type="module"
   src="script.js"
-></script>
-<script>
-(function(){
-function styleMatches(){
-document.querySelectorAll('.match-card,.fixture-card,.match-item,.fixture-item,[data-match-id]').forEach(function(el){
-if(!el.classList.contains('db-mc-card')) el.classList.add('db-mc-card');
-});
-}
-document.addEventListener('DOMContentLoaded',styleMatches);
-new MutationObserver(styleMatches).observe(document.body,{childList:true,subtree:true});
-})();
-</script>
-</body>
+></script></body>
 </html>
