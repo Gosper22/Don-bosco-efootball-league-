@@ -297,85 +297,19 @@
   </div>
 </section>
 
-<!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
-
-<h2>
-  <strong>KNOCKOUT</strong>
-  STAGE
-</h2>
-
-<p>
-  Qualification and knockout stage.
-</p>
-
-  </div>  <div class="knockout-grid"><div class="round">
-
-  <h3>ROUND OF 16</h3>
-
-  <div id="round16">
-
-    <div class="knockout-match">
-      <span>QUALIFIER</span>
-      <strong>VS</strong>
-      <span>QUALIFIER</span>
-    </div>
-
+<!-- ================= KNOCKOUT ================= -->
+<section id="knockout" class="section knockout-section">
+  <div class="section-heading">
+    <span>ROAD TO THE FINAL</span>
+    <h2><strong>KNOCKOUT</strong> STAGE</h2>
+    <p>Home &amp; away • aggregate • automatic progression</p>
   </div>
-
-</div>
-
-
-<div class="round">
-
-  <h3>QUARTERFINALS</h3>
-
-  <div id="quarterfinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
-    </div>
-
+  <div id="publicKnockoutContainer" class="knockout-live-container">
+    <div class="loading">Knockout stage has not started yet.</div>
   </div>
+</section>
 
-</div>
-
-
-<div class="round">
-
-  <h3>SEMIFINALS</h3>
-
-  <div id="semifinals">
-
-    <div class="knockout-match">
-      <span>WINNER</span>
-      <strong>VS</strong>
-      <span>WINNER</span>
-    </div>
-
-  </div>
-
-</div>
-
-
-<div class="round final-round">
-
-  <h3>🏆 FINAL</h3>
-
-  <div id="final">
-
-    <div class="knockout-match final-match">
-      <span>FINALIST 1</span>
-      <strong>VS</strong>
-      <span>FINALIST 2</span>
-    </div>
-
-  </div>
-
-</div>
-
-  </div></section><!-- ================= HALL OF FAME ================= -->
+<!-- ================= HALL OF FAME ================= -->
 <section id="halloffame" class="section hall-of-fame-section">
   <div class="section-heading">
     <span>LEGENDS &amp; AWARDS</span>
@@ -768,7 +702,28 @@
   </div>
 
 
-  <!-- HALL OF FAME MANAGEMENT -->
+  <!-- KNOCKOUT MANAGEMENT -->
+<div class="tournament-control knockout-admin-control">
+  <h3>🏆 KNOCKOUT STAGE MANAGEMENT</h3>
+  <p>Choose where the knockout starts, then use <strong>ADVANCE TO NEXT STAGE OF KNOCKOUT</strong>. Teams come from the final Group standings — no random teams are created.</p>
+
+  <div class="ko-start-grid">
+    <button type="button" class="ko-start-btn" data-ko-start="r16">ROUND OF 16<br><small>8 TIES</small></button>
+    <button type="button" class="ko-start-btn" data-ko-start="qf">QUARTER-FINAL<br><small>4 TIES</small></button>
+    <button type="button" class="ko-start-btn" data-ko-start="sf">SEMI-FINAL<br><small>2 TIES</small></button>
+    <button type="button" class="ko-start-btn" data-ko-start="final">FINAL<br><small>1 TIE</small></button>
+  </div>
+
+  <div class="ko-admin-actions">
+    <button type="button" id="koSetStartBtn" class="secondary-btn">SET STARTING STAGE</button>
+    <button type="button" id="koAdvanceBtn" class="primary-btn">➡️ ADVANCE TO NEXT STAGE OF KNOCKOUT</button>
+    <button type="button" id="koResetBtn" class="danger-btn">RESET KNOCKOUT</button>
+  </div>
+  <p id="koAdminMessage" class="message"></p>
+  <div id="adminKnockoutContainer" class="admin-knockout-container"></div>
+</div>
+
+<!-- HALL OF FAME MANAGEMENT -->
   <div class="tournament-control award-admin-control">
     <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
     <p>Statistics are calculated automatically. Admin is free to choose <strong>any 3 active players</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
