@@ -2295,17 +2295,35 @@ async function generateNextKnockoutRound() {
 
   const last = currentKnockoutStage();
   let teams = [];
+  let firstKnockoutDraw = false;
 
   if (!last) {
     const groups = getGroups();
     if (!groups.length || groups.some(g => g.players.length < 2)) return alert("⚠️ Groups bado hazijakamilika.");
     const groupMatches = matches.filter(m => m.stage !== "knockout");
     if (groupMatches.length && !groupMatches.every(m => m.played)) return alert("⚠️ Maliza group stage kwanza.");
-    groups.forEach(g => {
+
+    // Seed the first knockout round by group positions: A1 vs B2, A2 vs B1, etc.
+    const qualifiedByGroup = groups.map(g => {
       const st = buildGroupStats(g.players, g.shortName);
-      if (st[0]) teams.push(st[0].name);
-      if (st[1]) teams.push(st[1].name);
+      return { group: g.shortName, first: st[0]?.name || null, second: st[1]?.name || null };
     });
+    const seeded = [];
+    for (let i = 0; i < qualifiedByGroup.length; i += 2) {
+      const left = qualifiedByGroup[i];
+      const right = qualifiedByGroup[i + 1];
+      if (left && right) {
+        if (left.first) seeded.push(left.first);
+        if (right.second) seeded.push(right.second);
+        if (left.second) seeded.push(left.second);
+        if (right.first) seeded.push(right.first);
+      } else if (left) {
+        if (left.first) seeded.push(left.first);
+        if (left.second) seeded.push(left.second);
+      }
+    }
+    teams = seeded;
+    firstKnockoutDraw = true;
   } else {
     if (!stageIsComplete(last.name)) return alert("⚠️ Maliza matokeo yote ya " + last.name + " kwanza.");
     const ties = {};
@@ -2335,7 +2353,7 @@ async function generateNextKnockoutRound() {
 
   if (knockoutStages.some(st => st.name === roundName)) return alert("⚠️ " + roundName + " tayari imegenerate.");
 
-  teams = teams.slice();
+  // Do not randomize the first knockout round; preserve the seeded group order.
   const matchesNeeded = exactPower ? targetSize / 2 : teams.length - targetSize;
   const playingTeamsCount = matchesNeeded * 2;
   const byeCount = teams.length - playingTeamsCount;
