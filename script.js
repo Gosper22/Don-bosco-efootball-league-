@@ -3435,3 +3435,74 @@ button.innerHTML =
 "<span>→</span>";
 
 }
+/* =====================================================
+   MANUAL SF -> FINAL V1
+   Admin enters the two semi-final ties manually.
+   Results are stored in Firestore and aggregate/winners
+   progress automatically into the Final.
+===================================================== */
+let manualSF={ties:[
+ {home:"",away:"",l1h:"",l1a:"",l2h:"",l2a:"",winner:""},
+ {home:"",away:"",l1h:"",l1a:"",l2h:"",l2a:"",winner:""}
+],final:{home:"",away:"",l1h:"",l1a:"",l2h:"",l2a:"",winner:""}};
+
+function sfTeamOptions(selected){
+  const names=players.map(p=>p.username||p.name||p.teamName).filter(Boolean);
+  return '<option value="">Select team</option>'+names.map(n=>`<option value="${escapeHTML(n)}" ${n===selected?'selected':''}>${escapeHTML(n)}</option>`).join("");
+}
+function sfAgg(t){
+  const h1=t.l1h===""?0:Number(t.l1h||0),a1=t.l1a===""?0:Number(t.l1a||0);
+  // Leg 2 is entered as away team HOME vs home team.
+  const h2=t.l2h===""?0:Number(t.l2h||0),a2=t.l2a===""?0:Number(t.l2a||0);
+  return {home:h1+a2,away:a1+h2};
+}
+function sfRender(){
+  const root=document.getElementById("sfAdminMatches");if(!root)return;
+  root.innerHTML=manualSF.ties.map((t,i)=>{
+    const a=sfAgg(t);
+    const winner=t.winner||(t.l1h!==""&&t.l1a!==""&&t.l2h!==""&&t.l2a!==""?(a.home>a.away?t.home:a.away):"");
+    return `<div class="sf-admin-tie">
+      <h4>SEMI-FINAL ${i+1}</h4>
+      <div class="sf-team-row"><select data-sf="${i}" data-k="home">${sfTeamOptions(t.home)}</select><select data-sf="${i}" data-k="away">${sfTeamOptions(t.away)}</select></div>
+      <div class="sf-leg"><small>LEG 1 — HOME / AWAY</small><input data-sf="${i}" data-k="l1h" type="number" min="0" placeholder="Home score" value="${t.l1h}"><input data-sf="${i}" data-k="l1a" type="number" min="0" placeholder="Away score" value="${t.l1a}"></div>
+      <div class="sf-leg"><small>LEG 2 — AWAY TEAM HOME</small><input data-sf="${i}" data-k="l2h" type="number" min="0" placeholder="Away team score" value="${t.l2h}"><input data-sf="${i}" data-k="l2a" type="number" min="0" placeholder="Home team score" value="${t.l2a}"></div>
+      <div class="sf-aggregate">AGGREGATE <b>${a.home} – ${a.away}</b>${winner?`<br>🏆 ${escapeHTML(winner)}`:""}</div>
+    </div>`;
+  }).join("");
+  root.querySelectorAll("[data-sf]").forEach(el=>el.addEventListener("input",()=>{
+    const i=Number(el.dataset.sf);manualSF.ties[i][el.dataset.k]=el.value;sfRender();
+  }));
+}
+async function sfLoad(){
+  try{
+    const snap=await getDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`));
+    if(snap.exists()) manualSF={...manualSF,...snap.data()};
+  }catch(e){console.warn("SF load",e)}
+  sfRender();
+}
+async function sfSave(){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  manualSF.ties.forEach(t=>{
+    const a=sfAgg(t);
+    if(t.home&&t.away&&t.l1h!==""&&t.l1a!==""&&t.l2h!==""&&t.l2a!==""){
+      t.winner=a.home>a.away?t.home:a.away;
+    } else t.winner="";
+  });
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualSF);
+  document.getElementById("sfMessage").textContent="✓ Semi-final imehifadhiwa. Aggregate imehesabiwa.";
+  sfRender();
+}
+async function sfAdvance(){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  manualSF.ties.forEach(t=>{const a=sfAgg(t);if(t.home&&t.away&&t.l1h!==""&&t.l1a!==""&&t.l2h!==""&&t.l2a!=="")t.winner=a.home>a.away?t.home:a.away});
+  if(manualSF.ties.some(t=>!t.winner))return alert("Kamilisha legs zote za semi-final kwanza.");
+  manualSF.final={home:manualSF.ties[0].winner,away:manualSF.ties[1].winner,l1h:"",l1a:"",l2h:"",l2a:"",winner:""};
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualSF);
+  document.getElementById("sfMessage").textContent="✓ Winners wameingia FINAL automatic.";
+  sfRender();
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("saveSfBtn")?.addEventListener("click",sfSave);
+  document.getElementById("advanceSfBtn")?.addEventListener("click",sfAdvance);
+  sfLoad();
+});
