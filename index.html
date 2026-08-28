@@ -708,11 +708,13 @@
 
   <div class="knockout-admin-actions">
     <button type="button" id="setKnockoutStartBtn" class="secondary-btn">SET STARTING STAGE</button>
+    <button type="button" id="manualKnockoutFixturesBtn" class="secondary-btn">✍️ ENTER MANUAL FIXTURES</button>
     <button type="button" id="advanceKnockoutBtn" class="primary-btn">➡️ ADVANCE TO NEXT STAGE OF KNOCKOUT</button>
     <button type="button" id="resetKnockoutBtn" class="danger-btn">RESET KNOCKOUT</button>
   </div>
 
   <p id="knockoutAdminMessage" class="message"></p>
+  <div id="manualKnockoutFixtures" class="admin-knockout-matches" style="display:none"></div>
   <div id="adminKnockoutMatches" class="admin-knockout-matches">
     <div class="draw-preview-empty">Select a starting stage to begin.</div>
   </div>

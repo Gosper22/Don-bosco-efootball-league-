@@ -3607,21 +3607,67 @@ function buildInitialQualifiers(stage){
 }
 
 function makeTiesFromTeams(names, stage){
-  const shuffled=[...names]; // deterministic; never randomizes qualified selection
   const ties=[];
-  for(let i=0;i<shuffled.length;i+=2){
-    ties.push({
-      tie:i/2+1,
-      home:shuffled[i],
-      away:shuffled[i+1],
-      leg1:{homeScore:null,awayScore:null,played:false},
-      leg2:{homeScore:null,awayScore:null,played:false},
-      aggregate:{home:0,away:0},
-      winner:null,
-      decided:false
-    });
+  for(let i=0;i<names.length;i+=2){
+    ties.push(makeEmptyKoTie(i/2+1,names[i]||"",names[i+1]||""));
   }
   return ties.slice(0,KO_TIES[stage]);
+}
+
+function makeEmptyKoTie(number, home="", away=""){
+  return {
+    tie:number,
+    home:String(home||""),
+    away:String(away||""),
+    leg1:{homeScore:null,awayScore:null,played:false},
+    leg2:{homeScore:null,awayScore:null,played:false},
+    aggregate:{home:0,away:0},
+    winner:null,
+    decided:false,
+    penaltyWinner:null
+  };
+}
+
+function renderManualKnockoutFixtures(){
+  const root=document.getElementById("manualKnockoutFixtures");
+  if(!root)return;
+  const stage=koCurrentStage();
+  if(!stage){
+    root.style.display="none";
+    return;
+  }
+  root.style.display="block";
+  const existing=knockoutState.stages?.[stage]?.ties||[];
+  const ties=Array.from({length:KO_TIES[stage]},(_,i)=>existing[i]||makeEmptyKoTie(i+1));
+  root.innerHTML=`<div class="draw-preview-empty" style="text-align:left">
+    <strong>MANUAL ${KO_LABEL[stage]} FIXTURES</strong>
+    <p>Ingiza majina ya wachezaji/team kwa kila tie. Mfumo hautapanga pairing moja kwa moja.</p>
+    ${ties.map((t,i)=>`<div class="admin-ko-leg" style="margin-top:12px">
+      <div><small>TIE ${i+1}</small><strong>TEAM / PLAYER PAIRING</strong></div>
+      <input type="text" data-manual-ko="home" data-ko-index="${i}" value="${escapeHTML(t.home||"")}" placeholder="Home / Player 1">
+      <span>VS</span>
+      <input type="text" data-manual-ko="away" data-ko-index="${i}" value="${escapeHTML(t.away||"")}" placeholder="Away / Player 2">
+    </div>`).join("")}
+    <button type="button" id="saveManualKnockoutFixturesBtn" class="primary-btn" style="margin-top:14px">💾 SAVE MANUAL KNOCKOUT FIXTURES</button>
+  </div>`;
+  document.getElementById("saveManualKnockoutFixturesBtn")?.addEventListener("click",async()=>{
+    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+    const newTies=[];
+    for(let i=0;i<KO_TIES[stage];i++){
+      const home=root.querySelector(`[data-manual-ko="home"][data-ko-index="${i}"]`)?.value.trim();
+      const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
+      if(!home||!away)return alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`);
+      if(home.toLowerCase()===away.toLowerCase())return alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`);
+      newTies.push(makeEmptyKoTie(i+1,home,away));
+    }
+    knockoutState.stages=knockoutState.stages||{};
+    knockoutState.stages[stage]={stage,ties:newTies,published:true,manual:true};
+    knockoutState.currentStage=stage;
+    await saveKnockoutState();
+    root.style.display="none";
+    renderAdminKnockout();renderPublicKnockout();
+    alert(`✅ Manual ${KO_LABEL[stage]} fixtures zimehifadhiwa.`);
+  });
 }
 
 function koAggregate(tie){
@@ -3680,6 +3726,12 @@ function setupKnockoutSystem(){
     renderPublicKnockout();
   });
 
+  document.getElementById("manualKnockoutFixturesBtn")?.addEventListener("click",()=>{
+    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+    if(!koCurrentStage())return alert("Chagua starting stage kwanza.");
+    renderManualKnockoutFixtures();
+  });
+
   document.getElementById("advanceKnockoutBtn")?.addEventListener("click",advanceKnockoutStage);
 
   document.getElementById("resetKnockoutBtn")?.addEventListener("click",async()=>{
@@ -3699,19 +3751,8 @@ async function advanceKnockoutStage(){
   const existing=knockoutState.stages?.[stage];
 
   if(!existing){
-    let qualified;
-    try{
-      qualified=buildInitialQualifiers(stage);
-    }catch(e){return alert("⚠️ "+e.message)}
-    knockoutState.stages[stage]={
-      stage,
-      ties:makeTiesFromTeams(qualified.map(x=>x.name),stage),
-      published:true
-    };
-    knockoutState.currentStage=stage;
-    await saveKnockoutState();
-    renderAdminKnockout();renderPublicKnockout();
-    return;
+    renderManualKnockoutFixtures();
+    return alert(`✍️ ${KO_LABEL[stage]} haijaundwa. Ingiza pairing manually kisha SAVE MANUAL KNOCKOUT FIXTURES.`);
   }
 
   const ties=existing.ties||[];
@@ -3735,18 +3776,15 @@ async function advanceKnockoutStage(){
   }
 
   const winners=ties.map(t=>t.winner).filter(Boolean);
-  if(winners.length!==KO_TIES[next]*2){
-    return alert(`⚠️ Next stage inahitaji ${KO_TIES[next]*2} winners.`);
+  if(winners.length!==KO_TIES[stage]*2){
+    return alert(`⚠️ Kamilisha winners wote wa ${KO_LABEL[stage]} kwanza.`);
   }
 
-  knockoutState.stages[next]={
-    stage:next,
-    ties:makeTiesFromTeams(winners,next),
-    published:true
-  };
   knockoutState.currentStage=next;
   await saveKnockoutState();
   renderAdminKnockout();renderPublicKnockout();
+  renderManualKnockoutFixtures();
+  alert(`✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing. Ingiza fixtures mwenyewe.`);
 }
 
 function renderAdminKnockout(){
@@ -3761,8 +3799,11 @@ function renderAdminKnockout(){
   }
   if(status)status.textContent=KO_LABEL[stage];
   const data=knockoutState.stages?.[stage];
+  const manualBox=document.getElementById("manualKnockoutFixtures");
+  if(manualBox && data?.ties?.length) manualBox.style.display="none";
   if(!data?.ties?.length){
-    root.innerHTML=`<div class="draw-preview-empty">Press ADVANCE TO NEXT STAGE OF KNOCKOUT to create ${KO_LABEL[stage]}.</div>`;
+    root.innerHTML=`<div class="draw-preview-empty">No manual fixtures saved yet. Use ENTER MANUAL FIXTURES to set ${KO_LABEL[stage]} pairings.</div>`;
+    renderManualKnockoutFixtures();
     return;
   }
 
