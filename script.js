@@ -3858,8 +3858,11 @@ async function advanceKnockoutStage(){
     return;
   }
 
+  // Each tie produces exactly one winner. The previous check incorrectly
+  // expected twice as many winners as ties, so Proceed Next Stage could
+  // never advance for a normal bracket.
   const winners=ties.map(t=>t.winner).filter(Boolean);
-  if(winners.length!==KO_TIES[stage]*2){
+  if(winners.length!==ties.length || winners.some(w=>!w)){
     return alert(`⚠️ Kamilisha winners wote wa ${KO_LABEL[stage]} kwanza.`);
   }
 
