@@ -266,6 +266,31 @@ try {
 
   await loadLeague();
 
+  // When the single-game FINAL is saved, automatically register the champion
+  // in Hall of Fame for this season. Awards remain in the existing Season Archive.
+  try {
+    const savedMatch = matches.find((item) => item.id === matchId);
+    if (savedMatch && String(savedMatch.group || "").trim().toLowerCase() === "final" && savedMatch.played) {
+      const hg = Number(savedMatch.homeGoals || 0);
+      const ag = Number(savedMatch.awayGoals || 0);
+      if (hg !== ag) {
+        const winnerName = hg > ag ? savedMatch.homePlayer : savedMatch.awayPlayer;
+        const champion = players.find((player) => getPlayerName(player).toLowerCase() === String(winnerName || "").toLowerCase());
+        if (champion) {
+          await setDoc(doc(db, "hallOfFame", `season-${currentSeasonNumber}`), {
+            season: `Season ${currentSeasonNumber}`,
+            seasonNumber: currentSeasonNumber,
+            champion: { playerId: champion.id, name: getPlayerName(champion), teamNumber: champion.teamNumber || null },
+            archivedAt: serverTimestamp()
+          }, { merge: true });
+          await renderHallOfFameHistory();
+        }
+      }
+    }
+  } catch (hofError) {
+    console.error("Automatic Hall of Fame champion save error:", hofError);
+  }
+
 } catch (error) {
 
   console.error("Registration error:", error);
@@ -3168,27 +3193,24 @@ async function archiveTournamentToHallOfFame() {
   const message = document.getElementById("archiveMessage");
   const overrideId = document.getElementById("championOverride")?.value;
   const champion = (overrideId && players.find((p) => p.id === overrideId)) || getChampionFromFinal();
-  if (!champion) { showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error"); return; }
-  if (!currentAwardData) await renderAwardsAndVoting();
-  const awards = currentAwardData || {};
+  if (!champion) {
+    showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error");
+    return;
+  }
   const season = `Season ${currentSeasonNumber}`;
   try {
-    const archiveAwards = {};
-    Object.keys(AWARD_CATEGORIES).forEach((category) => {
-      const winner = awards[category];
-      if (!winner) return;
-      archiveAwards[category] = { playerId: winner.id, name: winner.name, votes: awardVoteCounts[category]?.[winner.id] || 0, metric: metricForAward(category, winner), type: AWARD_CATEGORIES[category].type };
-    });
-    await archiveFullSeason(currentSeasonNumber);
-    await addDoc(collection(db, "hallOfFame"), {
-      season, seasonNumber: currentSeasonNumber, champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
-      awards: archiveAwards, archivedAt: serverTimestamp()
-    });
-    showMessage(message, `🏛️ ${season} tournament archived in the Hall of Fame.`, "success");
+    // Hall of Fame stores champions only. Awards belong to the existing Season Archive.
+    await setDoc(doc(db, "hallOfFame", `season-${currentSeasonNumber}`), {
+      season,
+      seasonNumber: currentSeasonNumber,
+      champion: { playerId: champion.id, name: getPlayerName(champion), teamNumber: champion.teamNumber || null },
+      archivedAt: serverTimestamp()
+    }, { merge: true });
+    showMessage(message, `🏛️ ${season} champion saved to Hall of Fame. Awards remain in Season Archive.`, "success");
     await renderHallOfFameHistory();
   } catch (error) {
     console.error("Hall of Fame archive error:", error);
-    showMessage(message, "❌ Could not archive tournament. Check Firebase permissions.", "error");
+    showMessage(message, "❌ Could not save champion to Hall of Fame. Check Firebase permissions.", "error");
   }
 }
 
@@ -3197,13 +3219,18 @@ async function renderHallOfFameHistory() {
   if (!container) return;
   try {
     const snapshot = await getDocs(collection(db, "hallOfFame"));
-    if (snapshot.empty) { container.innerHTML = `<div class="loading">No archived champions yet. Finish your first tournament to create a legend.</div>`; return; }
-    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => Number(b.seasonNumber || 0) - Number(a.seasonNumber || 0));
+    if (snapshot.empty) {
+      container.innerHTML = `<div class="loading">No archived champions yet. Finish your first tournament to create a legend.</div>`;
+      return;
+    }
+    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+      .sort((a, b) => Number(b.seasonNumber || 0) - Number(a.seasonNumber || 0));
     container.innerHTML = history.map((entry) => {
-      const a = entry.awards || {};
-      return `<article class="hof-history-item"><div class="hof-year">${escapeHTML(entry.season || "TOURNAMENT")}</div>
-        <div class="hof-champion">🏆 <strong>${escapeHTML(entry.champion?.name || "Unknown Champion")}</strong></div>
-        <div class="hof-awards">${Object.entries(AWARD_CATEGORIES).map(([category, config]) => a[category] ? `<span>${config.icon} ${escapeHTML(config.title)}: ${escapeHTML(a[category].name)}</span>` : "").join("")}</div>
+      const champion = entry.champion || {};
+      return `<article class="hof-history-item">
+        <div class="hof-year">${escapeHTML(entry.season || `Season ${entry.seasonNumber || "?"}`)}</div>
+        <div class="hof-champion">🏆 <strong>${escapeHTML(champion.name || "Unknown Champion")}</strong></div>
+        <div class="hof-awards"><span>Champion of ${escapeHTML(entry.season || "this season")}</span></div>
       </article>`;
     }).join("");
   } catch (error) {
@@ -3714,12 +3741,14 @@ function renderManualKnockoutFixtures(){
     const status=document.getElementById("manualKoSaveStatus");
     try{
       const newTies=[];
+      const old=knockoutState.stages?.[stage]||{};
+      const oldTies=Array.isArray(old.ties)?old.ties:[];
       for(let i=0;i<KO_TIES[stage];i++){
         const home=root.querySelector(`[data-manual-ko="home"][data-ko-index="${i}"]`)?.value.trim();
         const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
         if(!home||!away){ alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`); return; }
         if(home.toLowerCase()===away.toLowerCase()){ alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`); return; }
-        const prior=old.ties?.[i];
+        const prior=oldTies[i];
         const samePair=prior && String(prior.home||"").trim().toLowerCase()===home.toLowerCase() && String(prior.away||"").trim().toLowerCase()===away.toLowerCase();
         const nextTie=makeEmptyKoTie(i+1,home,away);
         if(samePair){
@@ -3733,7 +3762,6 @@ function renderManualKnockoutFixtures(){
         newTies.push(nextTie);
       }
       knockoutState.stages=knockoutState.stages||{};
-      const old=knockoutState.stages[stage]||{};
       knockoutState.stages[stage]={
         ...old,
         stage,
@@ -3782,12 +3810,10 @@ function koDecideTie(tie){
     return tie;
   }
 
-  if(l1Played && !l2Played){
-    const h=Number(tie.leg1.homeScore), a=Number(tie.leg1.awayScore);
-    if(h>a){tie.winner=tie.home;tie.decided=true}
-    else if(a>h){tie.winner=tie.away;tie.decided=true}
-    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
-  } else if(l1Played && l2Played){
+  // ROAD TO FINAL (R16/QF/SF) is played over two legs.
+  // A winner is decided only after both legs, unless aggregate is tied
+  // and the admin explicitly selects a penalty winner.
+  if(l1Played && l2Played){
     if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
     else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
     else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
@@ -3868,7 +3894,7 @@ async function advanceKnockoutStage(){
   ties.forEach(koDecideTie);
 
   if(!koAllDecided(stage)){
-    return alert("⚠️ Kamilisha angalau Leg 1 kwa kila tie. Kama ni sare, weka penalty winner; kama unatumia legs mbili, weka Leg 2 pia.");
+    return alert("⚠️ Kamilisha Leg 1 na Leg 2 kwa kila tie. Kama aggregate ni sare, chagua penalty winner.");
   }
 
   const next=koNextStage(stage);
