@@ -69,7 +69,6 @@ setupHallOfFameAdmin();
 setupSeasonControls();
 setupPlayerDashboardControls();
 setupDeleteAllFixtures();
-setupKnockoutSystem();
 
 loadLeague();
 });
@@ -407,8 +406,6 @@ await Promise.all(deletions);
 matches = [];
 
 renderFixtures();
-renderAdminKnockout();
-renderPublicKnockout();
 renderStandings();
 renderPlayerDashboard();
 await renderPowerRanking();
@@ -459,8 +456,6 @@ catch (error) { console.error("Settings loading error:", error); }
 
 try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
-try { await loadKnockoutState(); }
-catch (error) { console.error("Knockout loading error:", error); }
 
 renderPotManager();
 updateBlindDrawUI();
@@ -2867,61 +2862,6 @@ async function loadAwardVotingState() {
   }
 }
 
-
-function renderAutomaticAwardLeaderboards(stats) {
-  const host = document.getElementById("automaticAwardLeaderboards");
-  if (!host) return;
-
-  const configs = [
-    { key: "goldenBoot", icon: "⚽", title: "TOP SCORER", metric: (x) => `${x.GF} GOALS`, sort: (a,b) => b.GF-a.GF || b.rating-a.rating },
-    { key: "bestDefender", icon: "🛡️", title: "BEST DEFENDER", metric: (x) => `${x.cleanSheets} CLEAN SHEETS`, sort: (a,b) => b.cleanSheets-a.cleanSheets || a.GA-b.GA || b.rating-a.rating },
-    { key: "mostWins", icon: "🏆", title: "MOST WINS", metric: (x) => `${x.W} WINS`, sort: (a,b) => b.W-a.W || b.PTS-a.PTS || b.rating-a.rating }
-  ];
-
-  host.innerHTML = `
-    <div class="auto-awards-heading">
-      <span>LIVE PERFORMANCE</span>
-      <h3>🔥 <strong>RUNNING THE SHOW</strong></h3>
-      <p>Automatic leaders calculated from played tournament results.</p>
-    </div>
-    <div class="auto-awards-grid">
-      ${configs.map(cfg => {
-        const ranked = [...stats].sort(cfg.sort);
-        const top = ranked[0];
-        if (!top) return "";
-        return `
-          <article class="auto-award-card">
-            <div class="auto-award-topline"><span>${cfg.icon} ${cfg.title}</span><b>#1</b></div>
-            <div class="auto-award-hero">
-              <div class="auto-award-rank">🥇</div>
-              <div class="auto-award-name">${escapeHTML(top.name)}</div>
-              <div class="auto-award-stat">${cfg.metric(top)}</div>
-            </div>
-            <button class="auto-award-toggle" type="button">VIEW 3 CHALLENGERS</button>
-            <div class="auto-award-challengers">
-              ${ranked.slice(1,4).map((p,i) => `
-                <div class="auto-award-row">
-                  <span>${i===0?"🥈":i===1?"🥉":"4️⃣"}</span>
-                  <strong>${escapeHTML(p.name)}</strong>
-                  <em>${cfg.metric(p)}</em>
-                </div>
-              `).join("") || '<div class="auto-award-empty">No challengers yet.</div>'}
-            </div>
-          </article>
-        `;
-      }).join("")}
-    </div>
-  `;
-
-  host.querySelectorAll(".auto-award-toggle").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const card = btn.closest(".auto-award-card");
-      card.classList.toggle("expanded");
-      btn.textContent = card.classList.contains("expanded") ? "HIDE CHALLENGERS" : "VIEW 3 CHALLENGERS";
-    });
-  });
-}
-
 async function renderAwardsAndVoting() {
   await loadAwardVotingState();
   const stats = getAwardStats();
@@ -2950,7 +2890,6 @@ async function renderAwardsAndVoting() {
     }).join("");
   }
 
-  renderAutomaticAwardLeaderboards(stats);
   renderAwardVoting(stats);
   renderAwardNominationManager(stats);
   renderCurrentChampion();
@@ -3300,42 +3239,13 @@ function getSeasonStandingsForPowerRanking() {
 }
 
 function seasonPlacementPoints(rank, total, format) {
-  // Group-stage ranking points are fixed by final position.
-  // 1st = 5, 2nd = 4, 3rd = 3, 4th = 1.
   if (format === "groups") {
     const mapped = [5, 4, 3, 1];
     return mapped[rank - 1] || 0;
   }
-  return 0;
-}
-
-function getKnockoutRankingPointsForSeason() {
-  const bonus = {};
-  const add = (name, points) => {
-    if (!name) return;
-    const player = players.find(p => getPlayerName(p) === name);
-    if (!player) return;
-    // Highest knockout achievement wins; do not stack 8 + 15 + 20.
-    bonus[player.id] = Math.max(Number(bonus[player.id] || 0), points);
-  };
-
-  const stages = knockoutState?.stages || {};
-
-  // Reaching the semi-final = 8 points.
-  (stages.sf?.ties || []).forEach(t => {
-    add(t.home, 8);
-    add(t.away, 8);
-  });
-
-  // Reaching the final = 15 points (highest achievement so far).
-  const sfWinners = (stages.sf?.ties || []).map(t => t.winner).filter(Boolean);
-  sfWinners.forEach(name => add(name, 15));
-
-  // Champion = 20 points.
-  const finalWinner = stages.final?.ties?.[0]?.winner;
-  if (finalWinner) add(finalWinner, 20);
-
-  return bonus;
+  // League: an 8-to-1 placement ladder, scaled to any league size.
+  if (total <= 1) return 8;
+  return Math.max(1, 8 - Math.floor(((rank - 1) * 7) / total));
 }
 
 async function updatePowerRankingsFromCurrentSeason() {
@@ -3349,15 +3259,11 @@ async function updatePowerRankingsFromCurrentSeason() {
     groupData.forEach(group => {
       const names = new Set(group.players.map(p => getPlayerName(p)));
       const rows = standings.filter(s => names.has(s.name));
-      rows.forEach((row, index) => {
-        placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups");
-      });
+      rows.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups"); });
     });
+  } else {
+    standings.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, standings.length, "league"); });
   }
-
-  // If this is a league (not groups), there are no placement points from
-  // wins/draws/goals. Knockout achievement points are handled below.
-  const knockoutBonus = getKnockoutRankingPointsForSeason();
 
   const snapshot = await getDocs(collection(db, "powerRankings"));
   const existing = {};
@@ -3365,24 +3271,20 @@ async function updatePowerRankingsFromCurrentSeason() {
 
   for (const p of players) {
     const old = existing[p.id] || { totalPoints: 0, seasons: {} };
-    const groupPoints = Number(placementMap[p.id] || 0);
-    const knockoutPoints = Number(knockoutBonus[p.id] || 0);
-    const earned = groupPoints + knockoutPoints;
+    if (old.seasons?.[seasonKey]) continue;
+    const earned = placementMap[p.id] || 0;
     const seasons = { ...(old.seasons || {}) };
-    const previousSeasonPoints = Number(seasons[seasonKey] || 0);
     seasons[seasonKey] = earned;
-    // Recalculate the cumulative total safely if this season was already saved,
-    // so a corrected ranking formula updates the season without double-counting.
-    const totalPoints = Number(old.totalPoints || 0) - previousSeasonPoints + earned;
     await setDoc(doc(db, "powerRankings", p.id), {
       playerId: p.id,
       name: getPlayerName(p),
-      totalPoints: Math.max(0, totalPoints),
+      totalPoints: Number(old.totalPoints || 0) + earned,
       seasons,
       updatedAt: serverTimestamp()
     }, { merge: true });
   }
 }
+
 async function renderPowerRanking() {
   const container = document.getElementById("powerRankingContainer");
   if (!container) return;
@@ -3425,7 +3327,7 @@ async function renderPowerRanking() {
       return;
     }
 
-    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: Group 1st = 5 pts • 2nd = 4 pts • 3rd = 3 pts • 4th = 1 pt • Semi-final = 8 pts • Finalist = 15 pts • Champion = 20 pts. Knockout awards use the highest achievement only (they do not stack).</div>` + rows.map((r, i) => {
+    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: every player is included. Players with 0 points stay in the table at the bottom, while points earned in completed seasons carry forward.</div>` + rows.map((r, i) => {
       const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
       return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
         <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
@@ -3533,490 +3435,111 @@ button.innerHTML =
 "<span>→</span>";
 
 }
-/* =========================================================
-   CLEAN KNOCKOUT ENGINE V4
-   Original base retained. No random team injection.
-   Flow: Groups -> Advance -> 2 legs -> Aggregate -> Winner -> Next stage.
-========================================================= */
-const KO_ENGINE_VERSION = "V5-MANUAL-PERSISTENCE";
-const KO_STAGE_ORDER = ["r16","qf","sf","final"];
-const KO_LABEL = {
-  r16:"ROUND OF 16",
-  qf:"QUARTER-FINAL",
-  sf:"SEMI-FINAL",
-  final:"FINAL"
-};
-const KO_TIES = {r16:8,qf:4,sf:2,final:1};
-let knockoutState = {
-  startingStage:"",
-  currentStage:"",
-  stages:{}
-};
+/* =====================================================
+   MANUAL SF -> FINAL V1
+   Admin enters the two semi-final ties manually.
+   Results are stored in Firestore and aggregate/winners
+   progress automatically into the Final.
+===================================================== */
+let manualSF={ties:[
+ {home:"",away:"",l1h:"",l1a:"",l2h:"",l2a:"",winner:""},
+ {home:"",away:"",l1h:"",l1a:"",l2h:"",l2a:"",winner:""}
+],final:{home:"",away:"",scoreHome:"",scoreAway:"",winner:""}};
 
-async function loadKnockoutState(){
-  try{
-    const snap = await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
-    if(snap.exists()){
-      const d=snap.data()||{};
-      knockoutState={
-        startingStage:d.startingStage||"",
-        currentStage:d.currentStage||"",
-        stages:d.stages||{}
-      };
-    } else {
-      knockoutState={startingStage:"",currentStage:"",stages:{}};
-    }
-  }catch(e){
-    console.error("Knockout state load error:",e);
-    knockoutState={startingStage:"",currentStage:"",stages:{}};
-  }
+function sfTeamOptions(selected){
+  const names=players.map(p=>p.username||p.name||p.teamName).filter(Boolean);
+  return '<option value="">Select team</option>'+names.map(n=>`<option value="${escapeHTML(n)}" ${n===selected?'selected':''}>${escapeHTML(n)}</option>`).join("");
 }
-
-async function saveKnockoutState(){
-  await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{
-    startingStage:knockoutState.startingStage||"",
-    currentStage:knockoutState.currentStage||"",
-    stages:knockoutState.stages||{},
-    updatedAt:serverTimestamp()
-  });
+function sfAgg(t){
+  const h1=t.l1h===""?0:Number(t.l1h||0),a1=t.l1a===""?0:Number(t.l1a||0);
+  const h2=t.l2h===""?0:Number(t.l2h||0),a2=t.l2a===""?0:Number(t.l2a||0);
+  return {home:h1+a2,away:a1+h2};
 }
-
-function koStageIndex(stage){ return KO_STAGE_ORDER.indexOf(stage); }
-
-function koCurrentStage(){
-  return knockoutState.currentStage || knockoutState.startingStage || "";
-}
-
-function koName(p){
-  return p?.username || p?.name || p?.teamName || "TEAM";
-}
-
-function koGroupsWithStandings(){
-  const groups=getGroups();
-  return groups.map(group=>{
-    const stats={};
-    (group.players||[]).forEach(p=>{
-      const name=koName(p);
-      stats[name]={name,id:p.id,P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,PTS:0};
-    });
-    matches.forEach(m=>{
-      if(!m.played || m.group!==group.shortName) return;
-      const h=stats[m.homePlayer], a=stats[m.awayPlayer];
-      if(!h || !a) return;
-      const hg=Number(m.homeGoals||0), ag=Number(m.awayGoals||0);
-      h.P++;a.P++;h.GF+=hg;h.GA+=ag;a.GF+=ag;a.GA+=hg;
-      if(hg>ag){h.W++;h.PTS+=3;a.L++}
-      else if(ag>hg){a.W++;a.PTS+=3;h.L++}
-      else{h.D++;a.D++;h.PTS++;a.PTS++}
-    });
-    const table=Object.values(stats).map(x=>({...x,GD:x.GF-x.GA}))
-      .sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF);
-    return {shortName:group.shortName,table};
-  });
-}
-
-/* A1 vs B2, A2 vs B1, then C/D in the same pattern.
-   If more than two groups exist, adjacent groups are paired. */
-function buildInitialQualifiers(stage){
-  const groups=koGroupsWithStandings();
-  const required=KO_TIES[stage]*2;
-  if(groups.length<2) throw new Error("At least 2 groups are required for automatic knockout seeding.");
-
-  if(stage==="r16"){
-    const pairs=[];
-    for(let i=0;i+1<groups.length;i+=2){
-      const A=groups[i], B=groups[i+1];
-      const A1=A.table[0], A2=A.table[1], B1=B.table[0], B2=B.table[1];
-      if(A1&&B2) pairs.push([A1.name,B2.name]);
-      if(A2&&B1) pairs.push([A2.name,B1.name]);
-    }
-    const teams=[];
-    pairs.slice(0,KO_TIES.r16).forEach(pair=>teams.push(...pair));
-    if(pairs.length<KO_TIES.r16) throw new Error(`Not enough cross-group qualifiers for 8 R16 ties. Found ${pairs.length}.`);
-    return teams.map((name)=>({name}));
-  }
-
-  // For a tournament beginning directly at QF/SF/Final, keep the selected
-  // qualifiers deterministic and let the explicit pairing stage handle them.
-  const pool=[];
-  groups.forEach(g=>g.table.slice(0,2).forEach(x=>pool.push({name:x.name,group:g.shortName})));
-  if(pool.length<required) throw new Error(`Not enough qualified teams. Need ${required}, found ${pool.length}.`);
-  return pool.slice(0,required);
-}
-
-function makeTiesFromTeams(names, stage){
-  const ties=[];
-  for(let i=0;i<names.length;i+=2){
-    ties.push(makeEmptyKoTie(i/2+1,names[i]||"",names[i+1]||""));
-  }
-  return ties.slice(0,KO_TIES[stage]);
-}
-
-function makeEmptyKoTie(number, home="", away=""){
-  return {
-    tie:number,
-    home:String(home||""),
-    away:String(away||""),
-    leg1:{homeScore:null,awayScore:null,played:false},
-    leg2:{homeScore:null,awayScore:null,played:false},
-    aggregate:{home:0,away:0},
-    winner:null,
-    decided:false,
-    penaltyWinner:null
-  };
-}
-
-function renderManualKnockoutFixtures(){
-  const root=document.getElementById("manualKnockoutFixtures");
-  if(!root)return;
-  const stage=koCurrentStage();
-  if(!stage){
-    root.style.display="block";
-    root.innerHTML=`<div class="draw-preview-empty" style="text-align:left">
-      <strong>MANUAL KNOCKOUT FIXTURES</strong>
-      <p>Chagua ROUND OF 16, QUARTER-FINAL, SEMI-FINAL au FINAL kwanza.</p>
+function sfRender(){
+  const root=document.getElementById("sfAdminMatches");if(!root)return;
+  root.innerHTML=manualSF.ties.map((t,i)=>{
+    const a=sfAgg(t);
+    const complete=t.home&&t.away&&t.l1h!==""&&t.l1a!==""&&t.l2h!==""&&t.l2a!=="";
+    const winner=t.winner||(complete&&a.home!==a.away?(a.home>a.away?t.home:t.away):"");
+    if(winner)t.winner=winner;
+    return `<div class="sf-admin-tie">
+      <h4>SEMI-FINAL ${i+1}</h4>
+      <div class="sf-team-row"><select data-sf="${i}" data-k="home">${sfTeamOptions(t.home)}</select><select data-sf="${i}" data-k="away">${sfTeamOptions(t.away)}</select></div>
+      <div class="sf-leg"><small>LEG 1 — HOME / AWAY</small><input data-sf="${i}" data-k="l1h" type="number" min="0" placeholder="Home score" value="${t.l1h}"><input data-sf="${i}" data-k="l1a" type="number" min="0" placeholder="Away score" value="${t.l1a}"></div>
+      <div class="sf-leg"><small>LEG 2 — AWAY TEAM HOME</small><input data-sf="${i}" data-k="l2h" type="number" min="0" placeholder="Away team score" value="${t.l2h}"><input data-sf="${i}" data-k="l2a" type="number" min="0" placeholder="Home team score" value="${t.l2a}"></div>
+      <div class="sf-aggregate">AGGREGATE <b>${a.home} – ${a.away}</b>${winner?`<br>🏆 ${escapeHTML(winner)}`:(complete?"<br>⚠️ Aggregate tie — resolve the winner manually.":"")}</div>
     </div>`;
+  }).join("");
+  root.querySelectorAll("[data-sf]").forEach(el=>el.addEventListener("input",()=>{
+    const i=Number(el.dataset.sf);manualSF.ties[i][el.dataset.k]=el.value;sfRender();sfFinalRender();
+  }));
+  sfFinalRender();
+}
+function sfFinalRender(){
+  const root=document.getElementById("sfFinalBox");if(!root)return;
+  const f=manualSF.final||{};
+  if(!f.home||!f.away){
+    root.innerHTML='<div class="sf-final-card"><h3>🏆 FINAL — ONE GAME</h3><p>Complete both semi-finals, then press PROCEED TO FINAL.</p></div>';
     return;
   }
-  root.style.display="block";
-  const existing=knockoutState.stages?.[stage]?.ties||[];
-  const ties=Array.from({length:KO_TIES[stage]},(_,i)=>existing[i]||makeEmptyKoTie(i+1));
-  root.innerHTML=`<div class="draw-preview-empty" style="text-align:left">
-    <strong>MANUAL ${KO_LABEL[stage]} FIXTURES</strong>
-    <p>Andika majina ya washiriki/team mwenyewe. Hapa hakuna automatic pairing.</p>
-    ${ties.map((t,i)=>`<div class="admin-ko-leg" style="margin-top:12px">
-      <div><small>TIE ${i+1}</small><strong>TEAM / PLAYER PAIRING</strong></div>
-      <input type="text" data-manual-ko="home" data-ko-index="${i}" value="${escapeHTML(t.home||"")}" placeholder="Player / Team 1">
-      <span>VS</span>
-      <input type="text" data-manual-ko="away" data-ko-index="${i}" value="${escapeHTML(t.away||"")}" placeholder="Player / Team 2">
-    </div>`).join("")}
-    <button type="button" id="saveManualKnockoutFixturesBtn" class="primary-btn" style="margin-top:14px">💾 SAVE MANUAL KNOCKOUT FIXTURES</button>
-    <p id="manualKoSaveStatus" class="message" style="margin-top:10px"></p>
+  root.innerHTML=`<div class="sf-final-card">
+    <h3>🏆 FINAL — ONE GAME ONLY</h3>
+    <div class="sf-team-row"><strong>${escapeHTML(f.home)}</strong><b>VS</b><strong>${escapeHTML(f.away)}</strong></div>
+    <div class="sf-leg"><small>FINAL SCORE</small><input id="sfFinalHome" type="number" min="0" placeholder="${escapeHTML(f.home)}" value="${f.scoreHome??''}"><input id="sfFinalAway" type="number" min="0" placeholder="${escapeHTML(f.away)}" value="${f.scoreAway??''}"></div>
+    <button type="button" id="saveSfFinalBtn" class="primary-btn">💾 SAVE FINAL RESULT</button>
+    ${f.winner?`<div class="sf-aggregate">🏆 CHAMPION: <strong>${escapeHTML(f.winner)}</strong></div>`:""}
   </div>`;
-
-  const saveBtn=document.getElementById("saveManualKnockoutFixturesBtn");
-  saveBtn?.addEventListener("click",async()=>{
-    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-    const status=document.getElementById("manualKoSaveStatus");
-    try{
-      const newTies=[];
-      for(let i=0;i<KO_TIES[stage];i++){
-        const home=root.querySelector(`[data-manual-ko="home"][data-ko-index="${i}"]`)?.value.trim();
-        const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
-        if(!home||!away){ alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`); return; }
-        if(home.toLowerCase()===away.toLowerCase()){ alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`); return; }
-        newTies.push(makeEmptyKoTie(i+1,home,away));
-      }
-      knockoutState.stages=knockoutState.stages||{};
-      const old=knockoutState.stages[stage]||{};
-      knockoutState.stages[stage]={
-        ...old,
-        stage,
-        ties:newTies,
-        published:true,
-        manual:true
-      };
-      knockoutState.currentStage=stage;
-      await saveKnockoutState();
-      if(status)status.textContent="✅ Fixtures zimehifadhiwa kikamilifu.";
-      renderAdminKnockout();
-      renderPublicKnockout();
-      alert(`✅ Manual ${KO_LABEL[stage]} fixtures zimehifadhiwa.`);
-    }catch(err){
-      console.error("Manual knockout save error:",err);
-      if(status)status.textContent="❌ Imeshindikana kuhifadhi fixtures. Angalia Firebase connection/rules.";
-      alert("❌ Imeshindikana kuhifadhi manual fixtures. Tafadhali jaribu tena.");
+  document.getElementById("saveSfFinalBtn")?.addEventListener("click",sfSaveFinal);
+}
+async function sfLoad(){
+  try{
+    const snap=await getDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`));
+    if(snap.exists()){
+      const d=snap.data();
+      manualSF={...manualSF,...d,final:{...manualSF.final,...(d.final||{})}};
     }
-  });
+  }catch(e){console.warn("SF load",e)}
+  sfRender();
 }
-
-function koAggregate(tie){
-  const l1=tie.leg1||{}, l2=tie.leg2||{};
-  const h1=l1.homeScore==null?0:Number(l1.homeScore);
-  const a1=l1.awayScore==null?0:Number(l1.awayScore);
-  // Leg 2 is stored with the same displayed home/away teams.
-  const h2=l2.homeScore==null?0:Number(l2.homeScore);
-  const a2=l2.awayScore==null?0:Number(l2.awayScore);
-  return {home:h1+h2,away:a1+a2};
-}
-
-function koDecideTie(tie, stage=koCurrentStage()){
-  const agg=koAggregate(tie);
-  tie.aggregate=agg;
-  tie.decided=false;
-  tie.winner=null;
-
-  // FINAL is one game only. Its result is stored in Leg 1 and no Leg 2 is required.
-  if(stage === "final"){
-    const played=tie.leg1?.played;
-    if(played){
-      if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
-      else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
-      else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
-    }
-    return tie;
-  }
-
-  const both=tie.leg1?.played && tie.leg2?.played;
-  if(both){
-    if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
-    else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
-    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
-  }
-  return tie;
-}
-
-function koAllDecided(stage){
-  const ties=knockoutState.stages?.[stage]?.ties||[];
-  return ties.length===KO_TIES[stage] && ties.every(t=>koDecideTie(t).decided);
-}
-
-function koNextStage(stage){
-  const i=koStageIndex(stage);
-  return i<0||i>=KO_STAGE_ORDER.length-1 ? "" : KO_STAGE_ORDER[i+1];
-}
-
-function setupKnockoutSystem(){
-  document.querySelectorAll("[data-knockout-start]").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      document.querySelectorAll("[data-knockout-start]").forEach(x=>x.classList.remove("active"));
-      btn.classList.add("active");
-      btn.dataset.selected="true";
-      // Show the manual area immediately after choosing a stage.
-      if(document.getElementById("manualKnockoutFixtures") && adminLoggedIn){
-        knockoutState.currentStage=btn.dataset.knockoutStart;
-        renderManualKnockoutFixtures();
-      }
-    });
-  });
-
-  document.getElementById("setKnockoutStartBtn")?.addEventListener("click",async()=>{
-    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-    const btn=document.querySelector("[data-knockout-start].active");
-    if(!btn)return alert("Chagua starting stage kwanza.");
-    const stage=btn.dataset.knockoutStart;
-    knockoutState.startingStage=stage;
-    knockoutState.currentStage=stage;
-    knockoutState.stages=knockoutState.stages||{};
-    await saveKnockoutState();
-    renderAdminKnockout();
-    renderPublicKnockout();
-    renderManualKnockoutFixtures();
-  });
-
-  document.getElementById("manualKnockoutFixturesBtn")?.addEventListener("click",()=>{
-    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-    if(!koCurrentStage()){
-      return alert("Chagua starting stage kwanza (Round of 16 / Quarter-final / Semi-final / Final).");
-    }
-    renderManualKnockoutFixtures();
-    document.getElementById("manualKnockoutFixtures")?.scrollIntoView({behavior:"smooth",block:"center"});
-  });
-
-  document.getElementById("advanceKnockoutBtn")?.addEventListener("click",advanceKnockoutStage);
-
-  document.getElementById("resetKnockoutBtn")?.addEventListener("click",async()=>{
-    if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-    if(!confirm("Reset knockout yote ya season hii?"))return;
-    knockoutState={startingStage:"",currentStage:"",stages:{}};
-    await saveKnockoutState();
-    renderAdminKnockout();renderPublicKnockout();
-  });
-}
-
-async function advanceKnockoutStage(){
+async function sfSave(){
   if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-
-  const stage=koCurrentStage();
-  if(!stage)return alert("Chagua starting stage kwanza.");
-
-  const stageData=knockoutState.stages?.[stage];
-  const ties=Array.isArray(stageData?.ties) ? stageData.ties : [];
-
-  if(ties.length!==KO_TIES[stage]){
-    return alert(`✍️ ${KO_LABEL[stage]} haijakamilika. SAVE manual fixtures zote kwanza.`);
-  }
-
-  // Recalculate each tie from the saved scores, then persist the calculated
-  // winner before moving to the next round.
-  const winners=[];
-  for(let i=0;i<ties.length;i++){
-    const tie=ties[i];
-    koDecideTie(tie);
-    if(!tie.winner){
-      return alert(`⚠️ Kamilisha matokeo ya TIE ${i+1} kwanza. Weka score na bonyeza SAVE.`);
-    }
-    winners.push(tie.winner);
-  }
-
-  // A round with N ties must produce exactly N winners.
-  // Never require 2*N winners.
-  if(winners.length!==ties.length || winners.some(w=>!w)){
-    return alert("⚠️ Kamilisha winners wote kwanza.");
-  }
-
-  knockoutState.stages[stage]={
-    ...stageData,
-    ties,
-    winners,
-    completed:true
-  };
-
-  const next=koNextStage(stage);
-
-  if(!next){
-    knockoutState.currentStage=stage;
-    await saveKnockoutState();
-    try{
-      await updatePowerRankingsFromCurrentSeason();
-      await renderPowerRanking();
-    }catch(e){ console.error("Ranking update error",e); }
-    return alert("🏆 FINAL imekamilika. Champion ni "+(winners[0]||"TBD")+".");
-  }
-
-  // Next stage is deliberately manual. Create the correct number of empty
-  // slots and carry no accidental automatic pairing into it.
-  knockoutState.currentStage=next;
-  if(!knockoutState.stages[next]){
-    knockoutState.stages[next]={
-      stage:next,
-      ties:Array.from({length:KO_TIES[next]},(_,i)=>makeEmptyKoTie(i+1)),
-      winners:[],
-      published:false,
-      manual:true,
-      fromStage:stage
-    };
-  }else{
-    const nextData=knockoutState.stages[next];
-    nextData.ties=Array.from({length:KO_TIES[next]},(_,i)=>nextData.ties?.[i]||makeEmptyKoTie(i+1));
-    nextData.manual=true;
-  }
-
-  await saveKnockoutState();
-  renderAdminKnockout();
-  renderPublicKnockout();
-  renderManualKnockoutFixtures();
-
-  alert(`✅ ${KO_LABEL[stage]} imekamilika (${winners.length} winners). ✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing.`);
-}
-function renderAdminKnockout(){
-  const root=document.getElementById("adminKnockoutMatches");
-  const status=document.getElementById("knockoutAdminStatus");
-  if(!root)return;
-  const stage=koCurrentStage();
-  if(!stage){
-    if(status)status.textContent="NOT STARTED";
-    root.innerHTML='<div class="draw-preview-empty">Select a starting stage to begin.</div>';
-    return;
-  }
-  if(status)status.textContent=KO_LABEL[stage];
-  const data=knockoutState.stages?.[stage];
-  const manualBox=document.getElementById("manualKnockoutFixtures");
-  if(manualBox && data?.ties?.length) manualBox.style.display="block";
-  if(!data?.ties?.length){
-    root.innerHTML=`<div class="draw-preview-empty">No manual fixtures saved yet. Use ENTER MANUAL FIXTURES to set ${KO_LABEL[stage]} pairings.</div>`;
-    renderManualKnockoutFixtures();
-    return;
-  }
-
-  root.innerHTML=data.ties.map((raw,i)=>{
-    const t=koDecideTie({...raw},stage);
-    const agg=t.aggregate;
-    return `<div class="admin-ko-tie">
-      <div class="admin-ko-title"><span>${KO_LABEL[stage]}</span><strong>TIE ${i+1}</strong></div>
-      <div class="admin-ko-teams"><strong>${escapeHTML(t.home)}</strong><span>VS</span><strong>${escapeHTML(t.away)}</strong></div>
-
-      <div class="admin-ko-leg">
-        <div><small>${stage === "final" ? "FINAL — ONE GAME" : "LEG 1"}</small><strong>${escapeHTML(t.home)} <b>HOME</b> vs ${escapeHTML(t.away)}</strong></div>
-        <input type="number" min="0" data-ko-score="l1h" data-ko-index="${i}" value="${t.leg1?.homeScore??""}">
-        <span>–</span>
-        <input type="number" min="0" data-ko-score="l1a" data-ko-index="${i}" value="${t.leg1?.awayScore??""}">
-        <button type="button" data-ko-save-leg="1" data-ko-index="${i}">SAVE</button>
-      </div>
-
-      ${stage !== "final" ? `<div class="admin-ko-leg">
-        <div><small>LEG 2</small><strong>${escapeHTML(t.away)} <b>HOME</b> vs ${escapeHTML(t.home)}</strong></div>
-        <input type="number" min="0" data-ko-score="l2h" data-ko-index="${i}" value="${t.leg2?.awayScore??""}">
-        <span>–</span>
-        <input type="number" min="0" data-ko-score="l2a" data-ko-index="${i}" value="${t.leg2?.homeScore??""}">
-        <button type="button" data-ko-save-leg="2" data-ko-index="${i}">SAVE</button>
-      </div>` : `<div class="admin-ko-final-note">🏆 FINAL NI GAME MOJA — hakuna LEG 2.</div>`}`
-
-      <div class="admin-ko-aggregate">
-        <span>AGGREGATE</span>
-        <strong>${agg.home} – ${agg.away}</strong>
-        <em>${t.winner ? "WINNER: "+escapeHTML(t.winner) : (t.leg1?.played || t.leg2?.played ? "SAVE/CONFIRM RESULT" : "AWAITING RESULT")}</em>
-      </div>
-
-      ${(!t.winner && (stage === "final" ? t.leg1?.played : (t.leg1?.played && t.leg2?.played)) && agg.home===agg.away)
-        ? `<div class="ko-tiebreak"><label>TIE ON AGGREGATE — PENALTY WINNER</label>
-             <select data-ko-penalty="${i}"><option value="">Select winner</option><option ${t.penaltyWinner===t.home?"selected":""}>${escapeHTML(t.home)}</option><option ${t.penaltyWinner===t.away?"selected":""}>${escapeHTML(t.away)}</option></select></div>` : ""}
-    </div>`;
-  }).join("");
-
-  root.querySelectorAll("[data-ko-save-leg]").forEach(btn=>{
-    btn.addEventListener("click",async()=>{
-      if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-      const i=Number(btn.dataset.koIndex), leg=btn.dataset.koSaveLeg;
-      const tie=knockoutState.stages[stage].ties[i];
-      if(leg==="1"){
-        const h=document.querySelector(`[data-ko-score="l1h"][data-ko-index="${i}"]`).value;
-        const a=document.querySelector(`[data-ko-score="l1a"][data-ko-index="${i}"]`).value;
-        if(h===""||a==="")return alert("Weka scores zote za Leg 1.");
-        tie.leg1={homeScore:Number(h),awayScore:Number(a),played:true};
-      }else{
-        // Leg 2 UI is away-at-home first; store back into tie's canonical home/away order.
-        const homeAtLeg2=document.querySelector(`[data-ko-score="l2h"][data-ko-index="${i}"]`).value;
-        const awayAtLeg2=document.querySelector(`[data-ko-score="l2a"][data-ko-index="${i}"]`).value;
-        if(homeAtLeg2===""||awayAtLeg2==="")return alert("Weka scores zote za Leg 2.");
-        tie.leg2={homeScore:Number(awayAtLeg2),awayScore:Number(homeAtLeg2),played:true};
-      }
-      koDecideTie(tie,stage);
-      await saveKnockoutState();
-      renderAdminKnockout();renderPublicKnockout();
-    });
+  manualSF.ties.forEach(t=>{
+    const a=sfAgg(t);
+    if(t.home&&t.away&&t.l1h!==""&&t.l1a!==""&&t.l2h!==""&&t.l2a!==""&&a.home!==a.away) t.winner=a.home>a.away?t.home:t.away;
+    else if(a.home!==a.away) t.winner="";
   });
-
-  root.querySelectorAll("[data-ko-penalty]").forEach(sel=>{
-    sel.addEventListener("change",async()=>{
-      const i=Number(sel.dataset.koPenalty);
-      const tie=knockoutState.stages[stage].ties[i];
-      tie.penaltyWinner=sel.value||null;
-      koDecideTie(tie,stage);
-      await saveKnockoutState();
-      renderAdminKnockout();renderPublicKnockout();
-    });
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualSF);
+  document.getElementById("sfMessage").textContent="✓ Semi-final imehifadhiwa. Aggregate imehesabiwa.";
+  sfRender();
+}
+async function sfAdvance(){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  manualSF.ties.forEach(t=>{
+    const a=sfAgg(t);
+    if(t.home&&t.away&&t.l1h!==""&&t.l1a!==""&&t.l2h!==""&&t.l2a!==""&&a.home!==a.away) t.winner=a.home>a.away?t.home:t.away;
   });
+  if(manualSF.ties.some(t=>!t.winner))return alert("⚠️ Kamilisha winners wote wa semi-final kwanza. Kama aggregate ni sare, resolve winner manually.");
+  manualSF.final={home:manualSF.ties[0].winner,away:manualSF.ties[1].winner,scoreHome:"",scoreAway:"",winner:""};
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualSF);
+  document.getElementById("sfMessage").textContent="✓ Winners wameingia FINAL. Final ni game moja tu.";
+  sfRender();
 }
-
-function publicTieCard(tie,i,stage){
-  const t=koDecideTie({...tie},stage);
-  const l1=t.leg1||{},l2=t.leg2||{},agg=t.aggregate||{home:0,away:0};
-  return `<article class="public-ko-tie">
-    <header><span>${KO_LABEL[stage]}</span><strong>TIE ${i+1}</strong></header>
-    <div class="public-ko-teams"><strong>${escapeHTML(t.home)}</strong><b>VS</b><strong>${escapeHTML(t.away)}</strong></div>
-    <div class="public-ko-leg"><span>${stage === "final" ? "FINAL — ONE GAME" : "LEG 1"}</span><strong>${l1.played?l1.homeScore+" – "+l1.awayScore:"–"}</strong></div>
-    ${stage !== "final" ? `<div class="public-ko-leg"><span>LEG 2</span><strong>${l2.played?l2.awayScore+" – "+l2.homeScore:"–"}</strong></div>` : `<div class="public-ko-final-note">🏆 FINAL — GAME MOJA</div>`}
-    <div class="public-ko-aggregate"><span>${stage === "final" ? "FINAL SCORE" : "AGGREGATE"}</span><strong>${agg.home} – ${agg.away}</strong></div>
-    <div class="public-ko-winner">${t.winner ? "🏆 "+escapeHTML(t.winner) : "WINNER PENDING"}</div>
-  </article>`;
-}
-
-function renderPublicKnockout(){
-  const root=document.getElementById("publicKnockoutContainer");
-  if(!root)return;
-  const stages=knockoutState.stages||{};
-  const active=KO_STAGE_ORDER.filter(x=>stages[x]?.ties?.length);
-  if(!active.length){
-    root.innerHTML='<div class="loading">Knockout stage has not started yet.</div>';
-    return;
+async function sfSaveFinal(){
+  if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
+  const h=document.getElementById("sfFinalHome")?.value;
+  const a=document.getElementById("sfFinalAway")?.value;
+  if(h===""||a==="")return alert("Weka scores zote za FINAL.");
+  manualSF.final.scoreHome=Number(h); manualSF.final.scoreAway=Number(a);
+  if(manualSF.final.scoreHome===manualSF.final.scoreAway){
+    return alert("⚠️ Final ikiwa sare, chagua winner baada ya penalties/extra time kisha weka winner.");
   }
-  root.innerHTML=active.map(stage=>{
-    const ties=stages[stage].ties||[];
-    return `<section class="public-ko-round">
-      <div class="public-ko-round-heading"><span>${KO_LABEL[stage]}</span><strong>${ties.length} ${ties.length===1?"TIE":"TIES"}</strong></div>
-      <div class="public-ko-grid">${ties.map((t,i)=>publicTieCard(t,i,stage)).join("")}</div>
-    </section>`;
-  }).join("");
+  manualSF.final.winner=manualSF.final.scoreHome>manualSF.final.scoreAway?manualSF.final.home:manualSF.final.away;
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualSF);
+  document.getElementById("sfMessage").textContent="✓ FINAL result imehifadhiwa.";
+  sfFinalRender();
 }
-
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("saveSfBtn")?.addEventListener("click",sfSave);
+  document.getElementById("advanceSfBtn")?.addEventListener("click",sfAdvance);
+  sfLoad();
+});
