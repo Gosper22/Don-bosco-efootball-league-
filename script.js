@@ -461,6 +461,8 @@ try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
 try { await loadKnockoutState(); }
 catch (error) { console.error("Knockout loading error:", error); }
+try { renderAdminKnockout(); } catch (error) { console.error("Admin knockout render error:", error); }
+try { renderPublicKnockout(); } catch (error) { console.error("Public knockout render error:", error); }
 
 renderPotManager();
 updateBlindDrawUI();
@@ -3300,13 +3302,42 @@ function getSeasonStandingsForPowerRanking() {
 }
 
 function seasonPlacementPoints(rank, total, format) {
+  // Group-stage ranking points are fixed by final position within EACH group.
+  // 1st = 5, 2nd = 4, 3rd = 3, 4th = 1.
   if (format === "groups") {
-    const mapped = [5, 4, 2, 1];
+    const mapped = [5, 4, 3, 1];
     return mapped[rank - 1] || 0;
   }
-  // League: an 8-to-1 placement ladder, scaled to any league size.
-  if (total <= 1) return 8;
-  return Math.max(1, 8 - Math.floor(((rank - 1) * 7) / total));
+  return 0;
+}
+
+function getKnockoutRankingPointsForSeason() {
+  const bonus = {};
+  const add = (name, points) => {
+    if (!name) return;
+    const player = players.find(p => getPlayerName(p) === name);
+    if (!player) return;
+    // Highest knockout achievement wins; do not stack 8 + 15 + 20.
+    bonus[player.id] = Math.max(Number(bonus[player.id] || 0), points);
+  };
+
+  const stages = knockoutState?.stages || {};
+
+  // Reaching the semi-final = 8 points.
+  (stages.sf?.ties || []).forEach(t => {
+    add(t.home, 8);
+    add(t.away, 8);
+  });
+
+  // Reaching the final = 15 points (highest achievement so far).
+  const sfWinners = (stages.sf?.ties || []).map(t => t.winner).filter(Boolean);
+  sfWinners.forEach(name => add(name, 15));
+
+  // Champion = 20 points.
+  const finalWinner = stages.final?.ties?.[0]?.winner;
+  if (finalWinner) add(finalWinner, 20);
+
+  return bonus;
 }
 
 async function updatePowerRankingsFromCurrentSeason() {
@@ -3320,11 +3351,15 @@ async function updatePowerRankingsFromCurrentSeason() {
     groupData.forEach(group => {
       const names = new Set(group.players.map(p => getPlayerName(p)));
       const rows = standings.filter(s => names.has(s.name));
-      rows.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups"); });
+      rows.forEach((row, index) => {
+        placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups");
+      });
     });
-  } else {
-    standings.forEach((row, index) => { placementMap[row.id] = seasonPlacementPoints(index + 1, standings.length, "league"); });
   }
+
+  // If this is a league (not groups), there are no placement points from
+  // wins/draws/goals. Knockout achievement points are handled below.
+  const knockoutBonus = getKnockoutRankingPointsForSeason();
 
   const snapshot = await getDocs(collection(db, "powerRankings"));
   const existing = {};
@@ -3332,20 +3367,24 @@ async function updatePowerRankingsFromCurrentSeason() {
 
   for (const p of players) {
     const old = existing[p.id] || { totalPoints: 0, seasons: {} };
-    if (old.seasons?.[seasonKey]) continue;
-    const earned = placementMap[p.id] || 0;
+    const groupPoints = Number(placementMap[p.id] || 0);
+    const knockoutPoints = Number(knockoutBonus[p.id] || 0);
+    const earned = groupPoints + knockoutPoints;
     const seasons = { ...(old.seasons || {}) };
+    const previousSeasonPoints = Number(seasons[seasonKey] || 0);
     seasons[seasonKey] = earned;
+    // Recalculate the cumulative total safely if this season was already saved,
+    // so a corrected ranking formula updates the season without double-counting.
+    const totalPoints = Number(old.totalPoints || 0) - previousSeasonPoints + earned;
     await setDoc(doc(db, "powerRankings", p.id), {
       playerId: p.id,
       name: getPlayerName(p),
-      totalPoints: Number(old.totalPoints || 0) + earned,
+      totalPoints: Math.max(0, totalPoints),
       seasons,
       updatedAt: serverTimestamp()
     }, { merge: true });
   }
 }
-
 async function renderPowerRanking() {
   const container = document.getElementById("powerRankingContainer");
   if (!container) return;
@@ -3388,7 +3427,7 @@ async function renderPowerRanking() {
       return;
     }
 
-    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: every player is included. Players with 0 points stay in the table at the bottom, while points earned in completed seasons carry forward.</div>` + rows.map((r, i) => {
+    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: Each group: 1st = 5 pts • 2nd = 4 pts • 3rd = 3 pts • 4th = 1 pt • Semi-final = 8 pts • Finalist = 15 pts • Champion = 20 pts. Knockout awards use the highest achievement only (they do not stack).</div>` + rows.map((r, i) => {
       const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
       return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
         <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
@@ -3515,32 +3554,41 @@ let knockoutState = {
   stages:{}
 };
 
+function knockoutStorageKey(){
+  return `donBoscoKnockoutSeason_${currentSeasonNumber}`;
+}
+function cacheKnockoutState(){
+  try{ localStorage.setItem(knockoutStorageKey(), JSON.stringify(knockoutState)); }
+  catch(e){ console.warn("Knockout local cache error:",e); }
+}
+function readCachedKnockoutState(){
+  try{ const raw=localStorage.getItem(knockoutStorageKey()); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
 async function loadKnockoutState(){
+  const cached=readCachedKnockoutState();
   try{
     const snap = await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
     if(snap.exists()){
       const d=snap.data()||{};
-      knockoutState={
-        startingStage:d.startingStage||"",
-        currentStage:d.currentStage||"",
-        stages:d.stages||{}
-      };
+      knockoutState={startingStage:d.startingStage||"",currentStage:d.currentStage||"",stages:d.stages||{}};
+      cacheKnockoutState();
+    } else if(cached){
+      knockoutState={startingStage:cached.startingStage||"",currentStage:cached.currentStage||"",stages:cached.stages||{}};
+      await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{...knockoutState,updatedAt:serverTimestamp()},{merge:true});
     } else {
       knockoutState={startingStage:"",currentStage:"",stages:{}};
     }
   }catch(e){
     console.error("Knockout state load error:",e);
-    knockoutState={startingStage:"",currentStage:"",stages:{}};
+    knockoutState=cached || {startingStage:"",currentStage:"",stages:{}};
   }
 }
-
 async function saveKnockoutState(){
-  await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{
-    startingStage:knockoutState.startingStage||"",
-    currentStage:knockoutState.currentStage||"",
-    stages:knockoutState.stages||{},
-    updatedAt:serverTimestamp()
-  });
+  const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},updatedAt:serverTimestamp()};
+  cacheKnockoutState();
+  await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),payload,{merge:true});
+  cacheKnockoutState();
 }
 
 function koStageIndex(stage){ return KO_STAGE_ORDER.indexOf(stage); }
@@ -3705,10 +3753,14 @@ function koAggregate(tie){
 function koDecideTie(tie){
   const agg=koAggregate(tie);
   tie.aggregate=agg;
-  const both=tie.leg1?.played && tie.leg2?.played;
-  tie.decided=false;
-  tie.winner=null;
-  if(both){
+  const l1Played=!!tie.leg1?.played, l2Played=!!tie.leg2?.played;
+  tie.decided=false; tie.winner=null;
+  if(l1Played && !l2Played){
+    const h=Number(tie.leg1.homeScore), a=Number(tie.leg1.awayScore);
+    if(h>a){tie.winner=tie.home;tie.decided=true}
+    else if(a>h){tie.winner=tie.away;tie.decided=true}
+    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
+  } else if(l1Played && l2Played){
     if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
     else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
     else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
@@ -3790,7 +3842,7 @@ async function advanceKnockoutStage(){
   ties.forEach(koDecideTie);
 
   if(!koAllDecided(stage)){
-    return alert("⚠️ Kamilisha Leg 1 na Leg 2 za ties zote, kisha Advance tena.");
+    return alert("⚠️ Kamilisha angalau Leg 1 kwa kila tie. Kama ni sare, weka penalty winner; kama unatumia legs mbili, weka Leg 2 pia.");
   }
 
   const next=koNextStage(stage);
