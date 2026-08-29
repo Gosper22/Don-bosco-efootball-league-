@@ -461,8 +461,6 @@ try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
 try { await loadKnockoutState(); }
 catch (error) { console.error("Knockout loading error:", error); }
-try { renderAdminKnockout(); } catch (error) { console.error("Admin knockout render error:", error); }
-try { renderPublicKnockout(); } catch (error) { console.error("Public knockout render error:", error); }
 
 renderPotManager();
 updateBlindDrawUI();
@@ -3302,12 +3300,11 @@ function getSeasonStandingsForPowerRanking() {
 }
 
 function seasonPlacementPoints(rank, total, format) {
-  // Group-stage ranking points are fixed by final position within EACH group.
-  // 1st = 5, 2nd = 4, 3rd = 3, 4th = 1.
   if (format === "groups") {
     const mapped = [5, 4, 3, 1];
     return mapped[rank - 1] || 0;
   }
+  // No points for wins/draws/losses/goals.
   return 0;
 }
 
@@ -3317,74 +3314,40 @@ function getKnockoutRankingPointsForSeason() {
     if (!name) return;
     const player = players.find(p => getPlayerName(p) === name);
     if (!player) return;
-    // Highest knockout achievement wins; do not stack 8 + 15 + 20.
     bonus[player.id] = Math.max(Number(bonus[player.id] || 0), points);
   };
-
   const stages = knockoutState?.stages || {};
-
-  // Reaching the semi-final = 8 points.
-  (stages.sf?.ties || []).forEach(t => {
-    add(t.home, 8);
-    add(t.away, 8);
-  });
-
-  // Reaching the final = 15 points (highest achievement so far).
-  const sfWinners = (stages.sf?.ties || []).map(t => t.winner).filter(Boolean);
-  sfWinners.forEach(name => add(name, 15));
-
-  // Champion = 20 points.
-  const finalWinner = stages.final?.ties?.[0]?.winner;
-  if (finalWinner) add(finalWinner, 20);
-
+  (stages.sf?.ties || []).forEach(t => { add(t.home, 8); add(t.away, 8); });
+  (stages.sf?.ties || []).map(t => t.winner).filter(Boolean).forEach(name => add(name, 15));
+  const champion = stages.final?.ties?.[0]?.winner;
+  if (champion) add(champion, 20);
   return bonus;
 }
 
 async function updatePowerRankingsFromCurrentSeason() {
-  if (currentSeasonNumber < 1 || players.length === 0) return;
   const seasonKey = `season${currentSeasonNumber}`;
-  const standings = getSeasonStandingsForPowerRanking();
-  const groupData = tournamentSettings.format === "groups" ? getGroups() : null;
   const placementMap = {};
-
-  if (tournamentSettings.format === "groups" && groupData?.length) {
+  const groupData = getGroups();
+  if (Array.isArray(groupData)) {
     groupData.forEach(group => {
-      const names = new Set(group.players.map(p => getPlayerName(p)));
-      const rows = standings.filter(s => names.has(s.name));
-      rows.forEach((row, index) => {
-        placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups");
-      });
+      const names = new Set((group.players || []).map(p => getPlayerName(p)));
+      const rows = getStandings().filter(s => names.has(s.name));
+      rows.forEach((row,index) => placementMap[row.id] = seasonPlacementPoints(index+1, rows.length, "groups"));
     });
   }
-
-  // If this is a league (not groups), there are no placement points from
-  // wins/draws/goals. Knockout achievement points are handled below.
-  const knockoutBonus = getKnockoutRankingPointsForSeason();
-
-  const snapshot = await getDocs(collection(db, "powerRankings"));
-  const existing = {};
-  snapshot.docs.forEach(d => existing[d.id] = d.data());
-
-  for (const p of players) {
-    const old = existing[p.id] || { totalPoints: 0, seasons: {} };
-    const groupPoints = Number(placementMap[p.id] || 0);
-    const knockoutPoints = Number(knockoutBonus[p.id] || 0);
-    const earned = groupPoints + knockoutPoints;
-    const seasons = { ...(old.seasons || {}) };
-    const previousSeasonPoints = Number(seasons[seasonKey] || 0);
-    seasons[seasonKey] = earned;
-    // Recalculate the cumulative total safely if this season was already saved,
-    // so a corrected ranking formula updates the season without double-counting.
-    const totalPoints = Number(old.totalPoints || 0) - previousSeasonPoints + earned;
-    await setDoc(doc(db, "powerRankings", p.id), {
-      playerId: p.id,
-      name: getPlayerName(p),
-      totalPoints: Math.max(0, totalPoints),
-      seasons,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+  const koBonus = getKnockoutRankingPointsForSeason();
+  const snap = await getDocs(collection(db,"powerRankings"));
+  const existing={}; snap.docs.forEach(d=>existing[d.id]=d.data());
+  for(const p of players){
+    const old=existing[p.id]||{totalPoints:0,seasons:{}};
+    const earned=Number(placementMap[p.id]||0)+Number(koBonus[p.id]||0);
+    const seasons={...(old.seasons||{})};
+    const previous=Number(seasons[seasonKey]||0); seasons[seasonKey]=earned;
+    const total=Number(old.totalPoints||0)-previous+earned;
+    await setDoc(doc(db,"powerRankings",p.id),{playerId:p.id,name:getPlayerName(p),totalPoints:Math.max(0,total),seasons,updatedAt:serverTimestamp()},{merge:true});
   }
 }
+
 async function renderPowerRanking() {
   const container = document.getElementById("powerRankingContainer");
   if (!container) return;
@@ -3427,7 +3390,7 @@ async function renderPowerRanking() {
       return;
     }
 
-    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: Each group: 1st = 5 pts • 2nd = 4 pts • 3rd = 3 pts • 4th = 1 pt • Semi-final = 8 pts • Finalist = 15 pts • Champion = 20 pts. Knockout awards use the highest achievement only (they do not stack).</div>` + rows.map((r, i) => {
+    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: every player is included. Players with 0 points stay in the table at the bottom, while points earned in completed seasons carry forward.</div>` + rows.map((r, i) => {
       const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
       return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
         <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
@@ -3554,35 +3517,15 @@ let knockoutState = {
   stages:{}
 };
 
-function knockoutStorageKey(){
-  return `donBoscoKnockoutSeason_${currentSeasonNumber}`;
-}
-function cacheKnockoutState(){
-  try{ localStorage.setItem(knockoutStorageKey(), JSON.stringify(knockoutState)); }
-  catch(e){ console.warn("Knockout local cache error:",e); }
-}
-function readCachedKnockoutState(){
-  try{ const raw=localStorage.getItem(knockoutStorageKey()); return raw ? JSON.parse(raw) : null; }
-  catch(e){ return null; }
-}
+function knockoutStorageKey(){ return `donBoscoKnockoutSeason_${currentSeasonNumber}`; }
+function cacheKnockoutState(){ try{localStorage.setItem(knockoutStorageKey(),JSON.stringify(knockoutState));}catch(e){} }
+function readCachedKnockoutState(){ try{const raw=localStorage.getItem(knockoutStorageKey());return raw?JSON.parse(raw):null;}catch(e){return null;} }
 async function loadKnockoutState(){
-  const cached=readCachedKnockoutState();
   try{
-    const snap = await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
-    if(snap.exists()){
-      const d=snap.data()||{};
-      knockoutState={startingStage:d.startingStage||"",currentStage:d.currentStage||"",stages:d.stages||{}};
-      cacheKnockoutState();
-    } else if(cached){
-      knockoutState={startingStage:cached.startingStage||"",currentStage:cached.currentStage||"",stages:cached.stages||{}};
-      await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{...knockoutState,updatedAt:serverTimestamp()},{merge:true});
-    } else {
-      knockoutState={startingStage:"",currentStage:"",stages:{}};
-    }
-  }catch(e){
-    console.error("Knockout state load error:",e);
-    knockoutState=cached || {startingStage:"",currentStage:"",stages:{}};
-  }
+    const snap=await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
+    if(snap.exists()){const d=snap.data()||{};knockoutState={startingStage:d.startingStage||"",currentStage:d.currentStage||"",stages:d.stages||{}};cacheKnockoutState();return;}
+    knockoutState=readCachedKnockoutState()||{startingStage:"",currentStage:"",stages:{}};
+  }catch(e){console.error("Knockout state load error:",e);knockoutState=readCachedKnockoutState()||{startingStage:"",currentStage:"",stages:{}};}
 }
 async function saveKnockoutState(){
   const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},updatedAt:serverTimestamp()};
@@ -3715,11 +3658,11 @@ function renderManualKnockoutFixtures(){
         const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
         if(!home||!away){ alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`); return; }
         if(home.toLowerCase()===away.toLowerCase()){ alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`); return; }
-        const previous=knockoutState.stages?.[stage]?.ties?.[i] || {};
+        const previous=knockoutState.stages?.[stage]?.ties?.[i]||{};
         const preserved=makeEmptyKoTie(i+1,home,away);
-        preserved.leg1=previous.leg1 || null;
-        preserved.leg2=previous.leg2 || null;
-        preserved.penaltyWinner=previous.penaltyWinner || null;
+        if(previous.leg1) preserved.leg1=previous.leg1;
+        if(previous.leg2) preserved.leg2=previous.leg2;
+        if(previous.penaltyWinner) preserved.penaltyWinner=previous.penaltyWinner;
         koDecideTie(preserved);
         newTies.push(preserved);
       }
@@ -3757,31 +3700,14 @@ function koAggregate(tie){
 }
 
 function koDecideTie(tie){
-  const agg=koAggregate(tie);
-  tie.aggregate=agg;
-  const l1Played=!!tie.leg1?.played, l2Played=!!tie.leg2?.played;
+  const agg=koAggregate(tie); tie.aggregate=agg;
+  const l1=!!tie.leg1?.played, l2=!!tie.leg2?.played;
   tie.decided=false; tie.winner=null;
-  if(l1Played && !l2Played){
-    const h=Number(tie.leg1.homeScore), a=Number(tie.leg1.awayScore);
-    if(h>a){tie.winner=tie.home;tie.decided=true}
-    else if(a>h){tie.winner=tie.away;tie.decided=true}
-    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
-  } else if(l1Played && l2Played){
-    if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
-    else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
-    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
-  }
+  if(l1&&l2){ if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true;} else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true;} else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true;} }
+  else if(l1){ const h=Number(tie.leg1.homeScore),a=Number(tie.leg1.awayScore); if(h>a){tie.winner=tie.home;tie.decided=true;} else if(a>h){tie.winner=tie.away;tie.decided=true;} else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true;} }
   return tie;
 }
-
-function koAllDecided(stage){
-  const ties=knockoutState.stages?.[stage]?.ties||[];
-  if(!ties.length) return false;
-  return ties.every(t=>{
-    if(t && t.winner) return true;
-    return !!(t && koDecideTie(t).winner);
-  });
-}
+function koAllDecided(stage){ const ties=knockoutState.stages?.[stage]?.ties||[]; return ties.length===KO_TIES[stage] && ties.every(t=>koDecideTie(t).decided); }
 
 function koNextStage(stage){
   const i=koStageIndex(stage);
@@ -3838,40 +3764,17 @@ function setupKnockoutSystem(){
 
 async function advanceKnockoutStage(){
   if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-  const stage=koCurrentStage();
-  if(!stage)return alert("Chagua starting stage kwanza.");
-
+  const stage=koCurrentStage(); if(!stage)return alert("Chagua starting stage kwanza.");
   const existing=knockoutState.stages?.[stage];
-  if(!existing || !Array.isArray(existing.ties) || !existing.ties.length){
-    renderManualKnockoutFixtures();
-    return alert(`✍️ ${KO_LABEL[stage]} haijaundwa. Ingiza pairing manually kisha SAVE MANUAL KNOCKOUT FIXTURES.`);
-  }
-
-  existing.ties.forEach(t=>koDecideTie(t));
+  if(!existing || !Array.isArray(existing.ties) || existing.ties.length!==KO_TIES[stage]){ renderManualKnockoutFixtures(); return alert(`✍️ ${KO_LABEL[stage]} haijakamilika. SAVE manual fixtures zote kwanza.`); }
+  existing.ties.forEach(koDecideTie);
   const incomplete=existing.ties.filter(t=>!t.winner);
-  if(incomplete.length){
-    return alert(`⚠️ Kamilisha winner wa ${incomplete.length} tie${incomplete.length===1?"":"s"} kwanza.`);
-  }
-
+  if(incomplete.length)return alert(`⚠️ Kamilisha winner wa ${incomplete.length} tie${incomplete.length===1?"":"s"} kwanza.`);
   knockoutState.stages[stage]=existing;
-  await saveKnockoutState();
-
   const next=koNextStage(stage);
-  if(!next){
-    alert("🏆 FINAL imekamilika. Champion ni "+(existing.ties[0]?.winner||"TBD")+".");
-    return;
-  }
-
-  if(knockoutState.stages[next]){
-    knockoutState.currentStage=next;
-    await saveKnockoutState();
-    renderAdminKnockout(); renderPublicKnockout(); renderManualKnockoutFixtures();
-    alert(`✅ ${KO_LABEL[stage]} imekamilika. ${KO_LABEL[next]} imefunguliwa.`);
-    return;
-  }
-
-  knockoutState.stages[next]={stage:next,ties:[],published:false,manual:true,fromStage:stage};
+  if(!next){ await saveKnockoutState(); try{await updatePowerRankingsFromCurrentSeason();await renderPowerRanking();}catch(e){console.error("Ranking update error",e);} return alert("🏆 FINAL imekamilika. Champion ni "+(existing.ties[0]?.winner||"TBD")+"."); }
   knockoutState.currentStage=next;
+  if(!knockoutState.stages[next]) knockoutState.stages[next]={stage:next,ties:[],published:false,manual:true,fromStage:stage};
   await saveKnockoutState();
   renderAdminKnockout(); renderPublicKnockout(); renderManualKnockoutFixtures();
   alert(`✅ ${KO_LABEL[stage]} imekamilika. ✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing.`);
