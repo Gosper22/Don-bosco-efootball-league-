@@ -3715,7 +3715,13 @@ function renderManualKnockoutFixtures(){
         const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
         if(!home||!away){ alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`); return; }
         if(home.toLowerCase()===away.toLowerCase()){ alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`); return; }
-        newTies.push(makeEmptyKoTie(i+1,home,away));
+        const previous=knockoutState.stages?.[stage]?.ties?.[i] || {};
+        const preserved=makeEmptyKoTie(i+1,home,away);
+        preserved.leg1=previous.leg1 || null;
+        preserved.leg2=previous.leg2 || null;
+        preserved.penaltyWinner=previous.penaltyWinner || null;
+        koDecideTie(preserved);
+        newTies.push(preserved);
       }
       knockoutState.stages=knockoutState.stages||{};
       const old=knockoutState.stages[stage]||{};
@@ -3770,7 +3776,11 @@ function koDecideTie(tie){
 
 function koAllDecided(stage){
   const ties=knockoutState.stages?.[stage]?.ties||[];
-  return ties.length===KO_TIES[stage] && ties.every(t=>koDecideTie(t).decided);
+  if(!ties.length) return false;
+  return ties.every(t=>{
+    if(t && t.winner) return true;
+    return !!(t && koDecideTie(t).winner);
+  });
 }
 
 function koNextStage(stage){
@@ -3828,49 +3838,43 @@ function setupKnockoutSystem(){
 
 async function advanceKnockoutStage(){
   if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-  let stage=koCurrentStage();
+  const stage=koCurrentStage();
   if(!stage)return alert("Chagua starting stage kwanza.");
 
   const existing=knockoutState.stages?.[stage];
-
-  if(!existing){
+  if(!existing || !Array.isArray(existing.ties) || !existing.ties.length){
     renderManualKnockoutFixtures();
     return alert(`✍️ ${KO_LABEL[stage]} haijaundwa. Ingiza pairing manually kisha SAVE MANUAL KNOCKOUT FIXTURES.`);
   }
 
-  const ties=existing.ties||[];
-  ties.forEach(koDecideTie);
-
-  if(!koAllDecided(stage)){
-    return alert("⚠️ Kamilisha angalau Leg 1 kwa kila tie. Kama ni sare, weka penalty winner; kama unatumia legs mbili, weka Leg 2 pia.");
+  existing.ties.forEach(t=>koDecideTie(t));
+  const incomplete=existing.ties.filter(t=>!t.winner);
+  if(incomplete.length){
+    return alert(`⚠️ Kamilisha winner wa ${incomplete.length} tie${incomplete.length===1?"":"s"} kwanza.`);
   }
+
+  knockoutState.stages[stage]=existing;
+  await saveKnockoutState();
 
   const next=koNextStage(stage);
   if(!next){
-    alert("🏆 FINAL imekamilika. Champion ni "+(ties[0]?.winner||"TBD")+".");
+    alert("🏆 FINAL imekamilika. Champion ni "+(existing.ties[0]?.winner||"TBD")+".");
     return;
   }
 
   if(knockoutState.stages[next]){
     knockoutState.currentStage=next;
     await saveKnockoutState();
-    renderAdminKnockout();renderPublicKnockout();
+    renderAdminKnockout(); renderPublicKnockout(); renderManualKnockoutFixtures();
+    alert(`✅ ${KO_LABEL[stage]} imekamilika. ${KO_LABEL[next]} imefunguliwa.`);
     return;
   }
 
-  // Each tie produces exactly one winner. The previous check incorrectly
-  // expected twice as many winners as ties, so Proceed Next Stage could
-  // never advance for a normal bracket.
-  const winners=ties.map(t=>t.winner).filter(Boolean);
-  if(winners.length!==ties.length || winners.some(w=>!w)){
-    return alert(`⚠️ Kamilisha winners wote wa ${KO_LABEL[stage]} kwanza.`);
-  }
-
+  knockoutState.stages[next]={stage:next,ties:[],published:false,manual:true,fromStage:stage};
   knockoutState.currentStage=next;
   await saveKnockoutState();
-  renderAdminKnockout();renderPublicKnockout();
-  renderManualKnockoutFixtures();
-  alert(`✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing. Ingiza fixtures mwenyewe.`);
+  renderAdminKnockout(); renderPublicKnockout(); renderManualKnockoutFixtures();
+  alert(`✅ ${KO_LABEL[stage]} imekamilika. ✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing.`);
 }
 
 function renderAdminKnockout(){
