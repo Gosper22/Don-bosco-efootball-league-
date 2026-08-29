@@ -3300,11 +3300,12 @@ function getSeasonStandingsForPowerRanking() {
 }
 
 function seasonPlacementPoints(rank, total, format) {
+  // Group-stage ranking points are fixed by final position.
+  // 1st = 5, 2nd = 4, 3rd = 3, 4th = 1.
   if (format === "groups") {
     const mapped = [5, 4, 3, 1];
     return mapped[rank - 1] || 0;
   }
-  // No points for wins/draws/losses/goals.
   return 0;
 }
 
@@ -3314,40 +3315,74 @@ function getKnockoutRankingPointsForSeason() {
     if (!name) return;
     const player = players.find(p => getPlayerName(p) === name);
     if (!player) return;
+    // Highest knockout achievement wins; do not stack 8 + 15 + 20.
     bonus[player.id] = Math.max(Number(bonus[player.id] || 0), points);
   };
+
   const stages = knockoutState?.stages || {};
-  (stages.sf?.ties || []).forEach(t => { add(t.home, 8); add(t.away, 8); });
-  (stages.sf?.ties || []).map(t => t.winner).filter(Boolean).forEach(name => add(name, 15));
-  const champion = stages.final?.ties?.[0]?.winner;
-  if (champion) add(champion, 20);
+
+  // Reaching the semi-final = 8 points.
+  (stages.sf?.ties || []).forEach(t => {
+    add(t.home, 8);
+    add(t.away, 8);
+  });
+
+  // Reaching the final = 15 points (highest achievement so far).
+  const sfWinners = (stages.sf?.ties || []).map(t => t.winner).filter(Boolean);
+  sfWinners.forEach(name => add(name, 15));
+
+  // Champion = 20 points.
+  const finalWinner = stages.final?.ties?.[0]?.winner;
+  if (finalWinner) add(finalWinner, 20);
+
   return bonus;
 }
 
 async function updatePowerRankingsFromCurrentSeason() {
+  if (currentSeasonNumber < 1 || players.length === 0) return;
   const seasonKey = `season${currentSeasonNumber}`;
+  const standings = getSeasonStandingsForPowerRanking();
+  const groupData = tournamentSettings.format === "groups" ? getGroups() : null;
   const placementMap = {};
-  const groupData = getGroups();
-  if (Array.isArray(groupData)) {
+
+  if (tournamentSettings.format === "groups" && groupData?.length) {
     groupData.forEach(group => {
-      const names = new Set((group.players || []).map(p => getPlayerName(p)));
-      const rows = getStandings().filter(s => names.has(s.name));
-      rows.forEach((row,index) => placementMap[row.id] = seasonPlacementPoints(index+1, rows.length, "groups"));
+      const names = new Set(group.players.map(p => getPlayerName(p)));
+      const rows = standings.filter(s => names.has(s.name));
+      rows.forEach((row, index) => {
+        placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups");
+      });
     });
   }
-  const koBonus = getKnockoutRankingPointsForSeason();
-  const snap = await getDocs(collection(db,"powerRankings"));
-  const existing={}; snap.docs.forEach(d=>existing[d.id]=d.data());
-  for(const p of players){
-    const old=existing[p.id]||{totalPoints:0,seasons:{}};
-    const earned=Number(placementMap[p.id]||0)+Number(koBonus[p.id]||0);
-    const seasons={...(old.seasons||{})};
-    const previous=Number(seasons[seasonKey]||0); seasons[seasonKey]=earned;
-    const total=Number(old.totalPoints||0)-previous+earned;
-    await setDoc(doc(db,"powerRankings",p.id),{playerId:p.id,name:getPlayerName(p),totalPoints:Math.max(0,total),seasons,updatedAt:serverTimestamp()},{merge:true});
+
+  // If this is a league (not groups), there are no placement points from
+  // wins/draws/goals. Knockout achievement points are handled below.
+  const knockoutBonus = getKnockoutRankingPointsForSeason();
+
+  const snapshot = await getDocs(collection(db, "powerRankings"));
+  const existing = {};
+  snapshot.docs.forEach(d => existing[d.id] = d.data());
+
+  for (const p of players) {
+    const old = existing[p.id] || { totalPoints: 0, seasons: {} };
+    const groupPoints = Number(placementMap[p.id] || 0);
+    const knockoutPoints = Number(knockoutBonus[p.id] || 0);
+    const earned = groupPoints + knockoutPoints;
+    const seasons = { ...(old.seasons || {}) };
+    const previousSeasonPoints = Number(seasons[seasonKey] || 0);
+    seasons[seasonKey] = earned;
+    // Recalculate the cumulative total safely if this season was already saved,
+    // so a corrected ranking formula updates the season without double-counting.
+    const totalPoints = Number(old.totalPoints || 0) - previousSeasonPoints + earned;
+    await setDoc(doc(db, "powerRankings", p.id), {
+      playerId: p.id,
+      name: getPlayerName(p),
+      totalPoints: Math.max(0, totalPoints),
+      seasons,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
   }
 }
-
 async function renderPowerRanking() {
   const container = document.getElementById("powerRankingContainer");
   if (!container) return;
@@ -3390,7 +3425,7 @@ async function renderPowerRanking() {
       return;
     }
 
-    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: every player is included. Players with 0 points stay in the table at the bottom, while points earned in completed seasons carry forward.</div>` + rows.map((r, i) => {
+    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: Group 1st = 5 pts • 2nd = 4 pts • 3rd = 3 pts • 4th = 1 pt • Semi-final = 8 pts • Finalist = 15 pts • Champion = 20 pts. Knockout awards use the highest achievement only (they do not stack).</div>` + rows.map((r, i) => {
       const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
       return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
         <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
@@ -3503,6 +3538,7 @@ button.innerHTML =
    Original base retained. No random team injection.
    Flow: Groups -> Advance -> 2 legs -> Aggregate -> Winner -> Next stage.
 ========================================================= */
+const KO_ENGINE_VERSION = "V5-MANUAL-PERSISTENCE";
 const KO_STAGE_ORDER = ["r16","qf","sf","final"];
 const KO_LABEL = {
   r16:"ROUND OF 16",
@@ -3517,21 +3553,32 @@ let knockoutState = {
   stages:{}
 };
 
-function knockoutStorageKey(){ return `donBoscoKnockoutSeason_${currentSeasonNumber}`; }
-function cacheKnockoutState(){ try{localStorage.setItem(knockoutStorageKey(),JSON.stringify(knockoutState));}catch(e){} }
-function readCachedKnockoutState(){ try{const raw=localStorage.getItem(knockoutStorageKey());return raw?JSON.parse(raw):null;}catch(e){return null;} }
 async function loadKnockoutState(){
   try{
-    const snap=await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
-    if(snap.exists()){const d=snap.data()||{};knockoutState={startingStage:d.startingStage||"",currentStage:d.currentStage||"",stages:d.stages||{}};cacheKnockoutState();return;}
-    knockoutState=readCachedKnockoutState()||{startingStage:"",currentStage:"",stages:{}};
-  }catch(e){console.error("Knockout state load error:",e);knockoutState=readCachedKnockoutState()||{startingStage:"",currentStage:"",stages:{}};}
+    const snap = await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
+    if(snap.exists()){
+      const d=snap.data()||{};
+      knockoutState={
+        startingStage:d.startingStage||"",
+        currentStage:d.currentStage||"",
+        stages:d.stages||{}
+      };
+    } else {
+      knockoutState={startingStage:"",currentStage:"",stages:{}};
+    }
+  }catch(e){
+    console.error("Knockout state load error:",e);
+    knockoutState={startingStage:"",currentStage:"",stages:{}};
+  }
 }
+
 async function saveKnockoutState(){
-  const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},updatedAt:serverTimestamp()};
-  cacheKnockoutState();
-  await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),payload,{merge:true});
-  cacheKnockoutState();
+  await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{
+    startingStage:knockoutState.startingStage||"",
+    currentStage:knockoutState.currentStage||"",
+    stages:knockoutState.stages||{},
+    updatedAt:serverTimestamp()
+  });
 }
 
 function koStageIndex(stage){ return KO_STAGE_ORDER.indexOf(stage); }
@@ -3658,13 +3705,7 @@ function renderManualKnockoutFixtures(){
         const away=root.querySelector(`[data-manual-ko="away"][data-ko-index="${i}"]`)?.value.trim();
         if(!home||!away){ alert(`⚠️ Weka teams/players zote za TIE ${i+1}.`); return; }
         if(home.toLowerCase()===away.toLowerCase()){ alert(`⚠️ TIE ${i+1}: player/team haiwezi kucheza dhidi yake yenyewe.`); return; }
-        const previous=knockoutState.stages?.[stage]?.ties?.[i]||{};
-        const preserved=makeEmptyKoTie(i+1,home,away);
-        if(previous.leg1) preserved.leg1=previous.leg1;
-        if(previous.leg2) preserved.leg2=previous.leg2;
-        if(previous.penaltyWinner) preserved.penaltyWinner=previous.penaltyWinner;
-        koDecideTie(preserved);
-        newTies.push(preserved);
+        newTies.push(makeEmptyKoTie(i+1,home,away));
       }
       knockoutState.stages=knockoutState.stages||{};
       const old=knockoutState.stages[stage]||{};
@@ -3699,15 +3740,36 @@ function koAggregate(tie){
   return {home:h1+h2,away:a1+a2};
 }
 
-function koDecideTie(tie){
-  const agg=koAggregate(tie); tie.aggregate=agg;
-  const l1=!!tie.leg1?.played, l2=!!tie.leg2?.played;
-  tie.decided=false; tie.winner=null;
-  if(l1&&l2){ if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true;} else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true;} else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true;} }
-  else if(l1){ const h=Number(tie.leg1.homeScore),a=Number(tie.leg1.awayScore); if(h>a){tie.winner=tie.home;tie.decided=true;} else if(a>h){tie.winner=tie.away;tie.decided=true;} else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true;} }
+function koDecideTie(tie, stage=koCurrentStage()){
+  const agg=koAggregate(tie);
+  tie.aggregate=agg;
+  tie.decided=false;
+  tie.winner=null;
+
+  // FINAL is one game only. Its result is stored in Leg 1 and no Leg 2 is required.
+  if(stage === "final"){
+    const played=tie.leg1?.played;
+    if(played){
+      if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
+      else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
+      else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
+    }
+    return tie;
+  }
+
+  const both=tie.leg1?.played && tie.leg2?.played;
+  if(both){
+    if(agg.home>agg.away){tie.winner=tie.home;tie.decided=true}
+    else if(agg.away>agg.home){tie.winner=tie.away;tie.decided=true}
+    else if(tie.penaltyWinner){tie.winner=tie.penaltyWinner;tie.decided=true}
+  }
   return tie;
 }
-function koAllDecided(stage){ const ties=knockoutState.stages?.[stage]?.ties||[]; return ties.length===KO_TIES[stage] && ties.every(t=>koDecideTie(t).decided); }
+
+function koAllDecided(stage){
+  const ties=knockoutState.stages?.[stage]?.ties||[];
+  return ties.length===KO_TIES[stage] && ties.every(t=>koDecideTie(t).decided);
+}
 
 function koNextStage(stage){
   const i=koStageIndex(stage);
@@ -3764,22 +3826,79 @@ function setupKnockoutSystem(){
 
 async function advanceKnockoutStage(){
   if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
-  const stage=koCurrentStage(); if(!stage)return alert("Chagua starting stage kwanza.");
-  const existing=knockoutState.stages?.[stage];
-  if(!existing || !Array.isArray(existing.ties) || existing.ties.length!==KO_TIES[stage]){ renderManualKnockoutFixtures(); return alert(`✍️ ${KO_LABEL[stage]} haijakamilika. SAVE manual fixtures zote kwanza.`); }
-  existing.ties.forEach(koDecideTie);
-  const incomplete=existing.ties.filter(t=>!t.winner);
-  if(incomplete.length)return alert(`⚠️ Kamilisha winner wa ${incomplete.length} tie${incomplete.length===1?"":"s"} kwanza.`);
-  knockoutState.stages[stage]=existing;
-  const next=koNextStage(stage);
-  if(!next){ await saveKnockoutState(); try{await updatePowerRankingsFromCurrentSeason();await renderPowerRanking();}catch(e){console.error("Ranking update error",e);} return alert("🏆 FINAL imekamilika. Champion ni "+(existing.ties[0]?.winner||"TBD")+"."); }
-  knockoutState.currentStage=next;
-  if(!knockoutState.stages[next]) knockoutState.stages[next]={stage:next,ties:[],published:false,manual:true,fromStage:stage};
-  await saveKnockoutState();
-  renderAdminKnockout(); renderPublicKnockout(); renderManualKnockoutFixtures();
-  alert(`✅ ${KO_LABEL[stage]} imekamilika. ✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing.`);
-}
 
+  const stage=koCurrentStage();
+  if(!stage)return alert("Chagua starting stage kwanza.");
+
+  const stageData=knockoutState.stages?.[stage];
+  const ties=Array.isArray(stageData?.ties) ? stageData.ties : [];
+
+  if(ties.length!==KO_TIES[stage]){
+    return alert(`✍️ ${KO_LABEL[stage]} haijakamilika. SAVE manual fixtures zote kwanza.`);
+  }
+
+  // Recalculate each tie from the saved scores, then persist the calculated
+  // winner before moving to the next round.
+  const winners=[];
+  for(let i=0;i<ties.length;i++){
+    const tie=ties[i];
+    koDecideTie(tie);
+    if(!tie.winner){
+      return alert(`⚠️ Kamilisha matokeo ya TIE ${i+1} kwanza. Weka score na bonyeza SAVE.`);
+    }
+    winners.push(tie.winner);
+  }
+
+  // A round with N ties must produce exactly N winners.
+  // Never require 2*N winners.
+  if(winners.length!==ties.length || winners.some(w=>!w)){
+    return alert("⚠️ Kamilisha winners wote kwanza.");
+  }
+
+  knockoutState.stages[stage]={
+    ...stageData,
+    ties,
+    winners,
+    completed:true
+  };
+
+  const next=koNextStage(stage);
+
+  if(!next){
+    knockoutState.currentStage=stage;
+    await saveKnockoutState();
+    try{
+      await updatePowerRankingsFromCurrentSeason();
+      await renderPowerRanking();
+    }catch(e){ console.error("Ranking update error",e); }
+    return alert("🏆 FINAL imekamilika. Champion ni "+(winners[0]||"TBD")+".");
+  }
+
+  // Next stage is deliberately manual. Create the correct number of empty
+  // slots and carry no accidental automatic pairing into it.
+  knockoutState.currentStage=next;
+  if(!knockoutState.stages[next]){
+    knockoutState.stages[next]={
+      stage:next,
+      ties:Array.from({length:KO_TIES[next]},(_,i)=>makeEmptyKoTie(i+1)),
+      winners:[],
+      published:false,
+      manual:true,
+      fromStage:stage
+    };
+  }else{
+    const nextData=knockoutState.stages[next];
+    nextData.ties=Array.from({length:KO_TIES[next]},(_,i)=>nextData.ties?.[i]||makeEmptyKoTie(i+1));
+    nextData.manual=true;
+  }
+
+  await saveKnockoutState();
+  renderAdminKnockout();
+  renderPublicKnockout();
+  renderManualKnockoutFixtures();
+
+  alert(`✅ ${KO_LABEL[stage]} imekamilika (${winners.length} winners). ✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing.`);
+}
 function renderAdminKnockout(){
   const root=document.getElementById("adminKnockoutMatches");
   const status=document.getElementById("knockoutAdminStatus");
@@ -3793,7 +3912,7 @@ function renderAdminKnockout(){
   if(status)status.textContent=KO_LABEL[stage];
   const data=knockoutState.stages?.[stage];
   const manualBox=document.getElementById("manualKnockoutFixtures");
-  if(manualBox && data?.ties?.length) manualBox.style.display="none";
+  if(manualBox && data?.ties?.length) manualBox.style.display="block";
   if(!data?.ties?.length){
     root.innerHTML=`<div class="draw-preview-empty">No manual fixtures saved yet. Use ENTER MANUAL FIXTURES to set ${KO_LABEL[stage]} pairings.</div>`;
     renderManualKnockoutFixtures();
@@ -3801,35 +3920,35 @@ function renderAdminKnockout(){
   }
 
   root.innerHTML=data.ties.map((raw,i)=>{
-    const t=koDecideTie({...raw});
+    const t=koDecideTie({...raw},stage);
     const agg=t.aggregate;
     return `<div class="admin-ko-tie">
       <div class="admin-ko-title"><span>${KO_LABEL[stage]}</span><strong>TIE ${i+1}</strong></div>
       <div class="admin-ko-teams"><strong>${escapeHTML(t.home)}</strong><span>VS</span><strong>${escapeHTML(t.away)}</strong></div>
 
       <div class="admin-ko-leg">
-        <div><small>LEG 1</small><strong>${escapeHTML(t.home)} <b>HOME</b> vs ${escapeHTML(t.away)}</strong></div>
+        <div><small>${stage === "final" ? "FINAL — ONE GAME" : "LEG 1"}</small><strong>${escapeHTML(t.home)} <b>HOME</b> vs ${escapeHTML(t.away)}</strong></div>
         <input type="number" min="0" data-ko-score="l1h" data-ko-index="${i}" value="${t.leg1?.homeScore??""}">
         <span>–</span>
         <input type="number" min="0" data-ko-score="l1a" data-ko-index="${i}" value="${t.leg1?.awayScore??""}">
         <button type="button" data-ko-save-leg="1" data-ko-index="${i}">SAVE</button>
       </div>
 
-      <div class="admin-ko-leg">
+      ${stage !== "final" ? `<div class="admin-ko-leg">
         <div><small>LEG 2</small><strong>${escapeHTML(t.away)} <b>HOME</b> vs ${escapeHTML(t.home)}</strong></div>
         <input type="number" min="0" data-ko-score="l2h" data-ko-index="${i}" value="${t.leg2?.awayScore??""}">
         <span>–</span>
         <input type="number" min="0" data-ko-score="l2a" data-ko-index="${i}" value="${t.leg2?.homeScore??""}">
         <button type="button" data-ko-save-leg="2" data-ko-index="${i}">SAVE</button>
-      </div>
+      </div>` : `<div class="admin-ko-final-note">🏆 FINAL NI GAME MOJA — hakuna LEG 2.</div>`}`
 
       <div class="admin-ko-aggregate">
         <span>AGGREGATE</span>
         <strong>${agg.home} – ${agg.away}</strong>
-        <em>${t.winner ? "WINNER: "+escapeHTML(t.winner) : "AWAITING BOTH LEGS"}</em>
+        <em>${t.winner ? "WINNER: "+escapeHTML(t.winner) : (t.leg1?.played || t.leg2?.played ? "SAVE/CONFIRM RESULT" : "AWAITING RESULT")}</em>
       </div>
 
-      ${(!t.winner && t.leg1?.played && t.leg2?.played && agg.home===agg.away)
+      ${(!t.winner && (stage === "final" ? t.leg1?.played : (t.leg1?.played && t.leg2?.played)) && agg.home===agg.away)
         ? `<div class="ko-tiebreak"><label>TIE ON AGGREGATE — PENALTY WINNER</label>
              <select data-ko-penalty="${i}"><option value="">Select winner</option><option ${t.penaltyWinner===t.home?"selected":""}>${escapeHTML(t.home)}</option><option ${t.penaltyWinner===t.away?"selected":""}>${escapeHTML(t.away)}</option></select></div>` : ""}
     </div>`;
@@ -3852,7 +3971,7 @@ function renderAdminKnockout(){
         if(homeAtLeg2===""||awayAtLeg2==="")return alert("Weka scores zote za Leg 2.");
         tie.leg2={homeScore:Number(awayAtLeg2),awayScore:Number(homeAtLeg2),played:true};
       }
-      koDecideTie(tie);
+      koDecideTie(tie,stage);
       await saveKnockoutState();
       renderAdminKnockout();renderPublicKnockout();
     });
@@ -3863,7 +3982,7 @@ function renderAdminKnockout(){
       const i=Number(sel.dataset.koPenalty);
       const tie=knockoutState.stages[stage].ties[i];
       tie.penaltyWinner=sel.value||null;
-      koDecideTie(tie);
+      koDecideTie(tie,stage);
       await saveKnockoutState();
       renderAdminKnockout();renderPublicKnockout();
     });
@@ -3871,14 +3990,14 @@ function renderAdminKnockout(){
 }
 
 function publicTieCard(tie,i,stage){
-  const t=koDecideTie({...tie});
+  const t=koDecideTie({...tie},stage);
   const l1=t.leg1||{},l2=t.leg2||{},agg=t.aggregate||{home:0,away:0};
   return `<article class="public-ko-tie">
     <header><span>${KO_LABEL[stage]}</span><strong>TIE ${i+1}</strong></header>
     <div class="public-ko-teams"><strong>${escapeHTML(t.home)}</strong><b>VS</b><strong>${escapeHTML(t.away)}</strong></div>
-    <div class="public-ko-leg"><span>LEG 1</span><strong>${l1.played?l1.homeScore+" – "+l1.awayScore:"–"}</strong></div>
-    <div class="public-ko-leg"><span>LEG 2</span><strong>${l2.played?l2.awayScore+" – "+l2.homeScore:"–"}</strong></div>
-    <div class="public-ko-aggregate"><span>AGGREGATE</span><strong>${agg.home} – ${agg.away}</strong></div>
+    <div class="public-ko-leg"><span>${stage === "final" ? "FINAL — ONE GAME" : "LEG 1"}</span><strong>${l1.played?l1.homeScore+" – "+l1.awayScore:"–"}</strong></div>
+    ${stage !== "final" ? `<div class="public-ko-leg"><span>LEG 2</span><strong>${l2.played?l2.awayScore+" – "+l2.homeScore:"–"}</strong></div>` : `<div class="public-ko-final-note">🏆 FINAL — GAME MOJA</div>`}
+    <div class="public-ko-aggregate"><span>${stage === "final" ? "FINAL SCORE" : "AGGREGATE"}</span><strong>${agg.home} – ${agg.away}</strong></div>
     <div class="public-ko-winner">${t.winner ? "🏆 "+escapeHTML(t.winner) : "WINNER PENDING"}</div>
   </article>`;
 }
