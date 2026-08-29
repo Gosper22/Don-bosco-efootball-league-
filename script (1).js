@@ -2862,61 +2862,6 @@ async function loadAwardVotingState() {
   }
 }
 
-
-function renderAutomaticAwardLeaderboards(stats) {
-  const host = document.getElementById("automaticAwardLeaderboards");
-  if (!host) return;
-
-  const configs = [
-    { key: "goldenBoot", icon: "⚽", title: "TOP SCORER", metric: (x) => `${x.GF} GOALS`, sort: (a,b) => b.GF-a.GF || b.rating-a.rating },
-    { key: "bestDefender", icon: "🛡️", title: "BEST DEFENDER", metric: (x) => `${x.cleanSheets} CLEAN SHEETS`, sort: (a,b) => b.cleanSheets-a.cleanSheets || a.GA-b.GA || b.rating-a.rating },
-    { key: "mostWins", icon: "🏆", title: "MOST WINS", metric: (x) => `${x.W} WINS`, sort: (a,b) => b.W-a.W || b.PTS-a.PTS || b.rating-a.rating }
-  ];
-
-  host.innerHTML = `
-    <div class="auto-awards-heading">
-      <span>LIVE PERFORMANCE</span>
-      <h3>🔥 <strong>RUNNING THE SHOW</strong></h3>
-      <p>Automatic leaders calculated from played tournament results.</p>
-    </div>
-    <div class="auto-awards-grid">
-      ${configs.map(cfg => {
-        const ranked = [...stats].sort(cfg.sort);
-        const top = ranked[0];
-        if (!top) return "";
-        return `
-          <article class="auto-award-card">
-            <div class="auto-award-topline"><span>${cfg.icon} ${cfg.title}</span><b>#1</b></div>
-            <div class="auto-award-hero">
-              <div class="auto-award-rank">🥇</div>
-              <div class="auto-award-name">${escapeHTML(top.name)}</div>
-              <div class="auto-award-stat">${cfg.metric(top)}</div>
-            </div>
-            <button class="auto-award-toggle" type="button">VIEW 3 CHALLENGERS</button>
-            <div class="auto-award-challengers">
-              ${ranked.slice(1,4).map((p,i) => `
-                <div class="auto-award-row">
-                  <span>${i===0?"🥈":i===1?"🥉":"4️⃣"}</span>
-                  <strong>${escapeHTML(p.name)}</strong>
-                  <em>${cfg.metric(p)}</em>
-                </div>
-              `).join("") || '<div class="auto-award-empty">No challengers yet.</div>'}
-            </div>
-          </article>
-        `;
-      }).join("")}
-    </div>
-  `;
-
-  host.querySelectorAll(".auto-award-toggle").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const card = btn.closest(".auto-award-card");
-      card.classList.toggle("expanded");
-      btn.textContent = card.classList.contains("expanded") ? "HIDE CHALLENGERS" : "VIEW 3 CHALLENGERS";
-    });
-  });
-}
-
 async function renderAwardsAndVoting() {
   await loadAwardVotingState();
   const stats = getAwardStats();
@@ -2945,7 +2890,6 @@ async function renderAwardsAndVoting() {
     }).join("");
   }
 
-  renderAutomaticAwardLeaderboards(stats);
   renderAwardVoting(stats);
   renderAwardNominationManager(stats);
   renderCurrentChampion();
@@ -3492,53 +3436,161 @@ button.innerHTML =
 
 }
 
-/* VOTING LOCK: only Admin START VOTE may enable voting */
-(function(){
-  function isLive(){
-    try{
-      const state=JSON.parse(localStorage.getItem("db_voting_controls_v1")||"{}");
-      return state.status==="active";
-    }catch(e){ return false; }
-  }
-  document.addEventListener("click",function(e){
-    const b=e.target.closest("button");
-    if(!b)return;
-    const t=(b.textContent||"").trim().toLowerCase();
-    const vote=/\bvote\b/.test(t)&&!/start vote|end vote|reset vote|view|voting/.test(t);
-    if(vote&&!isLive()){
-      e.preventDefault(); e.stopImmediatePropagation();
-      alert("Voting has not started yet. Please wait for the Admin to START VOTE.");
-      return false;
-    }
-  },true);
-})();
+/* =====================================================
+   MANUAL KNOCKOUT — SAFE IMPLEMENTATION
+   Semi-final: two legs, manual pairings.
+   Final: ONE GAME ONLY.
+   Persisted per season in Firestore.
+===================================================== */
+let manualKO = {
+  ties: [
+    {home:"", away:"", l1h:"", l1a:"", l2h:"", l2a:"", winner:""},
+    {home:"", away:"", l1h:"", l1a:"", l2h:"", l2a:"", winner:""}
+  ],
+  final: {home:"", away:"", scoreHome:"", scoreAway:"", winner:""}
+};
 
-/* FLEXIBLE KNOCKOUT WORKFLOW */
-(function(){
-  const KEY="db_knockout_start_round";
-  const names={r16:"Round of 16",qf:"Quarter-Final",sf:"Semi-Final",final:"Final"};
-  function init(){
-    const box=document.getElementById("flexibleKnockoutSetup");
-    if(!box)return;
-    const buttons=[...box.querySelectorAll("[data-start-round]")];
-    const status=document.getElementById("flexibleKnockoutStatus");
-    const next=document.getElementById("knockoutNextStep");
-    let selected=localStorage.getItem(KEY)||"";
-    function paint(){
-      buttons.forEach(b=>b.classList.toggle("selected",b.dataset.startRound===selected));
-      status.textContent=selected ? names[selected].toUpperCase() : "NOT SET";
-      next.textContent=selected ? "Next: confirm qualified teams, then create "+names[selected]+"." : "Select the first knockout stage.";
-    }
-    buttons.forEach(b=>b.addEventListener("click",()=>{selected=b.dataset.startRound;paint()}));
-    const save=document.getElementById("saveKnockoutStart");
-    if(save) save.addEventListener("click",()=>{
-      if(!selected){alert("Please choose the starting knockout round first.");return;}
-      localStorage.setItem(KEY,selected);
-      status.textContent=names[selected].toUpperCase()+" SAVED";
-      next.textContent="✓ Starting stage saved. Proceed to "+names[selected]+".";
+function koPlayersOptions(selected){
+  const names = players.map(p => p.username || p.name || p.teamName).filter(Boolean);
+  return '<option value="">Select player</option>' +
+    names.map(n => `<option value="${escapeHTML(n)}" ${n===selected?'selected':''}>${escapeHTML(n)}</option>`).join("");
+}
+
+function koWinner(t){
+  if(!t.home || !t.away || t.l1h === "" || t.l1a === "" || t.l2h === "" || t.l2a === "") return "";
+  const homeAgg = Number(t.l1h) + Number(t.l2a);
+  const awayAgg = Number(t.l1a) + Number(t.l2h);
+  if(homeAgg === awayAgg) return ""; // tie needs admin resolution
+  return homeAgg > awayAgg ? t.home : t.away;
+}
+
+function koRender(){
+  const root=document.getElementById("sfAdminMatches");
+  if(!root) return;
+  root.innerHTML=manualKO.ties.map((t,i)=>{
+    const hw=koWinner(t);
+    const homeAgg=(t.l1h!==""&&t.l2a!=="")?Number(t.l1h)+Number(t.l2a):"—";
+    const awayAgg=(t.l1a!==""&&t.l2h!=="")?Number(t.l1a)+Number(t.l2h):"—";
+    if(hw) t.winner=hw;
+    return `<div class="sf-admin-tie" style="padding:16px;margin:12px 0;border:1px solid rgba(255,255,255,.12);border-radius:14px;">
+      <h4>SEMI-FINAL ${i+1}</h4>
+      <div class="sf-team-row">
+        <select data-ko="${i}" data-k="home">${koPlayersOptions(t.home)}</select>
+        <strong style="padding:0 8px;">VS</strong>
+        <select data-ko="${i}" data-k="away">${koPlayersOptions(t.away)}</select>
+      </div>
+      <div class="sf-leg">
+        <small>LEG 1</small>
+        <input data-ko="${i}" data-k="l1h" type="number" min="0" value="${t.l1h}" placeholder="Home">
+        <input data-ko="${i}" data-k="l1a" type="number" min="0" value="${t.l1a}" placeholder="Away">
+      </div>
+      <div class="sf-leg">
+        <small>LEG 2</small>
+        <input data-ko="${i}" data-k="l2h" type="number" min="0" value="${t.l2h}" placeholder="Away team">
+        <input data-ko="${i}" data-k="l2a" type="number" min="0" value="${t.l2a}" placeholder="Home team">
+      </div>
+      <div class="sf-aggregate">AGGREGATE <b>${homeAgg} – ${awayAgg}</b>
+        ${hw ? `<br>🏆 WINNER: <strong>${escapeHTML(hw)}</strong>` : (homeAgg!=="—"&&awayAgg!=="—" ? "<br>⚠️ Aggregate tie — admin must resolve winner." : "")}
+      </div>
+    </div>`;
+  }).join("");
+
+  root.querySelectorAll("[data-ko]").forEach(el=>{
+    el.addEventListener("input",()=>{
+      const i=Number(el.dataset.ko);
+      manualKO.ties[i][el.dataset.k]=el.value;
+      if(el.dataset.k.startsWith("l")) manualKO.ties[i].winner=koWinner(manualKO.ties[i]);
+      koRender();
+      koRenderFinal();
     });
-    paint();
-  }
-  document.addEventListener("DOMContentLoaded",init);
-})();
+    el.addEventListener("change",()=>{
+      const i=Number(el.dataset.ko);
+      manualKO.ties[i][el.dataset.k]=el.value;
+      koRender(); koRenderFinal();
+    });
+  });
+  koRenderFinal();
+}
 
+function koRenderFinal(){
+  const root=document.getElementById("manualFinalBox");
+  if(!root) return;
+  const f=manualKO.final;
+  if(!f.home && !f.away){
+    root.innerHTML='<h4>🏆 FINAL — ONE GAME</h4><p>Semi-final winners will appear here after you press PROCEED TO FINAL.</p>';
+    return;
+  }
+  root.innerHTML=`<div style="padding:16px;border:2px solid rgba(255,215,0,.35);border-radius:14px;">
+    <h4>🏆 FINAL — ONE GAME ONLY</h4>
+    <div class="sf-team-row"><strong>${escapeHTML(f.home||"FINALIST 1")}</strong><strong>VS</strong><strong>${escapeHTML(f.away||"FINALIST 2")}</strong></div>
+    <div class="sf-leg">
+      <small>FINAL SCORE</small>
+      <input id="finalScoreHome" type="number" min="0" value="${f.scoreHome}" placeholder="Home score">
+      <input id="finalScoreAway" type="number" min="0" value="${f.scoreAway}" placeholder="Away score">
+    </div>
+    <button type="button" id="saveFinalBtn" class="primary-btn">💾 SAVE FINAL RESULT</button>
+    <p id="finalMessage" class="message"></p>
+    ${f.winner?`<div class="sf-aggregate">🏆 CHAMPION: <strong>${escapeHTML(f.winner)}</strong></div>`:""}
+  </div>`;
+  document.getElementById("saveFinalBtn")?.addEventListener("click", koSaveFinal);
+}
+
+async function koLoad(){
+  try{
+    const snap=await getDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`));
+    if(snap.exists()){
+      const d=snap.data();
+      manualKO={
+        ties:Array.isArray(d.ties)?d.ties:manualKO.ties,
+        final:d.final||manualKO.final
+      };
+    }
+  }catch(e){ console.warn("Manual knockout load:",e); }
+  koRender();
+}
+
+async function koSave(){
+  if(!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+  manualKO.ties.forEach(t=>{ const w=koWinner(t); if(w) t.winner=w; });
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualKO);
+  const msg=document.getElementById("sfMessage");
+  if(msg) msg.textContent="✓ Semi-final fixtures na results zimehifadhiwa.";
+  koRender();
+}
+
+async function koAdvance(){
+  if(!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+  manualKO.ties.forEach(t=>{ const w=koWinner(t); if(w) t.winner=w; });
+  if(manualKO.ties.some(t=>!t.winner))
+    return alert("⚠️ Kamilisha winners wote wa semi-final kwanza. Kama aggregate ni sare, chagua winner kwa admin.");
+  manualKO.final.home=manualKO.ties[0].winner;
+  manualKO.final.away=manualKO.ties[1].winner;
+  manualKO.final.scoreHome="";
+  manualKO.final.scoreAway="";
+  manualKO.final.winner="";
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualKO);
+  const msg=document.getElementById("sfMessage");
+  if(msg) msg.textContent="✓ Winners wameingia FINAL. Final ni game moja tu.";
+  koRender();
+}
+
+async function koSaveFinal(){
+  if(!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+  const sh=document.getElementById("finalScoreHome")?.value;
+  const sa=document.getElementById("finalScoreAway")?.value;
+  if(sh===""||sa==="") return alert("⚠️ Weka score zote za Final.");
+  if(Number(sh)===Number(sa)) return alert("⚠️ Final ni game moja; score haiwezi kubaki sare. Tumia extra-time/penalties na weka score ya mshindi.");
+  manualKO.final.scoreHome=sh;
+  manualKO.final.scoreAway=sa;
+  manualKO.final.winner=Number(sh)>Number(sa)?manualKO.final.home:manualKO.final.away;
+  await setDoc(doc(db,"manualKnockout",`season_${currentSeasonNumber}`),manualKO);
+  const msg=document.getElementById("finalMessage");
+  if(msg) msg.textContent="✓ Final result imehifadhiwa.";
+  koRenderFinal();
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("saveSfBtn")?.addEventListener("click",koSave);
+  document.getElementById("advanceSfBtn")?.addEventListener("click",koAdvance);
+  koLoad();
+});

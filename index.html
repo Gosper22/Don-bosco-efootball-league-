@@ -2,7 +2,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">  <title>Don Bosco eFootball League</title>  <link rel="stylesheet" href="style.css">
-</head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
+<style>
+/* Don Bosco Match Center */
+.db-mc-card{position:relative;border-radius:22px;padding:22px 20px;margin:14px 0;background:linear-gradient(145deg,#101515,#171d1d);border:1px solid rgba(65,255,155,.22);box-shadow:0 14px 35px rgba(0,0,0,.22);overflow:hidden}
+.db-mc-card:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(65,255,155,.07),transparent 45%,rgba(65,255,155,.04));pointer-events:none}
+.db-mc-status{display:inline-flex;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;background:rgba(65,255,155,.12);color:#73ffb0}
+.db-mc-status.upcoming{background:rgba(255,255,255,.08);color:#fff}
+.db-mc-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px}
+.db-mc-team{font-size:clamp(15px,2.4vw,21px);font-weight:800;line-height:1.15;color:#fff;word-break:break-word}
+.db-mc-team.home{text-align:right}.db-mc-team.away{text-align:left}
+.db-mc-score{min-width:150px;text-align:center;font-size:clamp(38px,7vw,58px);line-height:.95;font-weight:950;letter-spacing:-.045em;color:#fff}
+.db-mc-score small{display:block;margin-top:8px;font-size:10px;letter-spacing:.12em;font-weight:800;color:rgba(255,255,255,.55)}
+.db-mc-vs{min-width:150px;text-align:center;font-size:clamp(24px,4vw,36px);font-weight:950;color:#fff}
+.db-mc-meta{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:16px}
+.db-mc-pill{padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.78);font-size:11px;font-weight:700}
+@media(max-width:600px){.db-mc-teams{gap:8px}.db-mc-score,.db-mc-vs{min-width:90px}.db-mc-card{padding:18px 12px}}
+</style></head><body><!-- ================= NAVBAR ================= --><header class="navbar">  <div class="logo">
     <span>DON BOSCO</span>
     <strong>eFOOTBALL</strong>
     <small>LEAGUE</small>
@@ -282,19 +297,85 @@
   </div>
 </section>
 
-<!-- ================= KNOCKOUT ================= -->
-<section id="knockout" class="section knockout-section">
-  <div class="section-heading">
-    <span>ROAD TO THE FINAL</span>
-    <h2><strong>KNOCKOUT</strong> STAGE</h2>
-    <p>Home &amp; away knockout ties • aggregate scores • automatic progression.</p>
-  </div>
-  <div id="publicKnockoutContainer" class="public-knockout-container">
-    <div class="loading">Loading knockout stage...</div>
-  </div>
-</section>
+<!-- ================= KNOCKOUT ================= --><section id="knockout" class="section knockout-section">  <div class="section-heading"><span>ROAD TO THE FINAL</span>
 
-<!-- ================= HALL OF FAME ================= -->
+<h2>
+  <strong>KNOCKOUT</strong>
+  STAGE
+</h2>
+
+<p>
+  Qualification and knockout stage.
+</p>
+
+  </div>  <div class="knockout-grid"><div class="round">
+
+  <h3>ROUND OF 16</h3>
+
+  <div id="round16">
+
+    <div class="knockout-match">
+      <span>QUALIFIER</span>
+      <strong>VS</strong>
+      <span>QUALIFIER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round">
+
+  <h3>QUARTERFINALS</h3>
+
+  <div id="quarterfinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round">
+
+  <h3>SEMIFINALS</h3>
+
+  <div id="semifinals">
+
+    <div class="knockout-match">
+      <span>WINNER</span>
+      <strong>VS</strong>
+      <span>WINNER</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="round final-round">
+
+  <h3>🏆 FINAL</h3>
+
+  <div id="final">
+
+    <div class="knockout-match final-match">
+      <span>FINALIST 1</span>
+      <strong>VS</strong>
+      <span>FINALIST 2</span>
+    </div>
+
+  </div>
+
+</div>
+
+  </div></section><!-- ================= HALL OF FAME ================= -->
 <section id="halloffame" class="section hall-of-fame-section">
   <div class="section-heading">
     <span>LEGENDS &amp; AWARDS</span>
@@ -687,40 +768,7 @@
   </div>
 
 
-  
-<!-- KNOCKOUT MANAGEMENT -->
-<div class="tournament-control knockout-admin-control" id="knockoutAdminControl">
-  <div class="knockout-admin-heading">
-    <div>
-      <span>KNOCKOUT CONTROL CENTER</span>
-      <h3>ADVANCE TO NEXT STAGE OF KNOCKOUT</h3>
-      <p>Choose the first stage once. Knockout ties use two legs, while the FINAL is one game only. The system calculates winners and carries them forward.</p>
-    </div>
-    <strong id="knockoutAdminStatus">NOT STARTED</strong>
-  </div>
-
-  <div class="knockout-start-buttons">
-    <button type="button" data-knockout-start="r16">ROUND OF 16<br><small>8 TIES</small></button>
-    <button type="button" data-knockout-start="qf">QUARTER-FINAL<br><small>4 TIES</small></button>
-    <button type="button" data-knockout-start="sf">SEMI-FINAL<br><small>2 TIES</small></button>
-    <button type="button" data-knockout-start="final">FINAL<br><small>1 TIE</small></button>
-  </div>
-
-  <div class="knockout-admin-actions">
-    <button type="button" id="setKnockoutStartBtn" class="secondary-btn">SET STARTING STAGE</button>
-    <button type="button" id="manualKnockoutFixturesBtn" class="secondary-btn">✍️ ENTER MANUAL FIXTURES</button>
-    <button type="button" id="advanceKnockoutBtn" class="primary-btn">➡️ ADVANCE TO NEXT STAGE OF KNOCKOUT</button>
-    <button type="button" id="resetKnockoutBtn" class="danger-btn">RESET KNOCKOUT</button>
-  </div>
-
-  <p id="knockoutAdminMessage" class="message"></p>
-  <div id="manualKnockoutFixtures" class="admin-knockout-matches" style="display:none"></div>
-  <div id="adminKnockoutMatches" class="admin-knockout-matches">
-    <div class="draw-preview-empty">Select a starting stage to begin.</div>
-  </div>
-</div>
-
-<!-- HALL OF FAME MANAGEMENT -->
+  <!-- HALL OF FAME MANAGEMENT -->
   <div class="tournament-control award-admin-control">
     <h3>🏆 HALL OF FAME &amp; AWARD FINALISTS</h3>
     <p>Statistics are calculated automatically. Admin is free to choose <strong>any 3 active players</strong> for each fan-voted award: Player of the Tournament, Upcoming Player and Fan's Priority Player. The other awards are automatic and need no nominees.</p>
@@ -748,6 +796,20 @@
     </div>
   </div>
 
+
+
+  <!-- MANUAL KNOCKOUT CONTROL -->
+  <div class="tournament-control" id="manualKnockoutControl">
+    <h3>⚽ MANUAL KNOCKOUT — SEMI-FINAL & FINAL</h3>
+    <p>Weka pairings na matokeo mwenyewe. Semi-final ni legs 2; FINAL ni game moja tu.</p>
+    <div id="sfAdminMatches"></div>
+    <div class="manual-ko-actions">
+      <button type="button" id="saveSfBtn" class="primary-btn">💾 SAVE SEMI-FINAL</button>
+      <button type="button" id="advanceSfBtn" class="secondary-btn">➡️ PROCEED TO FINAL</button>
+    </div>
+    <p id="sfMessage" class="message"></p>
+    <div id="manualFinalBox" style="margin-top:18px;"></div>
+  </div>
 
   <!-- MATCH MANAGEMENT -->
 
@@ -844,87 +906,15 @@
   src="script.js"
 ></script>
 <script>
-/* Automatic Award Leaderboards: presentation-only layer */
 (function(){
-  function getArray(name){
-    try{
-      if (Array.isArray(window[name])) return window[name];
-      return [];
-    }catch(e){ return []; }
-  }
-  function num(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
-  function playerName(p){ return p?.name || p?.playerName || p?.username || p?.displayName || "Unknown Player"; }
-
-  function calculate(){
-    const players = getArray("players");
-    const matches = getArray("matches");
-    const rows = players.map(p=>({
-      id:p.id || p.playerId || playerName(p),
-      name:playerName(p),
-      goals:num(p.goals ?? p.totalGoals ?? p.scoredGoals),
-      cleanSheets:num(p.cleanSheets ?? p.cleanSheet ?? p.clean_sheets),
-      wins:num(p.wins ?? p.totalWins)
-    }));
-
-    // If player totals are not stored directly, derive what can safely be derived
-    // from common match fields.
-    matches.forEach(m=>{
-      if (!m) return;
-      const home = m.homePlayer || m.player1 || m.home || m.homePlayerName;
-      const away = m.awayPlayer || m.player2 || m.away || m.awayPlayerName;
-      const hs = num(m.homeScore ?? m.score1 ?? m.homeGoals);
-      const as = num(m.awayScore ?? m.score2 ?? m.awayGoals);
-      const h = rows.find(x=>x.id===home || x.name===home);
-      const a = rows.find(x=>x.id===away || x.name===away);
-      if (h) h.goals = Math.max(h.goals, h.goals); // preserve explicit player totals
-      if (a) a.goals = Math.max(a.goals, a.goals);
-      if (h && hs>as) h.wins += 1;
-      if (a && as>hs) a.wins += 1;
-      if (hs===0 && as===0) return;
-      if (h && hs>0 && as===0) h.cleanSheets += 1;
-      if (a && as>0 && hs===0) a.cleanSheets += 1;
-    });
-
-    return {
-      scorer:[...rows].sort((a,b)=>b.goals-a.goals || b.wins-a.wins || a.name.localeCompare(b.name)),
-      defender:[...rows].sort((a,b)=>b.cleanSheets-a.cleanSheets || b.wins-a.wins || a.name.localeCompare(b.name)),
-      wins:[...rows].sort((a,b)=>b.wins-a.wins || b.goals-a.goals || a.name.localeCompare(b.name))
-    };
-  }
-
-  function render(){
-    const host = document.querySelector("#awards, #awardSection, .awards-section, [data-section='awards']");
-    if(!host || document.querySelector(".db-award-leaderboards")) return;
-    const data = calculate();
-    if(!data.scorer.length) return;
-
-    const wrap=document.createElement("div");
-    wrap.className="db-award-leaderboards";
-    const defs=[
-      ["⚽","TOP SCORER","goals","Goals","scorer"],
-      ["🛡️","BEST DEFENDER","cleanSheets","Clean Sheets","defender"],
-      ["🏆","MOST WINS","wins","Wins","wins"]
-    ];
-    defs.forEach(([icon,title,key,label,type])=>{
-      const list=data[type].slice(0,4);
-      const hero=list[0];
-      if(!hero) return;
-      const card=document.createElement("div");
-      card.className="db-award-leaderboard";
-      card.innerHTML=
-        `<h3>${icon} ${title} · RUNNING THE SHOW</h3>`+
-        `<div class="db-award-hero"><span class="db-award-hero-name">🥇 ${hero.name}</span><span class="db-award-hero-stat">${hero[key]} ${label}</span></div>`+
-        `<button class="db-award-toggle" type="button">View 3 challengers</button>`+
-        `<div class="db-award-list">${list.map((p,i)=>`<div class="db-award-row"><span class="db-award-rank">${i===0?"🥇":i===1?"🥈":i===2?"🥉":"4️⃣"}</span><span class="db-award-name">${p.name}</span><span class="db-award-stat">${p[key]} ${label}</span></div>`).join("")}</div>`;
-      card.querySelector("button").onclick=()=>card.classList.toggle("open");
-      wrap.appendChild(card);
-    });
-    host.appendChild(wrap);
-  }
-
-  document.addEventListener("DOMContentLoaded",render);
+function styleMatches(){
+document.querySelectorAll('.match-card,.fixture-card,.match-item,.fixture-item,[data-match-id]').forEach(function(el){
+if(!el.classList.contains('db-mc-card')) el.classList.add('db-mc-card');
+});
+}
+document.addEventListener('DOMContentLoaded',styleMatches);
+new MutationObserver(styleMatches).observe(document.body,{childList:true,subtree:true});
 })();
 </script>
-
 </body>
 </html>
