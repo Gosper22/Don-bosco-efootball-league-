@@ -106,6 +106,90 @@ button.addEventListener("click", () => {
 }
 
 // =====================================================
+// PERMANENT MEMBER IDENTITY + SEASON PARTICIPATION
+// =====================================================
+function normalizeMemberKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+async function findOrCreatePermanentMember(playerData) {
+  const usernameKey = normalizeMemberKey(playerData.username);
+  if (!usernameKey) return null;
+  const snapshot = await getDocs(collection(db, "members"));
+  const existing = snapshot.docs.find(d => normalizeMemberKey(d.data()?.username) === usernameKey);
+  if (existing) {
+    const existingData = existing.data() || {};
+    await setDoc(doc(db, "members", existing.id), {
+      ...existingData,
+      username: playerData.username,
+      name: playerData.name || existingData.name || "",
+      lastSeenSeason: currentSeasonNumber,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { id: existing.id, ...existingData, username: playerData.username, name: playerData.name || existingData.name || "" };
+  }
+  const ref = doc(collection(db, "members"));
+  const member = {
+    memberId: ref.id,
+    username: playerData.username,
+    name: playerData.name || "",
+    phone: playerData.phone || "",
+    createdAt: serverTimestamp(),
+    lastSeenSeason: currentSeasonNumber
+  };
+  await setDoc(ref, member);
+  return { id: ref.id, ...member };
+}
+
+async function ensurePermanentMemberForRegistration(player) {
+  if (player.memberId) return player.memberId;
+  const member = await findOrCreatePermanentMember(player);
+  if (member?.id && player.id) {
+    await updateDoc(doc(db, "registrations", player.id), { memberId: member.id });
+    player.memberId = member.id;
+  }
+  return player.memberId || null;
+}
+
+async function getAllPermanentMembers() {
+  const snapshot = await getDocs(collection(db, "members"));
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getSeasonParticipantsFromArchive(seasonNumber) {
+  const seasonId = `season-${seasonNumber}`;
+  try {
+    const snap = await getDocs(collection(db, "seasonArchives", seasonId, "registrations"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn("Archived season participants unavailable", e);
+    return [];
+  }
+}
+
+async function ensurePermanentMembersFromHistory() {
+  try {
+    const existing = await getAllPermanentMembers();
+    const byUsername = new Map(existing.map(m => [normalizeMemberKey(m.username), m]));
+    const current = players.slice();
+    for (const p of current) {
+      const key = normalizeMemberKey(p.username);
+      if (!key) continue;
+      if (!byUsername.has(key)) {
+        const m = await findOrCreatePermanentMember(p);
+        if (m) byUsername.set(key, m);
+      }
+      if (!p.memberId && byUsername.get(key)?.id && p.id) {
+        try { await updateDoc(doc(db, "registrations", p.id), { memberId: byUsername.get(key).id }); } catch(e) {}
+        p.memberId = byUsername.get(key).id;
+      }
+    }
+  } catch (e) {
+    console.warn("Permanent member sync skipped", e);
+  }
+}
+
+// =====================================================
 // REGISTRATION
 // =====================================================
 
@@ -184,7 +268,7 @@ submit.innerHTML = "<span>REGISTERING...</span>";
 try {
 
   await loadPlayers();
-
+  await ensurePermanentMembersFromHistory();
 
   if (players.length >= 32) {
 
@@ -241,9 +325,13 @@ try {
   const playerNumber = players.length + 1;
 
 
+  const permanentMember = await findOrCreatePermanentMember({ name, phone, username });
+
   await addDoc(
     collection(db, "registrations"),
     {
+      memberId: permanentMember?.id || null,
+      seasonNumber: currentSeasonNumber,
       teamNumber: Number(teamNumber),
       name: name,
       phone: phone,
@@ -461,6 +549,16 @@ catch (error) { console.error("Matches loading error:", error); matches = []; }
 try { await loadTournamentSettings(); }
 catch (error) { console.error("Settings loading error:", error); }
 
+try {
+  const movedToSeason2 = await ensureSeasonOneCompletedAndStartSeasonTwo();
+  if (movedToSeason2) {
+    // Refresh in-memory state after the one-time Season 1 archive/reset.
+    await loadPlayers();
+    await loadMatches();
+    await loadTournamentSettings();
+  }
+} catch (error) { console.error("Season 1 -> Season 2 transition error:", error); }
+
 try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
 try { await loadKnockoutState(); }
@@ -506,8 +604,11 @@ await getDocs(collection(db, "registrations"));
 
 players = snapshot.docs.map((item) => ({
 id: item.id,
-...item.data()
+...item.data(),
+seasonNumber: Number(item.data()?.seasonNumber || currentSeasonNumber)
 }));
+
+try { await ensurePermanentMembersFromHistory(); } catch (e) { console.warn("Member identity sync skipped", e); }
 
 players.sort((a, b) => {
 
@@ -564,24 +665,26 @@ async function loadTournamentSettings() {
 
 try {
 
-const snapshot =
-  await getDocs(collection(db, "settings"));
+const currentRef = doc(db, "settings", "current");
+const currentSnap = await getDoc(currentRef);
 
-
-if (snapshot.empty) {
-
+if (!currentSnap.exists()) {
+  const snapshot = await getDocs(collection(db, "settings"));
+  if (snapshot.empty) {
+    tournamentSettings = { format: "groups", groupCount: 2 };
+    currentSeasonNumber = 1;
+    return;
+  }
+  const data = snapshot.docs[0].data();
   tournamentSettings = {
-    format: "groups",
-    groupCount: 2
+    format: data.format === "league" ? "league" : "groups",
+    groupCount: Math.max(1, Math.min(16, Number(data.groupCount || 2)))
   };
-  currentSeasonNumber = 1;
-
+  currentSeasonNumber = Math.max(1, Number(data.seasonNumber || 1));
   return;
 }
 
-
-const data =
-  snapshot.docs[0].data();
+const data = currentSnap.data();
 
 
 tournamentSettings = {
@@ -2510,6 +2613,28 @@ async function archiveFullSeason(seasonNumber) {
     counts[collectionName] = await archiveCollectionToSeason(seasonId, collectionName);
   }
 
+  const champion = getChampionFromFinal();
+  if (champion) {
+    await setDoc(doc(db, "hallOfFame", `season-${seasonNumber}`), {
+      season: `Season ${seasonNumber}`,
+      seasonNumber,
+      champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      archivedAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  // Keep the complete tournament path attached to the archived season.
+  if (groupDrawState?.groups?.length || Object.keys(groupDrawState?.potAssignments || {}).length) {
+    await setDoc(doc(db, "seasonArchives", seasonId, "groupDraw", "current"), {
+      ...groupDrawState, archivedAt: serverTimestamp()
+    }, { merge: true });
+  }
+  if (knockoutState?.stages && Object.keys(knockoutState.stages).length) {
+    await setDoc(doc(db, "seasonArchives", seasonId, "knockout", "current"), {
+      ...knockoutState, archivedAt: serverTimestamp()
+    }, { merge: true });
+  }
+
   await setDoc(seasonRef, {
     seasonNumber,
     season: `Season ${seasonNumber}`,
@@ -2517,6 +2642,7 @@ async function archiveFullSeason(seasonNumber) {
     counts,
     playerCount: players.length,
     matchCount: matches.length,
+    champion: champion ? { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null } : null,
     awardVoting: { ...awardVotingState, endedAt: awardVotingState.endedAt || null }
   }, { merge: true });
 
@@ -2580,6 +2706,41 @@ async function startNewSeason() {
     console.error("Start new season error:", error);
     showMessage(message, "❌ Season mpya haikuanza. Data ya sasa haijafutwa mpaka archive ikamilike.", "error");
   }
+}
+
+async function ensureSeasonOneCompletedAndStartSeasonTwo() {
+  // The supplied database already contains the completed Season 1.
+  // Promote it to the immutable archive once, then make Season 2 current.
+  if (currentSeasonNumber !== 1) return false;
+  const champion = getChampionFromFinal();
+  if (!champion) return false;
+
+  const seasonRef = doc(db, "seasonArchives", "season-1");
+  const archived = await getDoc(seasonRef);
+  if (!archived.exists()) {
+    await archiveFullSeason(1);
+  } else {
+    await setDoc(seasonRef, {
+      seasonNumber: 1, season: "Season 1",
+      champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      archivedAt: archived.data()?.archivedAt || serverTimestamp()
+    }, { merge: true });
+    await setDoc(doc(db, "hallOfFame", "season-1"), {
+      season: "Season 1", seasonNumber: 1,
+      champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      archivedAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  await clearCurrentSeasonData();
+  currentSeasonNumber = 2;
+  await setDoc(doc(db, "settings", "current"), {
+    format: tournamentSettings.format || "groups",
+    groupCount: tournamentSettings.groupCount || 2,
+    seasonNumber: 2,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  return true;
 }
 
 async function renderSeasonHistory() {
@@ -3175,22 +3336,16 @@ async function archiveTournamentToHallOfFame() {
   const overrideId = document.getElementById("championOverride")?.value;
   const champion = (overrideId && players.find((p) => p.id === overrideId)) || getChampionFromFinal();
   if (!champion) { showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error"); return; }
-  if (!currentAwardData) await renderAwardsAndVoting();
-  const awards = currentAwardData || {};
   const season = `Season ${currentSeasonNumber}`;
   try {
-    const archiveAwards = {};
-    Object.keys(AWARD_CATEGORIES).forEach((category) => {
-      const winner = awards[category];
-      if (!winner) return;
-      archiveAwards[category] = { playerId: winner.id, name: winner.name, votes: awardVoteCounts[category]?.[winner.id] || 0, metric: metricForAward(category, winner), type: AWARD_CATEGORIES[category].type };
-    });
     await archiveFullSeason(currentSeasonNumber);
-    await addDoc(collection(db, "hallOfFame"), {
-      season, seasonNumber: currentSeasonNumber, champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
-      awards: archiveAwards, archivedAt: serverTimestamp()
-    });
-    showMessage(message, `🏛️ ${season} tournament archived in the Hall of Fame.`, "success");
+    // One Hall of Fame record per season. Awards stay in Season Archive.
+    await setDoc(doc(db, "hallOfFame", `season-${currentSeasonNumber}`), {
+      season, seasonNumber: currentSeasonNumber,
+      champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      archivedAt: serverTimestamp()
+    }, { merge: true });
+    showMessage(message, `🏛️ ${season} champion recorded in the Hall of Fame.`, "success");
     await renderHallOfFameHistory();
   } catch (error) {
     console.error("Hall of Fame archive error:", error);
@@ -3505,17 +3660,27 @@ async function renderManualPowerRanking() {
     return;
   }
   try {
-    const snap = await getDocs(collection(db, "powerRankings"));
-    const stored = new Map(snap.docs.map(d => [d.id, d.data()]));
+    const [rankSnap, members] = await Promise.all([
+      getDocs(collection(db, "powerRankings")),
+      getAllPermanentMembers()
+    ]);
+    const stored = new Map(rankSnap.docs.map(d => [d.id, d.data()]));
+    const byUsername = new Map(rankSnap.docs.map(d => [normalizeMemberKey(d.data()?.username || d.data()?.name), d.data()]));
     const seasonKey = `season${currentSeasonNumber}`;
-    container.innerHTML = players.length ? players.map((p) => {
-      const data = stored.get(p.id) || {};
-      const current = Number((data.seasons || {})[seasonKey] || 0);
-      return `<label class="manual-power-ranking-row">
-        <span><strong>${escapeHTML(getPlayerName(p))}</strong><small>Team ${escapeHTML(String(p.teamNumber || p.playerNumber || "-"))}</small></span>
-        <input type="number" min="0" step="1" value="${current}" data-manual-power-player="${escapeHTML(p.id)}" aria-label="${escapeHTML(getPlayerName(p))} points">
-      </label>`;
-    }).join("") : `<div class="loading">No active members.</div>`;
+    const activeByUsername = new Map(players.map(p => [normalizeMemberKey(p.username), p]));
+    const rows = members
+      .filter(m => m.username || m.name)
+      .map(m => {
+        const data = stored.get(m.id) || byUsername.get(normalizeMemberKey(m.username || m.name)) || {};
+        const current = Number((data.seasons || {})[seasonKey] || 0);
+        return { ...m, data, current, active: activeByUsername.get(normalizeMemberKey(m.username)) };
+      })
+      .sort((a,b) => b.current - a.current || String(a.username || a.name).localeCompare(String(b.username || b.name)));
+    container.innerHTML = rows.length ? rows.map((m) => `
+      <label class="manual-power-ranking-row">
+        <span><strong>${escapeHTML(m.username || m.name)}</strong><small>${m.active ? `Team ${escapeHTML(String(m.active.teamNumber || m.active.playerNumber || "-"))}` : "Historical member"}</small></span>
+        <input type="number" min="0" step="1" value="${m.current}" data-manual-power-member="${escapeHTML(m.id)}" data-manual-power-username="${escapeHTML(m.username || "")}" aria-label="${escapeHTML(m.username || m.name)} points">
+      </label>`).join("") : `<div class="loading">No members found.</div>`;
   } catch (error) {
     console.error("Manual power ranking load error:", error);
     container.innerHTML = `<div class="loading">Could not load power ranking.</div>`;
@@ -3531,25 +3696,30 @@ async function saveManualPowerRanking() {
   try {
     const snap = await getDocs(collection(db, "powerRankings"));
     const stored = new Map(snap.docs.map(d => [d.id, d.data()]));
-    for (const input of container.querySelectorAll("[data-manual-power-player]")) {
-      const playerId = input.dataset.manualPowerPlayer;
-      const player = players.find(p => p.id === playerId);
-      if (!player) continue;
+    const allMembers = await getAllPermanentMembers();
+    const memberByUsername = new Map(allMembers.map(m => [normalizeMemberKey(m.username || m.name), m]));
+    for (const input of container.querySelectorAll("[data-manual-power-member]")) {
+      const memberId = input.dataset.manualPowerMember;
+      const username = normalizeMemberKey(input.dataset.manualPowerUsername);
+      const member = memberByUsername.get(username) || allMembers.find(m => m.id === memberId);
+      if (!member) continue;
       const value = Math.max(0, Number(input.value || 0));
-      const old = stored.get(playerId) || {};
+      const old = stored.get(member.id) || {};
       const seasons = { ...(old.seasons || {}) };
       seasons[seasonKey] = value;
       const totalPoints = Object.values(seasons).reduce((sum, v) => sum + Math.max(0, Number(v || 0)), 0);
-      await setDoc(doc(db, "powerRankings", playerId), {
-        playerId,
-        name: getPlayerName(player),
+      await setDoc(doc(db, "powerRankings", member.id), {
+        playerId: member.id,
+        memberId: member.id,
+        username: member.username || "",
+        name: member.name || "",
         totalPoints,
         seasons,
         updatedAt: serverTimestamp()
       }, { merge: true });
     }
     await renderPowerRanking();
-    showMessage(message, `✅ ${`Season ${currentSeasonNumber}`} Power Ranking saved manually.`, "success");
+    showMessage(message, `✅ Season ${currentSeasonNumber} Power Ranking saved manually.`, "success");
   } catch (error) {
     console.error("Manual power ranking save error:", error);
     showMessage(message, "❌ Power Ranking haikuhifadhiwa. Check Firebase permissions.", "error");
