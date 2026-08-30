@@ -1932,3 +1932,59 @@ a {
   .admin-ko-leg button{min-height:40px;padding:8px 10px}
   .admin-ko-teams{font-size:15px}
 }
+
+/* =========================================================
+   SEASON SWITCHER
+========================================================= */
+.season-switcher{
+  position:sticky;
+  top:76px;
+  z-index:950;
+  background:rgba(5,7,5,.96);
+  border-bottom:1px solid rgba(57,255,20,.12);
+  backdrop-filter:blur(12px);
+}
+.season-switcher-inner{
+  max-width:1400px;
+  margin:0 auto;
+  min-height:58px;
+  padding:8px 5%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.season-switcher-title{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  white-space:nowrap;
+  letter-spacing:.1em;
+  font-weight:900;
+}
+.season-switcher-title span{font-size:9px;color:var(--muted)}
+.season-switcher-title strong{font-size:13px;color:var(--green)}
+.season-switcher-buttons{display:flex;align-items:center;gap:7px;overflow-x:auto;scrollbar-width:none}
+.season-switcher-buttons::-webkit-scrollbar{display:none}
+.season-switcher-btn,.season-add-btn{
+  border:1px solid rgba(57,255,20,.2);
+  border-radius:9px;
+  padding:9px 13px;
+  background:rgba(255,255,255,.035);
+  color:var(--white);
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.05em;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.season-switcher-btn:hover,.season-switcher-btn.active{border-color:var(--green);color:var(--green);background:rgba(57,255,20,.09)}
+.season-add-btn{background:var(--green);color:#061006;border-color:var(--green)}
+.season-add-btn:hover{filter:brightness(1.08)}
+@media(max-width:700px){
+  .season-switcher{top:64px}
+  .season-switcher-inner{min-height:52px;padding:7px 4%;justify-content:flex-start}
+  .season-switcher-title{display:none}
+  .season-switcher-buttons{width:100%}
+  .season-switcher-btn,.season-add-btn{padding:8px 11px;font-size:9px}
+}
