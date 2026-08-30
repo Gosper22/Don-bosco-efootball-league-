@@ -1932,3 +1932,24 @@ a {
   .admin-ko-leg button{min-height:40px;padding:8px 10px}
   .admin-ko-teams{font-size:15px}
 }
+
+/* =====================================================
+   MEMBER MANAGEMENT + MANUAL POWER RANKING
+   ===================================================== */
+.member-management-list,
+.manual-power-ranking-list { display:flex; flex-direction:column; gap:10px; margin:16px 0; }
+.member-management-row,
+.manual-power-ranking-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; border:1px solid rgba(255,255,255,.10); border-radius:12px; background:rgba(255,255,255,.035); }
+.member-management-info,
+.manual-power-ranking-row > span { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.member-management-info strong,
+.manual-power-ranking-row strong { font-size:1rem; }
+.member-management-info small,
+.manual-power-ranking-row small { opacity:.68; }
+.member-remove-btn { flex:0 0 auto; }
+.manual-power-ranking-row input { width:110px; min-width:90px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.16); background:rgba(0,0,0,.20); color:inherit; font-size:1rem; font-weight:700; text-align:center; }
+@media (max-width:640px){
+  .member-management-row,.manual-power-ranking-row{padding:12px;gap:10px;}
+  .member-remove-btn{padding:9px 10px;font-size:.78rem;}
+  .manual-power-ranking-row input{width:84px;min-width:70px;}
+}

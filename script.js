@@ -67,6 +67,8 @@ setupTournamentControls();
 setupAwardsAndVoting();
 setupHallOfFameAdmin();
 setupSeasonControls();
+setupMemberManagement();
+setupManualPowerRanking();
 setupPlayerDashboardControls();
 setupDeleteAllFixtures();
 setupKnockoutSystem();
@@ -342,6 +344,8 @@ if (entered === "Gosper2026") {
 
 
   loadAdminMatches();
+  renderMemberManagement();
+  renderManualPowerRanking();
   renderAwardNominationManager(getAwardStats());
 
 } else {
@@ -485,6 +489,8 @@ try { await renderSeasonHistory(); } catch (error) { console.error("Season histo
 
 if (adminLoggedIn) {
   loadAdminMatches();
+  renderMemberManagement();
+  renderManualPowerRanking();
 }
 
 }
@@ -3388,17 +3394,11 @@ async function updatePowerRankingsFromCurrentSeason() {
 async function renderPowerRanking() {
   const container = document.getElementById("powerRankingContainer");
   if (!container) return;
-  if (currentSeasonNumber <= 1) {
-    container.innerHTML = `<div class="power-empty"><strong>POWER RANKING STARTS AFTER SEASON 1</strong><span>Season 1 is the foundation season. When it ends, every player's first ranking points will be recorded and carried forward.</span></div>`;
-    return;
-  }
   try {
     const snap = await getDocs(collection(db, "powerRankings"));
     const stored = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     const byId = new Map(stored.map(row => [row.id, row]));
 
-    // IMPORTANT: show EVERY player. Historical players remain in the ranking,
-    // while a player who is new to the current season is added at 0 points.
     players.forEach((player) => {
       if (!byId.has(player.id)) {
         byId.set(player.id, {
@@ -3411,34 +3411,148 @@ async function renderPowerRanking() {
       }
     });
 
+    const seasonKey = `season${currentSeasonNumber}`;
     const rows = [...byId.values()].map(row => ({
       ...row,
       name: row.name || row.playerName || "PLAYER",
       totalPoints: Number(row.totalPoints || 0),
+      seasonPoints: Number((row.seasons || {})[seasonKey] || 0),
       seasons: row.seasons || {}
-    })).sort((a, b) => {
-      const pointsDiff = b.totalPoints - a.totalPoints;
-      if (pointsDiff) return pointsDiff;
-      return String(a.name).localeCompare(String(b.name));
-    });
+    })).sort((a, b) => b.seasonPoints - a.seasonPoints || b.totalPoints - a.totalPoints || String(a.name).localeCompare(String(b.name)));
 
     if (!rows.length) {
       container.innerHTML = `<div class="power-empty">No players have been registered yet.</div>`;
       return;
     }
 
-    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: Each group: 1st = 5 pts • 2nd = 4 pts • 3rd = 3 pts • 4th = 1 pt • Semi-final = 8 pts • Finalist = 15 pts • Champion = 20 pts. Knockout awards use the highest achievement only (they do not stack).</div>` + rows.map((r, i) => {
+    container.innerHTML = `<div class="power-ranking-note">📊 MANUAL CURRENT-SEASON RANKING • ${escapeHTML(`Season ${currentSeasonNumber}`)} • Group: 5/4/3/1 • Semi: 8 • Finalist: 15 • Champion: 20. These are TOTAL achievement points, not stacked bonuses.</div>` + rows.map((r, i) => {
       const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
       return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
         <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
-        <div class="power-rank-player"><strong>${escapeHTML(r.name)}</strong><small>${seasonEntries.length ? `${seasonEntries.length} completed season(s)` : 'New / 0 points'}</small></div>
-        <div class="power-rank-seasons">${seasonEntries.length ? seasonEntries.map(([k,v]) => `<span>S${escapeHTML(k.replace('season',''))}: ${Number(v || 0)}</span>`).join('') : '<span>S1: 0</span>'}</div>
-        <div class="power-rank-points"><b>${r.totalPoints}</b><small>POINTS</small></div>
+        <div class="power-rank-player"><strong>${escapeHTML(r.name)}</strong><small>Season ${currentSeasonNumber}: ${r.seasonPoints} pts</small></div>
+        <div class="power-rank-seasons">${seasonEntries.length ? seasonEntries.map(([k,v]) => `<span>S${escapeHTML(k.replace('season',''))}: ${Number(v || 0)}</span>`).join('') : '<span>No season points</span>'}</div>
+        <div class="power-rank-points"><b>${r.seasonPoints}</b><small>SEASON POINTS</small></div>
       </article>`;
     }).join("");
   } catch (error) {
     console.error("Power ranking error:", error);
     container.innerHTML = `<div class="power-empty">Power Ranking is unavailable until Firebase permissions allow it.</div>`;
+  }
+}
+
+// =====================================================
+// MEMBER MANAGEMENT — ACTIVE MEMBERS ONLY
+// =====================================================
+
+function setupMemberManagement() {
+  document.getElementById("saveManualPowerRankingBtn")?.addEventListener("click", saveManualPowerRanking);
+}
+
+async function renderMemberManagement() {
+  const container = document.getElementById("memberManagementList");
+  if (!container) return;
+  if (!adminLoggedIn) {
+    container.innerHTML = `<div class="loading">Admin login required.</div>`;
+    return;
+  }
+  if (!players.length) {
+    container.innerHTML = `<div class="loading">No active members.</div>`;
+    return;
+  }
+  container.innerHTML = players.map(player => `
+    <div class="member-management-row">
+      <div class="member-management-info">
+        <strong>${escapeHTML(getPlayerName(player))}</strong>
+        <small>Team ${escapeHTML(String(player.teamNumber || player.playerNumber || "-"))} • ${escapeHTML(String(player.username || ""))}</small>
+      </div>
+      <button type="button" class="danger-btn member-remove-btn" data-remove-member="${escapeHTML(player.id)}">🗑️ REMOVE</button>
+    </div>`).join("");
+  container.querySelectorAll("[data-remove-member]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const player = players.find(p => p.id === btn.dataset.removeMember);
+      if (!player) return;
+      const name = getPlayerName(player);
+      if (!confirm(`REMOVE ${name} FROM ACTIVE MEMBERS?\n\nHistorical results, rankings, awards and Hall of Fame records will NOT be deleted.`)) return;
+      try {
+        await deleteDoc(doc(db, "registrations", player.id));
+        showMessage(document.getElementById("memberManagementMessage"), `✅ ${name} removed from active members. History is preserved.`, "success");
+        await loadPlayers();
+        renderMemberManagement();
+        updateTournamentUI();
+        renderPlayerDashboard();
+        renderPowerRanking();
+      } catch (error) {
+        console.error("Remove member error:", error);
+        showMessage(document.getElementById("memberManagementMessage"), "❌ Member could not be removed. Check Firebase permissions.", "error");
+      }
+    });
+  });
+}
+
+// =====================================================
+// MANUAL POWER RANKING
+// =====================================================
+
+function setupManualPowerRanking() {
+  // Button listener is attached in setupMemberManagement to keep initialization simple.
+}
+
+async function renderManualPowerRanking() {
+  const container = document.getElementById("manualPowerRankingList");
+  if (!container) return;
+  if (!adminLoggedIn) {
+    container.innerHTML = `<div class="loading">Admin login required.</div>`;
+    return;
+  }
+  try {
+    const snap = await getDocs(collection(db, "powerRankings"));
+    const stored = new Map(snap.docs.map(d => [d.id, d.data()]));
+    const seasonKey = `season${currentSeasonNumber}`;
+    container.innerHTML = players.length ? players.map((p) => {
+      const data = stored.get(p.id) || {};
+      const current = Number((data.seasons || {})[seasonKey] || 0);
+      return `<label class="manual-power-ranking-row">
+        <span><strong>${escapeHTML(getPlayerName(p))}</strong><small>Team ${escapeHTML(String(p.teamNumber || p.playerNumber || "-"))}</small></span>
+        <input type="number" min="0" step="1" value="${current}" data-manual-power-player="${escapeHTML(p.id)}" aria-label="${escapeHTML(getPlayerName(p))} points">
+      </label>`;
+    }).join("") : `<div class="loading">No active members.</div>`;
+  } catch (error) {
+    console.error("Manual power ranking load error:", error);
+    container.innerHTML = `<div class="loading">Could not load power ranking.</div>`;
+  }
+}
+
+async function saveManualPowerRanking() {
+  if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
+  const container = document.getElementById("manualPowerRankingList");
+  const message = document.getElementById("manualPowerRankingMessage");
+  if (!container) return;
+  const seasonKey = `season${currentSeasonNumber}`;
+  try {
+    const snap = await getDocs(collection(db, "powerRankings"));
+    const stored = new Map(snap.docs.map(d => [d.id, d.data()]));
+    for (const input of container.querySelectorAll("[data-manual-power-player]")) {
+      const playerId = input.dataset.manualPowerPlayer;
+      const player = players.find(p => p.id === playerId);
+      if (!player) continue;
+      const value = Math.max(0, Number(input.value || 0));
+      const old = stored.get(playerId) || {};
+      const seasons = { ...(old.seasons || {}) };
+      seasons[seasonKey] = value;
+      const totalPoints = Object.values(seasons).reduce((sum, v) => sum + Math.max(0, Number(v || 0)), 0);
+      await setDoc(doc(db, "powerRankings", playerId), {
+        playerId,
+        name: getPlayerName(player),
+        totalPoints,
+        seasons,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+    await renderPowerRanking();
+    showMessage(message, `✅ ${`Season ${currentSeasonNumber}`} Power Ranking saved manually.`, "success");
+  } catch (error) {
+    console.error("Manual power ranking save error:", error);
+    showMessage(message, "❌ Power Ranking haikuhifadhiwa. Check Firebase permissions.", "error");
   }
 }
 

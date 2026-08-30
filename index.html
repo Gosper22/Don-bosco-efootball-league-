@@ -449,6 +449,27 @@
 <div id="adminPanel" style="display:none;">
 
 
+  <!-- MEMBER MANAGEMENT -->
+  <div class="tournament-control member-management-control">
+    <h3>👥 MEMBER MANAGEMENT</h3>
+    <p>Remove an active member without deleting their historical results, rankings or awards.</p>
+    <div id="memberManagementList" class="member-management-list">
+      <div class="loading">Loading members...</div>
+    </div>
+    <p id="memberManagementMessage" class="message"></p>
+  </div>
+
+  <!-- MANUAL POWER RANKING -->
+  <div class="tournament-control manual-power-ranking-control">
+    <h3>📊 MANUAL POWER RANKING</h3>
+    <p>Set each player's current-season points manually for now. Historical season points are preserved.</p>
+    <div id="manualPowerRankingList" class="manual-power-ranking-list">
+      <div class="loading">Loading power ranking...</div>
+    </div>
+    <button type="button" id="saveManualPowerRankingBtn" class="primary-btn">💾 SAVE POWER RANKING</button>
+    <p id="manualPowerRankingMessage" class="message"></p>
+  </div>
+
   <!-- TOURNAMENT SETTINGS -->
 
   <div class="tournament-settings">
