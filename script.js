@@ -266,31 +266,6 @@ try {
 
   await loadLeague();
 
-  // When the single-game FINAL is saved, automatically register the champion
-  // in Hall of Fame for this season. Awards remain in the existing Season Archive.
-  try {
-    const savedMatch = matches.find((item) => item.id === matchId);
-    if (savedMatch && String(savedMatch.group || "").trim().toLowerCase() === "final" && savedMatch.played) {
-      const hg = Number(savedMatch.homeGoals || 0);
-      const ag = Number(savedMatch.awayGoals || 0);
-      if (hg !== ag) {
-        const winnerName = hg > ag ? savedMatch.homePlayer : savedMatch.awayPlayer;
-        const champion = players.find((player) => getPlayerName(player).toLowerCase() === String(winnerName || "").toLowerCase());
-        if (champion) {
-          await setDoc(doc(db, "hallOfFame", `season-${currentSeasonNumber}`), {
-            season: `Season ${currentSeasonNumber}`,
-            seasonNumber: currentSeasonNumber,
-            champion: { playerId: champion.id, name: getPlayerName(champion), teamNumber: champion.teamNumber || null },
-            archivedAt: serverTimestamp()
-          }, { merge: true });
-          await renderHallOfFameHistory();
-        }
-      }
-    }
-  } catch (hofError) {
-    console.error("Automatic Hall of Fame champion save error:", hofError);
-  }
-
 } catch (error) {
 
   console.error("Registration error:", error);
@@ -467,47 +442,11 @@ button.textContent = "🗑️ DELETE ALL FIXTURES";
 
 }
 
-
-async function recoverArchivedSeasonIfLiveDataMissing(){
-  if (isViewingArchivedSeason() || players.length || matches.length) return false;
-  const seasonId = `season-${currentSeasonNumber}`;
-  try{
-    const meta = await getDoc(doc(db,"seasonArchives",seasonId));
-    if(!meta.exists()) return false;
-    const [pSnap,mSnap,tSnap,sSnap,gSnap,kSnap] = await Promise.all([
-      getDocs(collection(db,"seasonArchives",seasonId,"registrations")),
-      getDocs(collection(db,"seasonArchives",seasonId,"matches")),
-      getDocs(collection(db,"seasonArchives",seasonId,"tournament")),
-      getDocs(collection(db,"seasonArchives",seasonId,"settings")),
-      getDocs(collection(db,"seasonArchives",seasonId,"groupDraws")),
-      getDocs(collection(db,"seasonArchives",seasonId,"knockout"))
-    ]);
-    if(!pSnap.size && !mSnap.size) return false;
-    saveLiveSeasonSnapshot();
-    players=pSnap.docs.map(d=>({id:d.id,...d.data()}));
-    matches=mSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const st=sSnap.docs[0]?.data()||{};
-    tournamentSettings={format:st.format==="league"?"league":"groups",groupCount:Math.max(1,Math.min(16,Number(st.groupCount||2)))};
-    groupDrawState=gSnap.docs[0]?.data()||{generated:false,potAssignments:{},groups:[]};
-    const ko=kSnap.docs[0]?.data()||{};
-    knockoutState={startingStage:ko.startingStage||"",currentStage:ko.currentStage||"",stages:ko.stages||{}};
-    tournamentStarted=tSnap.docs.some(d=>d.data()?.status==="started");
-    viewingArchivedSeason=currentSeasonNumber;
-    players.sort((a,b)=>Number(a.playerNumber||999)-Number(b.playerNumber||999));
-    matches.sort((a,b)=>Number(a.matchNumber||999999)-Number(b.matchNumber||999999));
-    console.warn(`Recovered Season ${currentSeasonNumber} from seasonArchives because live collections were empty.`);
-    return true;
-  }catch(e){
-    console.error("Archived season recovery error:",e);
-    return false;
-  }
-}
-
 // =====================================================
 // LOAD EVERYTHING
 // =====================================================
 
-async function loadLeague() {\nif (isViewingArchivedSeason()) { await returnToLiveSeason(); return; }\n
+async function loadLeague() {
 
 try { await loadPlayers(); }
 catch (error) { console.error("Players loading error:", error); players = []; }
@@ -517,9 +456,6 @@ catch (error) { console.error("Matches loading error:", error); matches = []; }
 
 try { await loadTournamentSettings(); }
 catch (error) { console.error("Settings loading error:", error); }
-
-try { await recoverArchivedSeasonIfLiveDataMissing(); }
-catch (error) { console.error("Archived season recovery error:", error); }
 
 try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
@@ -546,7 +482,6 @@ try { await renderPowerRanking(); } catch (error) { console.error("Power ranking
 try { await renderAwardsAndVoting(); } catch (error) { console.error("Awards loading error:", error); }
 try { await renderHallOfFameHistory(); } catch (error) { console.error("Hall of Fame loading error:", error); }
 try { await renderSeasonHistory(); } catch (error) { console.error("Season history loading error:", error); }
-try { await renderSeasonSwitcher(); } catch (error) { console.error("Season switcher loading error:", error); }
 
 if (adminLoggedIn) {
   loadAdminMatches();
@@ -778,8 +713,6 @@ Math.max(...sizes);
 // =====================================================
 
 async function saveSettings() {
-if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
-
 
 if (!adminLoggedIn) {
 
@@ -2144,8 +2077,6 @@ container.appendChild(card);
 // =====================================================
 
 async function deleteSingleFixture(matchId) {
-if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
-
   if (!adminLoggedIn) {
     alert("🔐 Admin login kwanza.");
     return;
@@ -2182,8 +2113,6 @@ if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only.");
 // =====================================================
 
 async function saveAdminMatch(matchId) {
-if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
-
 
 if (!adminLoggedIn) {
 
@@ -2287,8 +2216,6 @@ alert(
 // =====================================================
 
 async function startTournament() {
-if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
-
 
 if (!adminLoggedIn) {
 
@@ -2530,95 +2457,6 @@ if (generate) {
 // SEASON HISTORY + SEASON RESET
 // =====================================================
 
-// Archived-season viewing is read-only. It never changes the live season.
-let viewingArchivedSeason = null;
-let liveSeasonSnapshot = null;
-
-function isViewingArchivedSeason(){
-  return Number(viewingArchivedSeason || 0) > 0;
-}
-
-function saveLiveSeasonSnapshot(){
-  if (liveSeasonSnapshot || isViewingArchivedSeason()) return;
-  liveSeasonSnapshot = {
-    players, matches, tournamentSettings, groupDrawState, knockoutState, tournamentStarted
-  };
-}
-
-function restoreLiveSeasonSnapshot(){
-  if (!liveSeasonSnapshot) return;
-  players = liveSeasonSnapshot.players;
-  matches = liveSeasonSnapshot.matches;
-  tournamentSettings = liveSeasonSnapshot.tournamentSettings;
-  groupDrawState = liveSeasonSnapshot.groupDrawState;
-  knockoutState = liveSeasonSnapshot.knockoutState;
-  tournamentStarted = liveSeasonSnapshot.tournamentStarted;
-  liveSeasonSnapshot = null;
-  viewingArchivedSeason = null;
-}
-
-async function loadArchivedSeasonIntoView(seasonNumber){
-  const seasonId = `season-${seasonNumber}`;
-  const meta = await getDoc(doc(db,"seasonArchives",seasonId));
-  if(!meta.exists()){
-    alert(`Season ${seasonNumber} haijapatikana kwenye archive.`);
-    return;
-  }
-
-  saveLiveSeasonSnapshot();
-
-  const [playersSnap,matchesSnap,tournamentSnap,settingsSnap,groupSnap,koSnap] = await Promise.all([
-    getDocs(collection(db,"seasonArchives",seasonId,"registrations")),
-    getDocs(collection(db,"seasonArchives",seasonId,"matches")),
-    getDocs(collection(db,"seasonArchives",seasonId,"tournament")),
-    getDocs(collection(db,"seasonArchives",seasonId,"settings")),
-    getDocs(collection(db,"seasonArchives",seasonId,"groupDraws")),
-    getDocs(collection(db,"seasonArchives",seasonId,"knockout"))
-  ]);
-
-  players = playersSnap.docs.map(d=>({id:d.id,...d.data()}));
-  matches = matchesSnap.docs.map(d=>({id:d.id,...d.data()}));
-  const settingDoc = settingsSnap.docs[0]?.data() || {};
-  tournamentSettings = {
-    format: settingDoc.format === "league" ? "league" : "groups",
-    groupCount: Math.max(1,Math.min(16,Number(settingDoc.groupCount||2)))
-  };
-
-  groupDrawState = groupSnap.docs[0]?.data() || {generated:false,potAssignments:{},groups:[]};
-  const ko = koSnap.docs[0]?.data() || {};
-  knockoutState = {startingStage:ko.startingStage||"",currentStage:ko.currentStage||"",stages:ko.stages||{}};
-  tournamentStarted = tournamentSnap.docs.some(d=>d.data()?.status==="started");
-  viewingArchivedSeason = Number(seasonNumber);
-
-  players.sort((a,b)=>Number(a.playerNumber||999)-Number(b.playerNumber||999));
-  matches.sort((a,b)=>Number(a.matchNumber||999999)-Number(b.matchNumber||999999));
-
-  renderPotManager();
-  updateBlindDrawUI();
-  updateSettingsPreview();
-  updateTournamentUI();
-  renderFormat();
-  renderGroups();
-  renderFixtures();
-  renderStandings();
-  renderPlayerDashboard();
-  await renderPowerRanking(Number(seasonNumber));
-  await renderAwardsAndVoting();
-  await renderHistoricalChampionForSeason(Number(seasonNumber));
-  renderAdminKnockout();
-  renderPublicKnockout();
-
-  const notice=document.getElementById("seasonMessage");
-  if(notice) showMessage(notice,`👁️ Unaangalia Season ${seasonNumber} — READ ONLY. Live season ni Season ${currentSeasonNumber}.`,"success");
-}
-
-async function returnToLiveSeason(){
-  if(!isViewingArchivedSeason()) return;
-  restoreLiveSeasonSnapshot();
-  await loadLeague();
-}
-
-
 function setupSeasonControls() {
   document.getElementById("startNewSeasonBtn")?.addEventListener("click", startNewSeason);
 }
@@ -2649,29 +2487,21 @@ async function archiveCollectionToSeason(seasonId, collectionName) {
 async function archiveFullSeason(seasonNumber) {
   const seasonId = `season-${seasonNumber}`;
   const seasonRef = doc(db, "seasonArchives", seasonId);
+  const existing = await getDoc(seasonRef);
+  if (existing.exists()) return false;
 
-  // IMPORTANT: Never treat an existing archive as a reason to skip archiving.
-  // Merge/refresh the season snapshot so a previous partial archive can be repaired.
   const collectionsToArchive = [
     "registrations",
     "matches",
     "tournament",
     "settings",
     "awardVotes",
-    "awardNominations",
-    "groupDraws",
-    "knockout"
+    "awardNominations"
   ];
 
   const counts = {};
   for (const collectionName of collectionsToArchive) {
     counts[collectionName] = await archiveCollectionToSeason(seasonId, collectionName);
-  }
-
-  // Do not report success if the current season had data but nothing was archived.
-  const currentDataCount = Object.values(counts).reduce((a,b)=>a + Number(b||0), 0);
-  if (currentDataCount === 0 && (players.length > 0 || matches.length > 0 || tournamentStarted)) {
-    throw new Error("Season archive verification failed: no current-season records were copied.");
   }
 
   await setDoc(seasonRef, {
@@ -2684,13 +2514,11 @@ async function archiveFullSeason(seasonNumber) {
     awardVoting: { ...awardVotingState, endedAt: awardVotingState.endedAt || null }
   }, { merge: true });
 
-  // Verify the archive metadata exists before any destructive reset is allowed.
-  const verify = await getDoc(seasonRef);
-  if (!verify.exists()) throw new Error("Season archive verification failed.");
   return true;
 }
+
 async function clearCurrentSeasonData() {
-  const collectionsToClear = ["registrations", "matches", "tournament", "settings", "awardVotes", "awardNominations", "groupDraws", "knockout"];
+  const collectionsToClear = ["registrations", "matches", "tournament", "settings", "awardVotes", "awardNominations"];
   for (const collectionName of collectionsToClear) {
     const snapshot = await getDocs(collection(db, collectionName));
     for (const item of snapshot.docs) {
@@ -2707,8 +2535,6 @@ async function clearCurrentSeasonData() {
 }
 
 async function startNewSeason() {
-if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
-
   if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
   if (players.length === 0 && matches.length === 0) {
     alert("⚠️ Current season haina data ya ku-archive.");
@@ -2730,8 +2556,7 @@ if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only.");
 
   const message = document.getElementById("seasonMessage");
   try {
-    const archived = await archiveFullSeason(currentSeasonNumber);
-    if (!archived) throw new Error("Season archive was not completed.");
+    await archiveFullSeason(currentSeasonNumber);
     await updatePowerRankingsFromCurrentSeason();
     await clearCurrentSeasonData();
 
@@ -3343,24 +3168,27 @@ async function archiveTournamentToHallOfFame() {
   const message = document.getElementById("archiveMessage");
   const overrideId = document.getElementById("championOverride")?.value;
   const champion = (overrideId && players.find((p) => p.id === overrideId)) || getChampionFromFinal();
-  if (!champion) {
-    showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error");
-    return;
-  }
+  if (!champion) { showMessage(message, "⚠️ Record a FINAL winner or choose a champion override first.", "error"); return; }
+  if (!currentAwardData) await renderAwardsAndVoting();
+  const awards = currentAwardData || {};
   const season = `Season ${currentSeasonNumber}`;
   try {
-    // Hall of Fame stores champions only. Awards belong to the existing Season Archive.
-    await setDoc(doc(db, "hallOfFame", `season-${currentSeasonNumber}`), {
-      season,
-      seasonNumber: currentSeasonNumber,
-      champion: { playerId: champion.id, name: getPlayerName(champion), teamNumber: champion.teamNumber || null },
-      archivedAt: serverTimestamp()
-    }, { merge: true });
-    showMessage(message, `🏛️ ${season} champion saved to Hall of Fame. Awards remain in Season Archive.`, "success");
+    const archiveAwards = {};
+    Object.keys(AWARD_CATEGORIES).forEach((category) => {
+      const winner = awards[category];
+      if (!winner) return;
+      archiveAwards[category] = { playerId: winner.id, name: winner.name, votes: awardVoteCounts[category]?.[winner.id] || 0, metric: metricForAward(category, winner), type: AWARD_CATEGORIES[category].type };
+    });
+    await archiveFullSeason(currentSeasonNumber);
+    await addDoc(collection(db, "hallOfFame"), {
+      season, seasonNumber: currentSeasonNumber, champion: { playerId: champion.id, name: champion.username || champion.name, teamNumber: champion.teamNumber || null },
+      awards: archiveAwards, archivedAt: serverTimestamp()
+    });
+    showMessage(message, `🏛️ ${season} tournament archived in the Hall of Fame.`, "success");
     await renderHallOfFameHistory();
   } catch (error) {
     console.error("Hall of Fame archive error:", error);
-    showMessage(message, "❌ Could not save champion to Hall of Fame. Check Firebase permissions.", "error");
+    showMessage(message, "❌ Could not archive tournament. Check Firebase permissions.", "error");
   }
 }
 
@@ -3369,18 +3197,13 @@ async function renderHallOfFameHistory() {
   if (!container) return;
   try {
     const snapshot = await getDocs(collection(db, "hallOfFame"));
-    if (snapshot.empty) {
-      container.innerHTML = `<div class="loading">No archived champions yet. Finish your first tournament to create a legend.</div>`;
-      return;
-    }
-    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
-      .sort((a, b) => Number(b.seasonNumber || 0) - Number(a.seasonNumber || 0));
+    if (snapshot.empty) { container.innerHTML = `<div class="loading">No archived champions yet. Finish your first tournament to create a legend.</div>`; return; }
+    const history = snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((a, b) => Number(b.seasonNumber || 0) - Number(a.seasonNumber || 0));
     container.innerHTML = history.map((entry) => {
-      const champion = entry.champion || {};
-      return `<article class="hof-history-item">
-        <div class="hof-year">${escapeHTML(entry.season || `Season ${entry.seasonNumber || "?"}`)}</div>
-        <div class="hof-champion">🏆 <strong>${escapeHTML(champion.name || "Unknown Champion")}</strong></div>
-        <div class="hof-awards"><span>Champion of ${escapeHTML(entry.season || "this season")}</span></div>
+      const a = entry.awards || {};
+      return `<article class="hof-history-item"><div class="hof-year">${escapeHTML(entry.season || "TOURNAMENT")}</div>
+        <div class="hof-champion">🏆 <strong>${escapeHTML(entry.champion?.name || "Unknown Champion")}</strong></div>
+        <div class="hof-awards">${Object.entries(AWARD_CATEGORIES).map(([category, config]) => a[category] ? `<span>${config.icon} ${escapeHTML(config.title)}: ${escapeHTML(a[category].name)}</span>` : "").join("")}</div>
       </article>`;
     }).join("");
   } catch (error) {
@@ -3461,62 +3284,257 @@ function renderPlayerDashboard(search = "") {
 // POWER RANKING
 // =====================================================
 
-function getGroupPlacementPointsForPlayers(playerList) {
-  const points = {}; const stats = {};
-  (playerList || []).forEach(p => { stats[p.id]={id:p.id,name:getPlayerName(p),P:0,W:0,D:0,L:0,GF:0,GA:0,GD:0,PTS:0}; points[p.id]=0; });
-  const allowed=new Set(Object.keys(stats));
-  matches.filter(m=>m.played).forEach(m=>{
-    const hp=players.find(p=>getPlayerName(p)===m.homePlayer), ap=players.find(p=>getPlayerName(p)===m.awayPlayer);
-    if(!hp||!ap||!allowed.has(hp.id)||!allowed.has(ap.id)) return;
-    const h=stats[hp.id],a=stats[ap.id],hg=Number(m.homeGoals||0),ag=Number(m.awayGoals||0);
-    h.P++;a.P++;h.GF+=hg;h.GA+=ag;a.GF+=ag;a.GA+=hg;
-    if(hg>ag){h.W++;h.PTS+=3;a.L++;} else if(hg<ag){a.W++;a.PTS+=3;h.L++;} else {h.D++;a.D++;h.PTS++;a.PTS++;}
+function getSeasonStandingsForPowerRanking() {
+  const stats = {};
+  players.forEach(p => {
+    stats[p.id] = { id: p.id, name: getPlayerName(p), pts: 0, gd: 0, gf: 0 };
   });
-  Object.values(stats).forEach(x=>x.GD=x.GF-x.GA);
-  Object.values(stats).sort((a,b)=>b.PTS-a.PTS||b.GD-a.GD||b.GF-a.GF||a.name.localeCompare(b.name)).forEach((r,i)=>{points[r.id]=[5,4,3,1][i]||0;});
-  return points;
+  matches.filter(m => m.played).forEach(m => {
+    const hp = players.find(p => getPlayerName(p) === m.homePlayer);
+    const ap = players.find(p => getPlayerName(p) === m.awayPlayer);
+    if (!hp || !ap) return;
+    const h = stats[hp.id], a = stats[ap.id];
+    const hg = Number(m.homeGoals || 0), ag = Number(m.awayGoals || 0);
+    h.gf += hg; a.gf += ag; h.gd += hg-ag; a.gd += ag-hg;
+    if (hg > ag) h.pts += 3; else if (hg < ag) a.pts += 3; else { h.pts++; a.pts++; }
+  });
+  return Object.values(stats).sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
 }
-function getKnockoutRankingPointsForSeason(){
-  const earned={}; const add=(name,pts)=>{ if(!name)return; const p=players.find(x=>getPlayerName(x)===String(name)); if(p) earned[p.id]=Math.max(Number(earned[p.id]||0),Number(pts||0)); };
-  const stages=knockoutState?.stages||{};
-  (stages.sf?.ties||[]).forEach(t=>{add(t.home,8);add(t.away,8);add(t.winner,15);});
-  const fw=stages.final?.ties?.[0]?.winner; if(fw)add(fw,20);
-  return earned;
-}
-function calculateCurrentSeasonPowerPoints(){
-  const earned={}; players.forEach(p=>earned[p.id]=0);
-  if(tournamentSettings.format==='groups') getGroups().forEach(g=>{const gp=getGroupPlacementPointsForPlayers(g.players||[]);Object.entries(gp).forEach(([id,v])=>earned[id]=Math.max(earned[id]||0,v));});
-  Object.entries(getKnockoutRankingPointsForSeason()).forEach(([id,v])=>earned[id]=Math.max(Number(earned[id]||0),Number(v||0)));
-  return earned;
-}
-async function updatePowerRankingsFromCurrentSeason(){
-  if(currentSeasonNumber<1||players.length===0)return; const key=`season${currentSeasonNumber}`; const earned=calculateCurrentSeasonPowerPoints();
-  const snap=await getDocs(collection(db,'powerRankings')); const existing={}; snap.docs.forEach(d=>existing[d.id]=d.data());
-  for(const p of players){const old=existing[p.id]||{totalPoints:0,seasons:{}};const seasons={...(old.seasons||{})};const prev=Number(seasons[key]||0);const val=Number(earned[p.id]||0);seasons[key]=val;const total=Math.max(0,Number(old.totalPoints||0)-prev+val);await setDoc(doc(db,'powerRankings',p.id),{playerId:p.id,name:getPlayerName(p),totalPoints:total,seasons,updatedAt:serverTimestamp()},{merge:true});}
-}
-async function renderPowerRanking(selectedSeason=currentSeasonNumber){
-  const container=document.getElementById('powerRankingContainer'); if(!container)return;
-  try{const snap=await getDocs(collection(db,'powerRankings'));const stored=snap.docs.map(d=>({id:d.id,...d.data()}));const map=new Map(stored.map(r=>[r.id,r]));players.forEach(p=>{if(!map.has(p.id))map.set(p.id,{id:p.id,playerId:p.id,name:getPlayerName(p),totalPoints:0,seasons:{}});});
-    const live=selectedSeason===currentSeasonNumber || isViewingArchivedSeason()?calculateCurrentSeasonPowerPoints():{};const key=`season${selectedSeason}`;const rows=[...map.values()].map(r=>({...r,name:r.name||r.playerName||'PLAYER',seasonPoints:(selectedSeason===currentSeasonNumber || isViewingArchivedSeason())?Number(live[r.id]||0):Number(r.seasons?.[key]||0),totalPoints:Number(r.totalPoints||0),seasons:r.seasons||{}})).sort((a,b)=>b.seasonPoints-a.seasonPoints||b.totalPoints-a.totalPoints||String(a.name).localeCompare(String(b.name)));
-    container.innerHTML=`<div class="power-ranking-note">Season ${selectedSeason}: Group 1st = 5 • 2nd = 4 • 3rd = 3 • 4th = 1 • Semi-final = 8 • Finalist = 15 • Champion = 20. Highest achievement only; points do not stack.</div>`+rows.map((r,i)=>`<article class="power-rank-row ${i===0?'power-rank-first':''}"><div class="power-rank-position">${i===0?'👑':'#'+(i+1)}</div><div class="power-rank-player"><strong>${escapeHTML(r.name)}</strong><small>${r.seasonPoints>0?`Season ${selectedSeason}`:'No points this season'}</small></div><div class="power-rank-seasons">${Object.entries(r.seasons).sort((a,b)=>Number(a[0].replace('season',''))-Number(b[0].replace('season',''))).map(([k,v])=>`<span>S${escapeHTML(k.replace('season',''))}: ${Number(v||0)}</span>`).join('')||`<span>S${selectedSeason}: 0</span>`}</div><div class="power-rank-points"><b>${r.seasonPoints}</b><small>SEASON POINTS</small></div></article>`).join('');
-  }catch(error){console.error('Power ranking error:',error);container.innerHTML='<div class="power-empty">Power Ranking is unavailable until Firebase permissions allow it.</div>';}
-}
-async function renderSeasonSwitcher(){
- const host=document.getElementById('seasonSwitcher');if(!host)return;try{const a=await getDocs(collection(db,'seasonArchives'));const nums=new Set([currentSeasonNumber]);a.docs.forEach(d=>{const n=Number(d.data()?.seasonNumber||String(d.id).replace(/\D/g,''));if(n)nums.add(n);});const seasons=[...nums].sort((x,y)=>x-y);host.innerHTML='<span class="season-switcher-label">SEASON</span>'+seasons.map(n=>`<button type="button" class="season-switch-btn ${n===currentSeasonNumber?'active':''}" data-season-view="${n}">Season ${n}</button>`).join('')+`<button type="button" class="season-switch-btn add-season" id="seasonSwitcherAdd">＋ Add Season</button>`;host.querySelectorAll('[data-season-view]').forEach(b=>b.addEventListener('click',async()=>{
-   const n=Number(b.dataset.seasonView);
-   document.querySelectorAll('.season-switch-btn').forEach(x=>x.classList.remove('active'));
-   b.classList.add('active');
-   if(n===currentSeasonNumber){
-     await returnToLiveSeason();
-     await renderPowerRanking(n);
-     await renderHistoricalChampionForSeason(n);
-   }else{
-     await loadArchivedSeasonIntoView(n);
-   }
-   document.getElementById('seasonSwitcher')?.scrollIntoView({behavior:'smooth',block:'center'});
- }));document.getElementById('seasonSwitcherAdd')?.addEventListener('click',()=>document.getElementById('startNewSeasonBtn')?.click());}catch(e){console.error('Season switcher error:',e);}}
-async function renderHistoricalChampionForSeason(n){const c=document.getElementById('hallOfFameHistory');if(!c)return;try{const s=await getDocs(collection(db,'hallOfFame'));const e=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>Number(x.seasonNumber||0)===Number(n));if(!e.length){c.innerHTML=`<div class="loading">No champion recorded for Season ${n} yet.</div>`;return;}const x=e.find(v=>v.id===`season-${n}`)||e[0],ch=x.champion||{};c.innerHTML=`<article class="hof-history-item"><div class="hof-year">SEASON ${n}</div><div class="hof-champion">🏆 <strong>${escapeHTML(ch.name||'Unknown Champion')}</strong></div><div class="hof-awards"><span>Champion of Season ${n}</span></div></article>`;}catch(e){console.error('Historical champion season error:',e);}}
 
+function seasonPlacementPoints(rank, total, format) {
+  // Group-stage ranking points are fixed by final position within EACH group.
+  // 1st = 5, 2nd = 4, 3rd = 3, 4th = 1.
+  if (format === "groups") {
+    const mapped = [5, 4, 3, 1];
+    return mapped[rank - 1] || 0;
+  }
+  return 0;
+}
+
+function getKnockoutRankingPointsForSeason() {
+  const bonus = {};
+  const add = (name, points) => {
+    if (!name) return;
+    const player = players.find(p => getPlayerName(p) === name);
+    if (!player) return;
+    // Highest knockout achievement wins; do not stack 8 + 15 + 20.
+    bonus[player.id] = Math.max(Number(bonus[player.id] || 0), points);
+  };
+
+  const stages = knockoutState?.stages || {};
+
+  // Reaching the semi-final = 8 points.
+  (stages.sf?.ties || []).forEach(t => {
+    add(t.home, 8);
+    add(t.away, 8);
+  });
+
+  // Reaching the final = 15 points (highest achievement so far).
+  const sfWinners = (stages.sf?.ties || []).map(t => t.winner).filter(Boolean);
+  sfWinners.forEach(name => add(name, 15));
+
+  // Champion = 20 points.
+  const finalWinner = stages.final?.ties?.[0]?.winner;
+  if (finalWinner) add(finalWinner, 20);
+
+  return bonus;
+}
+
+async function updatePowerRankingsFromCurrentSeason() {
+  if (currentSeasonNumber < 1 || players.length === 0) return;
+  const seasonKey = `season${currentSeasonNumber}`;
+  const standings = getSeasonStandingsForPowerRanking();
+  const groupData = tournamentSettings.format === "groups" ? getGroups() : null;
+  const placementMap = {};
+
+  if (tournamentSettings.format === "groups" && groupData?.length) {
+    groupData.forEach(group => {
+      const names = new Set(group.players.map(p => getPlayerName(p)));
+      const rows = standings.filter(s => names.has(s.name));
+      rows.forEach((row, index) => {
+        placementMap[row.id] = seasonPlacementPoints(index + 1, rows.length, "groups");
+      });
+    });
+  }
+
+  // If this is a league (not groups), there are no placement points from
+  // wins/draws/goals. Knockout achievement points are handled below.
+  const knockoutBonus = getKnockoutRankingPointsForSeason();
+
+  const snapshot = await getDocs(collection(db, "powerRankings"));
+  const existing = {};
+  snapshot.docs.forEach(d => existing[d.id] = d.data());
+
+  for (const p of players) {
+    const old = existing[p.id] || { totalPoints: 0, seasons: {} };
+    const groupPoints = Number(placementMap[p.id] || 0);
+    const knockoutPoints = Number(knockoutBonus[p.id] || 0);
+    const earned = groupPoints + knockoutPoints;
+    const seasons = { ...(old.seasons || {}) };
+    const previousSeasonPoints = Number(seasons[seasonKey] || 0);
+    seasons[seasonKey] = earned;
+    // Recalculate the cumulative total safely if this season was already saved,
+    // so a corrected ranking formula updates the season without double-counting.
+    const totalPoints = Number(old.totalPoints || 0) - previousSeasonPoints + earned;
+    await setDoc(doc(db, "powerRankings", p.id), {
+      playerId: p.id,
+      name: getPlayerName(p),
+      totalPoints: Math.max(0, totalPoints),
+      seasons,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+}
+async function renderPowerRanking() {
+  const container = document.getElementById("powerRankingContainer");
+  if (!container) return;
+  if (currentSeasonNumber <= 1) {
+    container.innerHTML = `<div class="power-empty"><strong>POWER RANKING STARTS AFTER SEASON 1</strong><span>Season 1 is the foundation season. When it ends, every player's first ranking points will be recorded and carried forward.</span></div>`;
+    return;
+  }
+  try {
+    const snap = await getDocs(collection(db, "powerRankings"));
+    const stored = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const byId = new Map(stored.map(row => [row.id, row]));
+
+    // IMPORTANT: show EVERY player. Historical players remain in the ranking,
+    // while a player who is new to the current season is added at 0 points.
+    players.forEach((player) => {
+      if (!byId.has(player.id)) {
+        byId.set(player.id, {
+          id: player.id,
+          playerId: player.id,
+          name: getPlayerName(player),
+          totalPoints: 0,
+          seasons: {}
+        });
+      }
+    });
+
+    const rows = [...byId.values()].map(row => ({
+      ...row,
+      name: row.name || row.playerName || "PLAYER",
+      totalPoints: Number(row.totalPoints || 0),
+      seasons: row.seasons || {}
+    })).sort((a, b) => {
+      const pointsDiff = b.totalPoints - a.totalPoints;
+      if (pointsDiff) return pointsDiff;
+      return String(a.name).localeCompare(String(b.name));
+    });
+
+    if (!rows.length) {
+      container.innerHTML = `<div class="power-empty">No players have been registered yet.</div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="power-ranking-note">📈 Cumulative ranking: Each group: 1st = 5 pts • 2nd = 4 pts • 3rd = 3 pts • 4th = 1 pt • Semi-final = 8 pts • Finalist = 15 pts • Champion = 20 pts. Knockout awards use the highest achievement only (they do not stack).</div>` + rows.map((r, i) => {
+      const seasonEntries = Object.entries(r.seasons).sort((a,b) => Number(a[0].replace('season','')) - Number(b[0].replace('season','')));
+      return `<article class="power-rank-row ${i === 0 ? 'power-rank-first' : ''}">
+        <div class="power-rank-position">${i === 0 ? '👑' : '#' + (i + 1)}</div>
+        <div class="power-rank-player"><strong>${escapeHTML(r.name)}</strong><small>${seasonEntries.length ? `${seasonEntries.length} completed season(s)` : 'New / 0 points'}</small></div>
+        <div class="power-rank-seasons">${seasonEntries.length ? seasonEntries.map(([k,v]) => `<span>S${escapeHTML(k.replace('season',''))}: ${Number(v || 0)}</span>`).join('') : '<span>S1: 0</span>'}</div>
+        <div class="power-rank-points"><b>${r.totalPoints}</b><small>POINTS</small></div>
+      </article>`;
+    }).join("");
+  } catch (error) {
+    console.error("Power ranking error:", error);
+    container.innerHTML = `<div class="power-empty">Power Ranking is unavailable until Firebase permissions allow it.</div>`;
+  }
+}
+
+// =====================================================
+// DATE
+// =====================================================
+
+function formatDate(date) {
+
+return [
+
+date.getFullYear(),
+
+String(
+  date.getMonth() + 1
+).padStart(2, "0"),
+
+String(
+  date.getDate()
+).padStart(2, "0")
+
+].join("-");
+
+}
+
+// =====================================================
+// TIME
+// =====================================================
+
+function formatTime(date) {
+
+return (
+
+String(
+  date.getHours()
+).padStart(2, "0")
+
++
+
+":" +
+
+String(
+  date.getMinutes()
+).padStart(2, "0")
+
+);
+
+}
+
+// =====================================================
+// HTML ESCAPE
+// =====================================================
+
+function escapeHTML(value) {
+
+return String(value ?? "")
+
+.replaceAll("&", "&amp;")
+.replaceAll("<", "&lt;")
+.replaceAll(">", "&gt;")
+.replaceAll('"', "&quot;")
+.replaceAll("'", "&#039;");
+
+}
+
+// =====================================================
+// MESSAGE
+// =====================================================
+
+function showMessage(element, text, type) {
+
+if (!element) return;
+
+element.textContent = text;
+
+element.className =
+"message " +
+type;
+
+}
+
+// =====================================================
+// RESET REGISTER BUTTON
+// =====================================================
+
+function resetSubmit(button) {
+
+if (!button) return;
+
+button.disabled = false;
+
+button.innerHTML =
+"<span>REGISTER PLAYER</span>" +
+"<span>→</span>";
+
+}
 /* =========================================================
    CLEAN KNOCKOUT ENGINE V4
    Original base retained. No random team injection.
@@ -3567,7 +3585,6 @@ async function loadKnockoutState(){
   }
 }
 async function saveKnockoutState(){
-  if (isViewingArchivedSeason()) { throw new Error("Archived Season is read-only."); }
   const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},updatedAt:serverTimestamp()};
   cacheKnockoutState();
   await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),payload,{merge:true});

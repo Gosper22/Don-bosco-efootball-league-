@@ -1932,27 +1932,3 @@ a {
   .admin-ko-leg button{min-height:40px;padding:8px 10px}
   .admin-ko-teams{font-size:15px}
 }
-
-/* Season navigation */
-.season-switcher{position:sticky;top:0;z-index:90;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 18px;background:rgba(10,14,22,.96);border-bottom:1px solid rgba(255,255,255,.10);backdrop-filter:blur(10px)}
-.season-switcher-label{font-size:11px;font-weight:800;letter-spacing:1.5px;opacity:.75;margin-right:4px}
-.season-switch-btn{border:1px solid rgba(255,255,255,.18);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font-weight:800;font-size:12px;cursor:pointer;transition:.2s}
-.season-switch-btn:hover,.season-switch-btn.active{transform:translateY(-1px);background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35)}
-.season-switch-btn.add-season{border-style:dashed}
-@media(max-width:600px){.season-switcher{padding:8px 10px;gap:6px}.season-switch-btn{padding:7px 10px;font-size:11px}}
-
-
-/* Fixture score readability — preserve the original card design, only enlarge score controls. */
-.admin-ko-leg input[data-ko-score],
-.admin-ko-leg input[type="number"]{
-  min-width:64px;
-  width:64px;
-  min-height:52px;
-  font-size:1.35rem;
-  font-weight:800;
-  text-align:center;
-}
-.public-ko-leg strong,
-.admin-ko-aggregate strong{
-  font-size:1.35rem;
-}
