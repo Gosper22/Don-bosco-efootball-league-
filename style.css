@@ -1940,3 +1940,19 @@ a {
 .season-switch-btn:hover,.season-switch-btn.active{transform:translateY(-1px);background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.35)}
 .season-switch-btn.add-season{border-style:dashed}
 @media(max-width:600px){.season-switcher{padding:8px 10px;gap:6px}.season-switch-btn{padding:7px 10px;font-size:11px}}
+
+
+/* Fixture score readability — preserve the original card design, only enlarge score controls. */
+.admin-ko-leg input[data-ko-score],
+.admin-ko-leg input[type="number"]{
+  min-width:64px;
+  width:64px;
+  min-height:52px;
+  font-size:1.35rem;
+  font-weight:800;
+  text-align:center;
+}
+.public-ko-leg strong,
+.admin-ko-aggregate strong{
+  font-size:1.35rem;
+}

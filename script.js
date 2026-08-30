@@ -467,11 +467,47 @@ button.textContent = "🗑️ DELETE ALL FIXTURES";
 
 }
 
+
+async function recoverArchivedSeasonIfLiveDataMissing(){
+  if (isViewingArchivedSeason() || players.length || matches.length) return false;
+  const seasonId = `season-${currentSeasonNumber}`;
+  try{
+    const meta = await getDoc(doc(db,"seasonArchives",seasonId));
+    if(!meta.exists()) return false;
+    const [pSnap,mSnap,tSnap,sSnap,gSnap,kSnap] = await Promise.all([
+      getDocs(collection(db,"seasonArchives",seasonId,"registrations")),
+      getDocs(collection(db,"seasonArchives",seasonId,"matches")),
+      getDocs(collection(db,"seasonArchives",seasonId,"tournament")),
+      getDocs(collection(db,"seasonArchives",seasonId,"settings")),
+      getDocs(collection(db,"seasonArchives",seasonId,"groupDraws")),
+      getDocs(collection(db,"seasonArchives",seasonId,"knockout"))
+    ]);
+    if(!pSnap.size && !mSnap.size) return false;
+    saveLiveSeasonSnapshot();
+    players=pSnap.docs.map(d=>({id:d.id,...d.data()}));
+    matches=mSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const st=sSnap.docs[0]?.data()||{};
+    tournamentSettings={format:st.format==="league"?"league":"groups",groupCount:Math.max(1,Math.min(16,Number(st.groupCount||2)))};
+    groupDrawState=gSnap.docs[0]?.data()||{generated:false,potAssignments:{},groups:[]};
+    const ko=kSnap.docs[0]?.data()||{};
+    knockoutState={startingStage:ko.startingStage||"",currentStage:ko.currentStage||"",stages:ko.stages||{}};
+    tournamentStarted=tSnap.docs.some(d=>d.data()?.status==="started");
+    viewingArchivedSeason=currentSeasonNumber;
+    players.sort((a,b)=>Number(a.playerNumber||999)-Number(b.playerNumber||999));
+    matches.sort((a,b)=>Number(a.matchNumber||999999)-Number(b.matchNumber||999999));
+    console.warn(`Recovered Season ${currentSeasonNumber} from seasonArchives because live collections were empty.`);
+    return true;
+  }catch(e){
+    console.error("Archived season recovery error:",e);
+    return false;
+  }
+}
+
 // =====================================================
 // LOAD EVERYTHING
 // =====================================================
 
-async function loadLeague() {
+async function loadLeague() {\nif (isViewingArchivedSeason()) { await returnToLiveSeason(); return; }\n
 
 try { await loadPlayers(); }
 catch (error) { console.error("Players loading error:", error); players = []; }
@@ -481,6 +517,9 @@ catch (error) { console.error("Matches loading error:", error); matches = []; }
 
 try { await loadTournamentSettings(); }
 catch (error) { console.error("Settings loading error:", error); }
+
+try { await recoverArchivedSeasonIfLiveDataMissing(); }
+catch (error) { console.error("Archived season recovery error:", error); }
 
 try { await loadGroupDrawState(); }
 catch (error) { console.error("Group draw loading error:", error); }
@@ -739,6 +778,8 @@ Math.max(...sizes);
 // =====================================================
 
 async function saveSettings() {
+if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
+
 
 if (!adminLoggedIn) {
 
@@ -2103,6 +2144,8 @@ container.appendChild(card);
 // =====================================================
 
 async function deleteSingleFixture(matchId) {
+if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
+
   if (!adminLoggedIn) {
     alert("🔐 Admin login kwanza.");
     return;
@@ -2139,6 +2182,8 @@ async function deleteSingleFixture(matchId) {
 // =====================================================
 
 async function saveAdminMatch(matchId) {
+if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
+
 
 if (!adminLoggedIn) {
 
@@ -2242,6 +2287,8 @@ alert(
 // =====================================================
 
 async function startTournament() {
+if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
+
 
 if (!adminLoggedIn) {
 
@@ -2483,6 +2530,95 @@ if (generate) {
 // SEASON HISTORY + SEASON RESET
 // =====================================================
 
+// Archived-season viewing is read-only. It never changes the live season.
+let viewingArchivedSeason = null;
+let liveSeasonSnapshot = null;
+
+function isViewingArchivedSeason(){
+  return Number(viewingArchivedSeason || 0) > 0;
+}
+
+function saveLiveSeasonSnapshot(){
+  if (liveSeasonSnapshot || isViewingArchivedSeason()) return;
+  liveSeasonSnapshot = {
+    players, matches, tournamentSettings, groupDrawState, knockoutState, tournamentStarted
+  };
+}
+
+function restoreLiveSeasonSnapshot(){
+  if (!liveSeasonSnapshot) return;
+  players = liveSeasonSnapshot.players;
+  matches = liveSeasonSnapshot.matches;
+  tournamentSettings = liveSeasonSnapshot.tournamentSettings;
+  groupDrawState = liveSeasonSnapshot.groupDrawState;
+  knockoutState = liveSeasonSnapshot.knockoutState;
+  tournamentStarted = liveSeasonSnapshot.tournamentStarted;
+  liveSeasonSnapshot = null;
+  viewingArchivedSeason = null;
+}
+
+async function loadArchivedSeasonIntoView(seasonNumber){
+  const seasonId = `season-${seasonNumber}`;
+  const meta = await getDoc(doc(db,"seasonArchives",seasonId));
+  if(!meta.exists()){
+    alert(`Season ${seasonNumber} haijapatikana kwenye archive.`);
+    return;
+  }
+
+  saveLiveSeasonSnapshot();
+
+  const [playersSnap,matchesSnap,tournamentSnap,settingsSnap,groupSnap,koSnap] = await Promise.all([
+    getDocs(collection(db,"seasonArchives",seasonId,"registrations")),
+    getDocs(collection(db,"seasonArchives",seasonId,"matches")),
+    getDocs(collection(db,"seasonArchives",seasonId,"tournament")),
+    getDocs(collection(db,"seasonArchives",seasonId,"settings")),
+    getDocs(collection(db,"seasonArchives",seasonId,"groupDraws")),
+    getDocs(collection(db,"seasonArchives",seasonId,"knockout"))
+  ]);
+
+  players = playersSnap.docs.map(d=>({id:d.id,...d.data()}));
+  matches = matchesSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const settingDoc = settingsSnap.docs[0]?.data() || {};
+  tournamentSettings = {
+    format: settingDoc.format === "league" ? "league" : "groups",
+    groupCount: Math.max(1,Math.min(16,Number(settingDoc.groupCount||2)))
+  };
+
+  groupDrawState = groupSnap.docs[0]?.data() || {generated:false,potAssignments:{},groups:[]};
+  const ko = koSnap.docs[0]?.data() || {};
+  knockoutState = {startingStage:ko.startingStage||"",currentStage:ko.currentStage||"",stages:ko.stages||{}};
+  tournamentStarted = tournamentSnap.docs.some(d=>d.data()?.status==="started");
+  viewingArchivedSeason = Number(seasonNumber);
+
+  players.sort((a,b)=>Number(a.playerNumber||999)-Number(b.playerNumber||999));
+  matches.sort((a,b)=>Number(a.matchNumber||999999)-Number(b.matchNumber||999999));
+
+  renderPotManager();
+  updateBlindDrawUI();
+  updateSettingsPreview();
+  updateTournamentUI();
+  renderFormat();
+  renderGroups();
+  renderFixtures();
+  renderStandings();
+  renderPlayerDashboard();
+  await renderPowerRanking(Number(seasonNumber));
+  await renderAwardsAndVoting();
+  await renderHistoricalChampionForSeason(Number(seasonNumber));
+  renderAdminKnockout();
+  renderPublicKnockout();
+
+  const notice=document.getElementById("seasonMessage");
+  if(notice) showMessage(notice,`👁️ Unaangalia Season ${seasonNumber} — READ ONLY. Live season ni Season ${currentSeasonNumber}.`,"success");
+}
+
+async function returnToLiveSeason(){
+  if(!isViewingArchivedSeason()) return;
+  restoreLiveSeasonSnapshot();
+  await loadLeague();
+}
+
+
 function setupSeasonControls() {
   document.getElementById("startNewSeasonBtn")?.addEventListener("click", startNewSeason);
 }
@@ -2513,9 +2649,9 @@ async function archiveCollectionToSeason(seasonId, collectionName) {
 async function archiveFullSeason(seasonNumber) {
   const seasonId = `season-${seasonNumber}`;
   const seasonRef = doc(db, "seasonArchives", seasonId);
-  const existing = await getDoc(seasonRef);
-  if (existing.exists()) return false;
 
+  // IMPORTANT: Never treat an existing archive as a reason to skip archiving.
+  // Merge/refresh the season snapshot so a previous partial archive can be repaired.
   const collectionsToArchive = [
     "registrations",
     "matches",
@@ -2532,6 +2668,12 @@ async function archiveFullSeason(seasonNumber) {
     counts[collectionName] = await archiveCollectionToSeason(seasonId, collectionName);
   }
 
+  // Do not report success if the current season had data but nothing was archived.
+  const currentDataCount = Object.values(counts).reduce((a,b)=>a + Number(b||0), 0);
+  if (currentDataCount === 0 && (players.length > 0 || matches.length > 0 || tournamentStarted)) {
+    throw new Error("Season archive verification failed: no current-season records were copied.");
+  }
+
   await setDoc(seasonRef, {
     seasonNumber,
     season: `Season ${seasonNumber}`,
@@ -2542,9 +2684,11 @@ async function archiveFullSeason(seasonNumber) {
     awardVoting: { ...awardVotingState, endedAt: awardVotingState.endedAt || null }
   }, { merge: true });
 
+  // Verify the archive metadata exists before any destructive reset is allowed.
+  const verify = await getDoc(seasonRef);
+  if (!verify.exists()) throw new Error("Season archive verification failed.");
   return true;
 }
-
 async function clearCurrentSeasonData() {
   const collectionsToClear = ["registrations", "matches", "tournament", "settings", "awardVotes", "awardNominations", "groupDraws", "knockout"];
   for (const collectionName of collectionsToClear) {
@@ -2563,6 +2707,8 @@ async function clearCurrentSeasonData() {
 }
 
 async function startNewSeason() {
+if (isViewingArchivedSeason()) { alert("👁️ Archived Season ni read-only."); return; }
+
   if (!adminLoggedIn) { alert("🔐 Admin login kwanza."); return; }
   if (players.length === 0 && matches.length === 0) {
     alert("⚠️ Current season haina data ya ku-archive.");
@@ -2584,7 +2730,8 @@ async function startNewSeason() {
 
   const message = document.getElementById("seasonMessage");
   try {
-    await archiveFullSeason(currentSeasonNumber);
+    const archived = await archiveFullSeason(currentSeasonNumber);
+    if (!archived) throw new Error("Season archive was not completed.");
     await updatePowerRankingsFromCurrentSeason();
     await clearCurrentSeasonData();
 
@@ -3350,12 +3497,24 @@ async function updatePowerRankingsFromCurrentSeason(){
 async function renderPowerRanking(selectedSeason=currentSeasonNumber){
   const container=document.getElementById('powerRankingContainer'); if(!container)return;
   try{const snap=await getDocs(collection(db,'powerRankings'));const stored=snap.docs.map(d=>({id:d.id,...d.data()}));const map=new Map(stored.map(r=>[r.id,r]));players.forEach(p=>{if(!map.has(p.id))map.set(p.id,{id:p.id,playerId:p.id,name:getPlayerName(p),totalPoints:0,seasons:{}});});
-    const live=selectedSeason===currentSeasonNumber?calculateCurrentSeasonPowerPoints():{};const key=`season${selectedSeason}`;const rows=[...map.values()].map(r=>({...r,name:r.name||r.playerName||'PLAYER',seasonPoints:selectedSeason===currentSeasonNumber?Number(live[r.id]||0):Number(r.seasons?.[key]||0),totalPoints:Number(r.totalPoints||0),seasons:r.seasons||{}})).sort((a,b)=>b.seasonPoints-a.seasonPoints||b.totalPoints-a.totalPoints||String(a.name).localeCompare(String(b.name)));
+    const live=selectedSeason===currentSeasonNumber || isViewingArchivedSeason()?calculateCurrentSeasonPowerPoints():{};const key=`season${selectedSeason}`;const rows=[...map.values()].map(r=>({...r,name:r.name||r.playerName||'PLAYER',seasonPoints:(selectedSeason===currentSeasonNumber || isViewingArchivedSeason())?Number(live[r.id]||0):Number(r.seasons?.[key]||0),totalPoints:Number(r.totalPoints||0),seasons:r.seasons||{}})).sort((a,b)=>b.seasonPoints-a.seasonPoints||b.totalPoints-a.totalPoints||String(a.name).localeCompare(String(b.name)));
     container.innerHTML=`<div class="power-ranking-note">Season ${selectedSeason}: Group 1st = 5 • 2nd = 4 • 3rd = 3 • 4th = 1 • Semi-final = 8 • Finalist = 15 • Champion = 20. Highest achievement only; points do not stack.</div>`+rows.map((r,i)=>`<article class="power-rank-row ${i===0?'power-rank-first':''}"><div class="power-rank-position">${i===0?'👑':'#'+(i+1)}</div><div class="power-rank-player"><strong>${escapeHTML(r.name)}</strong><small>${r.seasonPoints>0?`Season ${selectedSeason}`:'No points this season'}</small></div><div class="power-rank-seasons">${Object.entries(r.seasons).sort((a,b)=>Number(a[0].replace('season',''))-Number(b[0].replace('season',''))).map(([k,v])=>`<span>S${escapeHTML(k.replace('season',''))}: ${Number(v||0)}</span>`).join('')||`<span>S${selectedSeason}: 0</span>`}</div><div class="power-rank-points"><b>${r.seasonPoints}</b><small>SEASON POINTS</small></div></article>`).join('');
   }catch(error){console.error('Power ranking error:',error);container.innerHTML='<div class="power-empty">Power Ranking is unavailable until Firebase permissions allow it.</div>';}
 }
 async function renderSeasonSwitcher(){
- const host=document.getElementById('seasonSwitcher');if(!host)return;try{const a=await getDocs(collection(db,'seasonArchives'));const nums=new Set([currentSeasonNumber]);a.docs.forEach(d=>{const n=Number(d.data()?.seasonNumber||String(d.id).replace(/\D/g,''));if(n)nums.add(n);});const seasons=[...nums].sort((x,y)=>x-y);host.innerHTML='<span class="season-switcher-label">SEASON</span>'+seasons.map(n=>`<button type="button" class="season-switch-btn ${n===currentSeasonNumber?'active':''}" data-season-view="${n}">Season ${n}</button>`).join('')+`<button type="button" class="season-switch-btn add-season" id="seasonSwitcherAdd">＋ Add Season</button>`;host.querySelectorAll('[data-season-view]').forEach(b=>b.addEventListener('click',async()=>{document.querySelectorAll('.season-switch-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');await renderPowerRanking(Number(b.dataset.seasonView));await renderHistoricalChampionForSeason(Number(b.dataset.seasonView));document.getElementById('powerRanking')?.scrollIntoView({behavior:'smooth'});}));document.getElementById('seasonSwitcherAdd')?.addEventListener('click',()=>document.getElementById('startNewSeasonBtn')?.click());}catch(e){console.error('Season switcher error:',e);}}
+ const host=document.getElementById('seasonSwitcher');if(!host)return;try{const a=await getDocs(collection(db,'seasonArchives'));const nums=new Set([currentSeasonNumber]);a.docs.forEach(d=>{const n=Number(d.data()?.seasonNumber||String(d.id).replace(/\D/g,''));if(n)nums.add(n);});const seasons=[...nums].sort((x,y)=>x-y);host.innerHTML='<span class="season-switcher-label">SEASON</span>'+seasons.map(n=>`<button type="button" class="season-switch-btn ${n===currentSeasonNumber?'active':''}" data-season-view="${n}">Season ${n}</button>`).join('')+`<button type="button" class="season-switch-btn add-season" id="seasonSwitcherAdd">＋ Add Season</button>`;host.querySelectorAll('[data-season-view]').forEach(b=>b.addEventListener('click',async()=>{
+   const n=Number(b.dataset.seasonView);
+   document.querySelectorAll('.season-switch-btn').forEach(x=>x.classList.remove('active'));
+   b.classList.add('active');
+   if(n===currentSeasonNumber){
+     await returnToLiveSeason();
+     await renderPowerRanking(n);
+     await renderHistoricalChampionForSeason(n);
+   }else{
+     await loadArchivedSeasonIntoView(n);
+   }
+   document.getElementById('seasonSwitcher')?.scrollIntoView({behavior:'smooth',block:'center'});
+ }));document.getElementById('seasonSwitcherAdd')?.addEventListener('click',()=>document.getElementById('startNewSeasonBtn')?.click());}catch(e){console.error('Season switcher error:',e);}}
 async function renderHistoricalChampionForSeason(n){const c=document.getElementById('hallOfFameHistory');if(!c)return;try{const s=await getDocs(collection(db,'hallOfFame'));const e=s.docs.map(d=>({id:d.id,...d.data()})).filter(x=>Number(x.seasonNumber||0)===Number(n));if(!e.length){c.innerHTML=`<div class="loading">No champion recorded for Season ${n} yet.</div>`;return;}const x=e.find(v=>v.id===`season-${n}`)||e[0],ch=x.champion||{};c.innerHTML=`<article class="hof-history-item"><div class="hof-year">SEASON ${n}</div><div class="hof-champion">🏆 <strong>${escapeHTML(ch.name||'Unknown Champion')}</strong></div><div class="hof-awards"><span>Champion of Season ${n}</span></div></article>`;}catch(e){console.error('Historical champion season error:',e);}}
 
 /* =========================================================
@@ -3408,6 +3567,7 @@ async function loadKnockoutState(){
   }
 }
 async function saveKnockoutState(){
+  if (isViewingArchivedSeason()) { throw new Error("Archived Season is read-only."); }
   const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},updatedAt:serverTimestamp()};
   cacheKnockoutState();
   await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),payload,{merge:true});
