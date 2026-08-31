@@ -42,7 +42,8 @@ let currentSeasonNumber = 1;
 
 let tournamentSettings = {
 format: "groups",
-groupCount: 2
+groupCount: 2,
+playersPerGroup: 0
 };
 
 // Manual/automatic group draw state. This is kept separate from the
@@ -672,14 +673,15 @@ const currentSnap = await getDoc(currentRef);
 if (!currentSnap.exists()) {
   const snapshot = await getDocs(collection(db, "settings"));
   if (snapshot.empty) {
-    tournamentSettings = { format: "groups", groupCount: 2 };
+    tournamentSettings = { format: "groups", groupCount: 2, playersPerGroup: 0 };
     currentSeasonNumber = 1;
     return;
   }
   const data = snapshot.docs[0].data();
   tournamentSettings = {
     format: data.format === "league" ? "league" : "groups",
-    groupCount: Math.max(1, Math.min(16, Number(data.groupCount || 2)))
+    groupCount: Math.max(1, Math.min(16, Number(data.groupCount || 2))),
+    playersPerGroup: Math.max(0, Math.min(32, Number(data.playersPerGroup || 0)))
   };
   currentSeasonNumber = Math.max(1, Number(data.seasonNumber || 1));
   return;
@@ -744,6 +746,9 @@ groupCount?.addEventListener(
 updateSettingsPreview
 );
 
+const playersPerGroupSetting = document.getElementById("playersPerGroupSetting");
+playersPerGroupSetting?.addEventListener("change", updateSettingsPreview);
+
 save?.addEventListener(
 "click",
 saveSettings
@@ -771,6 +776,17 @@ tournamentSettings.groupCount ||
 2
 );
 
+const playersPerGroup = Number(
+  document.getElementById("playersPerGroupSetting")?.value ??
+  tournamentSettings.playersPerGroup ??
+  0
+);
+
+const playersPerGroupSetting = document.getElementById("playersPerGroupSetting");
+if (playersPerGroupSetting && document.activeElement !== playersPerGroupSetting) {
+  playersPerGroupSetting.value = String(tournamentSettings.playersPerGroup ?? 0);
+}
+
 const box =
 document.getElementById("groupCountBox");
 
@@ -796,11 +812,12 @@ return;
 
 }
 
-const sizes =
-calculateGroupSizes(
-Math.max(players.length, 1),
-groupCount
-);
+const sizes = playersPerGroup > 0
+  ? Array.from({length: groupCount}, () => playersPerGroup)
+  : calculateGroupSizes(
+      Math.max(players.length, 1),
+      groupCount
+    );
 
 if (!players.length) {
 
@@ -812,9 +829,9 @@ return;
 }
 
 display.textContent =
-Math.min(...sizes) +
-"–" +
-Math.max(...sizes);
+playersPerGroup > 0
+  ? String(playersPerGroup)
+  : Math.min(...sizes) + "–" + Math.max(...sizes);
 
 }
 
@@ -840,6 +857,10 @@ Number(
 document.getElementById("groupCount")?.value || 2
 );
 
+const playersPerGroup = Number(
+  document.getElementById("playersPerGroupSetting")?.value ?? 0
+);
+
 if (format === "groups" && groupCount < 1) {
 
 alert("⚠️ Chagua number ya groups.");
@@ -857,6 +878,7 @@ const data = {
 
   format: format,
   groupCount: groupCount,
+  playersPerGroup: format === "groups" ? Math.max(0, Math.min(32, playersPerGroup)) : 0,
   seasonNumber: currentSeasonNumber,
   updatedAt: serverTimestamp()
 
@@ -886,7 +908,8 @@ if (snapshot.empty) {
 
 tournamentSettings = {
   format: format,
-  groupCount: groupCount
+  groupCount: groupCount,
+  playersPerGroup: format === "groups" ? Math.max(0, Math.min(32, playersPerGroup)) : 0
 };
 
 
@@ -1099,10 +1122,16 @@ function renderDrawGroupsPreview() {
   }));
 }
 
+function groupCapacity() {
+  const configured = Number(tournamentSettings.playersPerGroup || 0);
+  if (configured > 0) return configured;
+  return Math.max(1, Math.ceil(players.length / Math.max(1, Number(tournamentSettings.groupCount || 2))));
+}
+
 function nextOpenGroupIndex() {
   const groups = groupDrawState.groups || [];
-  const targetSize = Math.max(1, Math.ceil(players.length / Math.max(1, Number(tournamentSettings.groupCount || 2))));
-  return groups.findIndex(g => (g.playerIds || []).length < targetSize);
+  const capacity = groupCapacity();
+  return groups.findIndex(g => (g.playerIds || []).length < capacity);
 }
 
 function updateBlindDrawUI() {
@@ -1150,7 +1179,8 @@ async function revealNextTeamFromPot(pot) {
   updateBlindDrawUI();
 
   const total = groupDrawState.groups.reduce((sum,g)=>sum+(g.playerIds||[]).length,0);
-  if (total >= players.length) {
+  const allGroupsFull = groupDrawState.groups.length > 0 && groupDrawState.groups.every(g => (g.playerIds || []).length >= groupCapacity());
+  if (total >= players.length || allGroupsFull) {
     groupDrawState.generated = true;
     await persistGroupDrawState();
     updateBlindDrawUI();
@@ -1182,7 +1212,7 @@ function autoGenerateGroupsFromPots() {
 
   // Any remaining teams fill the next available group.
   players.filter(p => !assigned.has(p.id)).sort(() => Math.random() - 0.5).forEach(player => {
-    const idx = groups.findIndex(g => g.playerIds.length < Math.ceil(players.length / count));
+    const idx = groups.findIndex(g => g.playerIds.length < groupCapacity());
     if (idx >= 0) groups[idx].playerIds.push(player.id);
   });
 
