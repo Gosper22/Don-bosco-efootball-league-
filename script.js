@@ -1078,10 +1078,25 @@ function renderDrawGroupsPreview() {
     root.innerHTML = `<div class="draw-preview-empty">Groups will appear here after the draw is generated.</div>`;
     return;
   }
-  root.innerHTML = groups.map(g => {
+  root.innerHTML = groups.map((g, groupIndex) => {
     const names = (g.playerIds || []).map(id => players.find(p => p.id === id)).filter(Boolean);
-    return `<div class="draw-group-card"><div class="draw-group-title">GROUP ${escapeHTML(g.shortName)}</div>${names.length ? names.map((p,i)=>`<div class="draw-team-row"><span>${String(i+1).padStart(2,"0")}</span><strong>${escapeHTML(p.username || p.name || "TEAM")}</strong></div>`).join("") : `<div class="draw-team-row">Waiting for draw</div>`}</div>`;
+    return `<div class="draw-group-card"><div class="draw-group-title">GROUP ${escapeHTML(g.shortName)}</div>${names.length ? names.map((p,i)=>`<div class="draw-team-row"><span>${String(i+1).padStart(2,"0")}</span><strong>${escapeHTML(p.username || p.name || "TEAM")}</strong><button type="button" class="remove-group-team-btn" data-group-index="${groupIndex}" data-player-id="${escapeHTML(p.id)}">REMOVE</button></div>`).join("") : `<div class="draw-team-row">Waiting for draw</div>`}</div>`;
   }).join("");
+
+  root.querySelectorAll(".remove-group-team-btn").forEach(btn => btn.addEventListener("click", async () => {
+    if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+    const groupIndex = Number(btn.dataset.groupIndex);
+    const playerId = btn.dataset.playerId;
+    const player = players.find(p => p.id === playerId);
+    if (!confirm(`Remove ${player?.username || player?.name || "this team"} from this group? The team will NOT be deleted from Players.`)) return;
+    const group = groupDrawState.groups?.[groupIndex];
+    if (!group) return;
+    group.playerIds = (group.playerIds || []).filter(id => id !== playerId);
+    groupDrawState.generated = false;
+    await persistGroupDrawState();
+    renderDrawGroupsPreview();
+    updateBlindDrawUI();
+  }));
 }
 
 function nextOpenGroupIndex() {
@@ -1192,6 +1207,19 @@ function setupPotAndBlindDraw() {
     await persistGroupDrawState();
     renderDrawGroupsPreview();
     updateBlindDrawUI();
+  });
+
+  document.getElementById("resetGroupsBtn")?.addEventListener("click", async () => {
+    if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
+    if (!confirm("RESET GROUP DRAW? This will remove all group assignments and revealed teams from the draw ONLY. Registered players/teams will NOT be deleted.")) return;
+    groupDrawState = { generated: false, potAssignments: {}, groups: [] };
+    await persistGroupDrawState();
+    renderPotManager();
+    renderDrawGroupsPreview();
+    updateBlindDrawUI();
+    const reveal = document.getElementById("blindReveal");
+    if (reveal) reveal.innerHTML = `<span>🎲 BLIND DRAW</span><strong>Tap a Pot to reveal</strong><small>The next team will be assigned automatically.</small>`;
+    showMessage(document.getElementById("groupDrawMessage"), "✅ Group draw reset. Players are still safe in registration.", "success");
   });
 
   document.getElementById("confirmGroupsBtn")?.addEventListener("click", async () => {

@@ -1967,3 +1967,5 @@ a {
 .best-loser-name strong,.best-loser-name small{display:block}.best-loser-name small{opacity:.62;font-size:10px;margin-top:3px}
 .best-loser-score{font-weight:900;white-space:nowrap}.best-loser-stage{font-size:10px;opacity:.6;white-space:nowrap}
 @media(max-width:650px){.best-losers-heading{flex-direction:column}.best-loser-row{grid-template-columns:30px 1fr;}.best-loser-score,.best-loser-stage{grid-column:2}}
+
+.remove-group-team-btn{margin-left:auto;border:1px solid rgba(255,90,90,.45);background:transparent;color:inherit;border-radius:8px;padding:5px 8px;font-size:.68rem;font-weight:800;cursor:pointer}.remove-group-team-btn:hover{transform:translateY(-1px);opacity:.9}.danger-btn{border:1px solid rgba(255,90,90,.5);background:rgba(255,60,60,.12);color:inherit;border-radius:10px;padding:10px 14px;font-weight:800;cursor:pointer}
