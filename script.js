@@ -1242,7 +1242,10 @@ function setupPotAndBlindDraw() {
   document.getElementById("resetGroupsBtn")?.addEventListener("click", async () => {
     if (!adminLoggedIn) return alert("🔐 Admin login kwanza.");
     if (!confirm("RESET GROUP DRAW? This will remove all group assignments and revealed teams from the draw ONLY. Registered players/teams will NOT be deleted.")) return;
-    groupDrawState = { generated: false, potAssignments: {}, groups: [] };
+    // Reset ONLY the group assignments/reveal progress.
+    // Keep Pot assignments so Blind Reveal can immediately continue after reset.
+    const savedPotAssignments = { ...(groupDrawState.potAssignments || {}) };
+    groupDrawState = { generated: false, potAssignments: savedPotAssignments, groups: [] };
     await persistGroupDrawState();
     renderPotManager();
     renderDrawGroupsPreview();
