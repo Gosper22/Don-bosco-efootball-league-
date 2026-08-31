@@ -1953,3 +1953,17 @@ a {
   .member-remove-btn{padding:9px 10px;font-size:.78rem;}
   .manual-power-ranking-row input{width:84px;min-width:70px;}
 }
+
+/* Best Losers */
+.best-losers-control{margin-top:18px;padding:18px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.025)}
+.best-losers-heading{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+.best-losers-heading span{font-size:9px;letter-spacing:.16em;color:#39ff14;font-weight:950}
+.best-losers-heading h3{margin:5px 0 4px}
+.best-losers-heading p{margin:0;max-width:720px;font-size:11px;opacity:.62}
+.best-losers-heading>strong{font-size:10px;color:#39ff14;white-space:nowrap}
+.best-losers-list{display:grid;gap:10px;margin:14px 0}
+.best-loser-row{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.10);border-radius:12px;background:rgba(255,255,255,.035)}
+.best-loser-row input{width:18px;height:18px}
+.best-loser-name strong,.best-loser-name small{display:block}.best-loser-name small{opacity:.62;font-size:10px;margin-top:3px}
+.best-loser-score{font-weight:900;white-space:nowrap}.best-loser-stage{font-size:10px;opacity:.6;white-space:nowrap}
+@media(max-width:650px){.best-losers-heading{flex-direction:column}.best-loser-row{grid-template-columns:30px 1fr;}.best-loser-score,.best-loser-stage{grid-column:2}}

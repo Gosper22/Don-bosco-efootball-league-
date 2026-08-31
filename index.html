@@ -506,32 +506,36 @@
 
       <select id="groupCount">
 
+        <option value="1">
+          1 GROUP
+        </option>
+
         <option value="2">
           2 GROUPS
+        </option>
+
+        <option value="3">
+          3 GROUPS
         </option>
 
         <option value="4">
           4 GROUPS
         </option>
 
+        <option value="5">
+          5 GROUPS
+        </option>
+
         <option value="6">
           6 GROUPS
         </option>
 
+        <option value="7">
+          7 GROUPS
+        </option>
+
         <option value="8" selected>
           8 GROUPS
-        </option>
-
-        <option value="10">
-          10 GROUPS
-        </option>
-
-        <option value="12">
-          12 GROUPS
-        </option>
-
-        <option value="16">
-          16 GROUPS
         </option>
 
       </select>
@@ -735,6 +739,21 @@
   </div>
 
   <p id="knockoutAdminMessage" class="message"></p>
+  <div id="bestLosersControl" class="best-losers-control">
+    <div class="best-losers-heading">
+      <div>
+        <span>BEST LOSERS</span>
+        <h3>SELECT BEST LOSERS MANUALLY</h3>
+        <p>Chagua washiriki waliopoteza ambao unataka kuwarudisha kwenye hatua inayofuata. Selection inahifadhiwa kwa season hii.</p>
+      </div>
+      <strong id="bestLosersStatus">NONE SELECTED</strong>
+    </div>
+    <div id="bestLosersList" class="best-losers-list">
+      <div class="draw-preview-empty">Kamilisha knockout tie kwanza ili kuona best losers.</div>
+    </div>
+    <button type="button" id="saveBestLosersBtn" class="secondary-btn">💾 SAVE BEST LOSERS</button>
+    <p id="bestLosersMessage" class="message"></p>
+  </div>
   <div id="manualKnockoutFixtures" class="admin-knockout-matches" style="display:none"></div>
   <div id="adminKnockoutMatches" class="admin-knockout-matches">
     <div class="draw-preview-empty">Select a starting stage to begin.</div>

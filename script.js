@@ -72,6 +72,7 @@ setupManualPowerRanking();
 setupPlayerDashboardControls();
 setupDeleteAllFixtures();
 setupKnockoutSystem();
+setupBestLosers();
 
 loadLeague();
 });
@@ -3855,21 +3856,21 @@ async function loadKnockoutState(){
     const snap = await getDoc(doc(db,"knockout",`season_${currentSeasonNumber}`));
     if(snap.exists()){
       const d=snap.data()||{};
-      knockoutState={startingStage:d.startingStage||"",currentStage:d.currentStage||"",stages:d.stages||{}};
+      knockoutState={startingStage:d.startingStage||"",currentStage:d.currentStage||"",stages:d.stages||{},bestLosers:Array.isArray(d.bestLosers)?d.bestLosers:[]};
       cacheKnockoutState();
     } else if(cached){
-      knockoutState={startingStage:cached.startingStage||"",currentStage:cached.currentStage||"",stages:cached.stages||{}};
+      knockoutState={startingStage:cached.startingStage||"",currentStage:cached.currentStage||"",stages:cached.stages||{},bestLosers:Array.isArray(cached.bestLosers)?cached.bestLosers:[]};
       await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),{...knockoutState,updatedAt:serverTimestamp()},{merge:true});
     } else {
-      knockoutState={startingStage:"",currentStage:"",stages:{}};
+      knockoutState={startingStage:"",currentStage:"",stages:{},bestLosers:[]};
     }
   }catch(e){
     console.error("Knockout state load error:",e);
-    knockoutState=cached || {startingStage:"",currentStage:"",stages:{}};
+    knockoutState=cached || {startingStage:"",currentStage:"",stages:{},bestLosers:[]};
   }
 }
 async function saveKnockoutState(){
-  const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},updatedAt:serverTimestamp()};
+  const payload={startingStage:knockoutState.startingStage||"",currentStage:knockoutState.currentStage||"",stages:knockoutState.stages||{},bestLosers:Array.isArray(knockoutState.bestLosers)?knockoutState.bestLosers:[],updatedAt:serverTimestamp()};
   cacheKnockoutState();
   await setDoc(doc(db,"knockout",`season_${currentSeasonNumber}`),payload,{merge:true});
   cacheKnockoutState();
@@ -4129,7 +4130,7 @@ function setupKnockoutSystem(){
   document.getElementById("resetKnockoutBtn")?.addEventListener("click",async()=>{
     if(!adminLoggedIn)return alert("🔐 Admin login kwanza.");
     if(!confirm("Reset knockout yote ya season hii?"))return;
-    knockoutState={startingStage:"",currentStage:"",stages:{}};
+    knockoutState={startingStage:"",currentStage:"",stages:{},bestLosers:[]};
     await saveKnockoutState();
     renderAdminKnockout();renderPublicKnockout();
   });
@@ -4182,7 +4183,77 @@ async function advanceKnockoutStage(){
   alert(`✍️ ${KO_LABEL[next]} imefunguliwa kwa manual pairing. Ingiza fixtures mwenyewe.`);
 }
 
+
+function getBestLoserCandidates(){
+  const candidates=[];
+  const seen=new Set();
+  const stages=knockoutState.stages||{};
+  Object.keys(stages).forEach(stage=>{
+    const ties=Array.isArray(stages[stage]?.ties)?stages[stage].ties:[];
+    ties.forEach((raw,i)=>{
+      const tie=koDecideTie({...raw,stage,_stage:stage});
+      if(!tie.decided || !tie.winner) return;
+      const loser=String(tie.winner||'').toLowerCase()===String(tie.home||'').toLowerCase()?tie.away:tie.home;
+      if(!loser) return;
+      const key=`${stage}-${i}-${loser}`.toLowerCase();
+      if(seen.has(key)) return;
+      seen.add(key);
+      const score=stage==='final'
+        ? `${tie.leg1?.homeScore ?? '-'}-${tie.leg1?.awayScore ?? '-'}`
+        : `${tie.aggregate?.home ?? 0}-${tie.aggregate?.away ?? 0}`;
+      candidates.push({stage,tie:i+1,player:loser,opponent:tie.winner,score});
+    });
+  });
+  return candidates;
+}
+
+function renderBestLosers(){
+  const list=document.getElementById('bestLosersList');
+  const status=document.getElementById('bestLosersStatus');
+  if(!list) return;
+  const candidates=getBestLoserCandidates();
+  const selected=Array.isArray(knockoutState.bestLosers)?knockoutState.bestLosers:[];
+  if(status) status.textContent=selected.length ? `${selected.length} SELECTED` : 'NONE SELECTED';
+  if(!candidates.length){
+    list.innerHTML='<div class="draw-preview-empty">Kamilisha knockout tie kwanza ili kuona best losers.</div>';
+    return;
+  }
+  list.innerHTML=candidates.map((c,i)=>{
+    const checked=selected.some(x=>String(x.player).toLowerCase()===String(c.player).toLowerCase() && x.stage===c.stage && Number(x.tie)===Number(c.tie));
+    return `<label class="best-loser-item" style="display:flex;align-items:center;gap:12px;padding:12px;margin:8px 0;border:1px solid rgba(255,255,255,.12);border-radius:10px;cursor:pointer">
+      <input type="checkbox" data-best-loser-index="${i}" ${checked?'checked':''}>
+      <span style="flex:1"><strong>${escapeHTML(c.player)}</strong><small style="display:block;opacity:.7">Lost ${escapeHTML(KO_LABEL[c.stage]||c.stage)} • Tie ${c.tie} • ${escapeHTML(c.score)} vs ${escapeHTML(c.opponent)}</small></span>
+    </label>`;
+  }).join('');
+}
+
+function setupBestLosers(){
+  const save=document.getElementById('saveBestLosersBtn');
+  if(!save) return;
+  save.addEventListener('click',async()=>{
+    if(!adminLoggedIn) return alert('🔐 Admin login kwanza.');
+    const candidates=getBestLoserCandidates();
+    const chosen=[];
+    document.querySelectorAll('[data-best-loser-index]:checked').forEach(box=>{
+      const c=candidates[Number(box.dataset.bestLoserIndex)];
+      if(c) chosen.push(c);
+    });
+    try{
+      knockoutState.bestLosers=chosen;
+      await saveKnockoutState();
+      renderBestLosers();
+      const msg=document.getElementById('bestLosersMessage');
+      if(msg) msg.textContent=`✅ ${chosen.length} Best Loser${chosen.length===1?'':'s'} wamehifadhiwa kwa Season ${currentSeasonNumber}.`;
+    }catch(err){
+      console.error('Best losers save error:',err);
+      const msg=document.getElementById('bestLosersMessage');
+      if(msg) msg.textContent='❌ Imeshindikana kuhifadhi Best Losers.';
+    }
+  });
+}
+
 function renderAdminKnockout(){
+  renderBestLosers();
   const root=document.getElementById("adminKnockoutMatches");
   const status=document.getElementById("knockoutAdminStatus");
   if(!root)return;
